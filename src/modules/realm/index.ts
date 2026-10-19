@@ -21,6 +21,8 @@ export interface RealmModuleDeps {
  * @returns The module, exposing its Hono sub-app.
  */
 export function createRealmModule({ clock }: RealmModuleDeps = {}) {
+  // DETTE TECHNIQUE DT-002 (docs/qualite/dette-technique.md): in-memory storage,
+  // replaced by the event store in TD3.
   const repo = createInMemoryVillageRepository()
   const service = createVillageService(repo, clock)
   return { api: createRealmApi(service) }

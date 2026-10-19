@@ -6,7 +6,7 @@ export const DEMO_USER_ID = 'demo'
 
 /**
  * Temporary middleware assigning every request to the same player.
- * DETTE TECHNIQUE (docs/qualite/dette-technique.md): to be replaced by a
+ * DETTE TECHNIQUE DT-001 (docs/qualite/dette-technique.md): to be replaced by a
  * middleware identifying the signed-in player.
  *
  * @returns A Hono middleware setting `userId` in the context.
