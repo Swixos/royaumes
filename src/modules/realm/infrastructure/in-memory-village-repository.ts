@@ -2,10 +2,11 @@ import { VersionConflictError, type VillageRepository } from '../application/vil
 import { replay, type VillageEvent } from '../domain/village'
 
 /**
- * Adaptateur en mémoire du port VillageRepository.
- * Les événements de chaque joueur sont conservés dans une table associative.
- * Ils sont perdus à chaque redémarrage du serveur : cet adaptateur sert au
- * développement et aux tests, en attendant le journal d'événements du TD3.
+ * In-memory adapter of the {@link VillageRepository} port. Each player's events
+ * are kept in a map and lost on every server restart: this adapter serves
+ * development and tests until the event store.
+ *
+ * @returns A repository with its own empty storage.
  */
 export function createInMemoryVillageRepository(): VillageRepository {
   const streams = new Map<string, VillageEvent[]>()
@@ -18,11 +19,9 @@ export function createInMemoryVillageRepository(): VillageRepository {
 
     async save(userId, expectedVersion, events) {
       const current = streams.get(userId) ?? []
-      // Contrôle de concurrence : personne ne doit avoir écrit depuis le chargement.
       if (current.length !== expectedVersion) {
         throw new VersionConflictError(userId, expectedVersion, current.length)
       }
-      // Un nouveau tableau est enregistré : les événements déjà lus ne sont jamais modifiés.
       streams.set(userId, [...current, ...events])
     },
   }

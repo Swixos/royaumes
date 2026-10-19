@@ -7,35 +7,44 @@ import {
 } from '../domain/village'
 import type { VillageRepository } from './village-repository'
 
-/** Résultat d'une commande : la vue mise à jour, ou l'erreur métier. */
+/** Result of a command: the updated view, or the domain error. */
 export type CommandResult = { ok: true; view: VillageView } | { ok: false; error: DomainError }
 
 /**
- * Service applicatif du Village : orchestre le domaine et la persistance.
- * Il reçoit ses dépendances en paramètre : le port de persistance et l'horloge.
+ * Village application service, orchestrating the domain and persistence.
+ *
+ * @param repo - Persistence port.
+ * @param clock - Returns the current time in milliseconds; real time by default.
+ * @returns The `execute` command handler and the `getView` query.
  */
 export function createVillageService(repo: VillageRepository, clock = () => Date.now()) {
-  /** Traite une commande : charger, décider, enregistrer, puis renvoyer la vue. */
+  /**
+   * Handles a command: load, decide, save, then return the view.
+   *
+   * @param userId - Player issuing the command.
+   * @param command - Command to apply.
+   * @returns The updated view, or the domain error if the command is refused.
+   */
   async function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
-    // 1. Charger l'état courant et sa version.
     const { state, version } = await repo.load(userId)
 
-    // 2. Lire l'horloge une seule fois : la décision et la vue portent sur le même instant.
     const now = clock()
 
-    // 3. Demander la décision au domaine. Un refus est renvoyé tel quel.
     const decision = decide(state, command, now)
     if (!decision.ok) return decision
 
-    // 4. Enregistrer les événements produits, à la suite de la version lue.
     await repo.save(userId, version, decision.events)
 
-    // 5. Renvoyer la vue de l'état obtenu.
     const updated = await repo.load(userId)
     return { ok: true, view: toView(updated.state, now) }
   }
 
-  /** Renvoie la vue du village d'un joueur, ou null s'il n'en a pas encore fondé. */
+  /**
+   * Reads a player's village.
+   *
+   * @param userId - Player identifier.
+   * @returns The village view, or `null` if no village was founded yet.
+   */
   async function getView(userId: string): Promise<VillageView | null> {
     const { state } = await repo.load(userId)
     return state.founded ? toView(state, clock()) : null
@@ -44,5 +53,5 @@ export function createVillageService(repo: VillageRepository, clock = () => Date
   return { execute, getView }
 }
 
-/** Type du service, déduit de sa fabrique : utilisé par l'API du module. */
+/** Service type inferred from its factory, used by the module API. */
 export type VillageService = ReturnType<typeof createVillageService>
