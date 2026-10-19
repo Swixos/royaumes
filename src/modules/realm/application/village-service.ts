@@ -33,6 +33,8 @@ export function createVillageService(repo: VillageRepository, clock = () => Date
     const decision = decide(state, command, now)
     if (!decision.ok) return decision
 
+    // DETTE TECHNIQUE DT-003 (docs/qualite/dette-technique.md): a version conflict
+    // throws an unhandled error; it will be retried in TD3.
     await repo.save(userId, version, decision.events)
 
     const updated = await repo.load(userId)
