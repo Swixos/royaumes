@@ -1,16 +1,20 @@
 /**
- * Couche de thème : l'apparence de chaque entité du jeu est définie ici, et nulle part ailleurs.
- * Les composants n'affichent jamais un symbole en dur : ils demandent l'apparence
- * d'une entité par son identifiant. Changer de direction artistique, par exemple
- * remplacer les symboles par des images, ne demande de modifier que ce fichier.
+ * Theme layer: the look of every game entity is defined here and nowhere else.
+ * Components never hard-code a glyph, they ask for an entity look by its
+ * identifier, so changing the art direction only changes this file.
+ *
+ * @packageDocumentation
  */
+
+/** Look of a game entity. */
 export interface Look {
-  /** Symbole affiché. */
+  /** Displayed glyph. */
   glyph: string
-  /** Libellé en français, lu par les lecteurs d'écran et affiché au survol. */
+  /** French label, read by screen readers and shown on hover. */
   label: string
 }
 
+/** Look of each known entity, by identifier. */
 export const theme: Record<string, Look> = {
   village: { glyph: '🏰', label: 'Village' },
   wood: { glyph: '🪵', label: 'Bois' },
@@ -21,5 +25,10 @@ export const theme: Record<string, Look> = {
   mine: { glyph: '⚒️', label: 'Mine' },
 }
 
-/** Apparence d'une entité ; une apparence neutre si l'entité n'est pas décrite. */
+/**
+ * Finds the look of an entity.
+ *
+ * @param kind - Entity identifier.
+ * @returns Its look, or a neutral look if the entity is unknown.
+ */
 export const look = (kind: string): Look => theme[kind] ?? { glyph: '?', label: kind }

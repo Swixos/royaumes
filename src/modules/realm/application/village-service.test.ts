@@ -3,6 +3,12 @@ import { createInMemoryVillageRepository } from '../infrastructure/in-memory-vil
 import { VersionConflictError } from './village-repository'
 import { createVillageService } from './village-service'
 
+/**
+ * Builds a service with in-memory storage and a controlled clock.
+ *
+ * @returns The repository, the service and an `advance` function moving the
+ *   clock forward by a number of minutes.
+ */
 function setup() {
   let now = Date.UTC(2026, 0, 1)
   const repo = createInMemoryVillageRepository()

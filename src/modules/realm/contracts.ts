@@ -1,7 +1,9 @@
 /**
- * Entrée publique « partagée » du module Village : utilisable par le serveur
- * comme par l'interface. Elle ne contient que des types, des schémas de
- * validation et des fonctions pures, sans aucun code propre au serveur.
+ * Shared public entry of the realm module, usable by both the server and the
+ * interface. It only holds types, validation schemas and pure functions, with
+ * no server-only code.
+ *
+ * @packageDocumentation
  */
 import { z } from 'zod'
 import { BUILDINGS } from './domain/catalog'
@@ -11,7 +13,7 @@ export { BUILDINGS, MAX_LEVEL, RESOURCES } from './domain/catalog'
 export type { DomainError, VillageView } from './domain/village'
 export { stockAt } from './domain/village'
 
-/** Corps attendu pour fonder un village. */
+/** Expected body to found a village. */
 export const FoundVillageInput = z.object({
   name: z
     .string()
@@ -20,7 +22,7 @@ export const FoundVillageInput = z.object({
     .max(30, 'Le nom doit comporter au plus 30 caractères'),
 })
 
-/** Corps attendu pour améliorer un bâtiment : un bâtiment du catalogue. */
+/** Expected body to upgrade a building from the catalog. */
 export const UpgradeBuildingInput = z.object({
   building: z.enum(BUILDINGS),
 })

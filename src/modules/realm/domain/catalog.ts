@@ -1,29 +1,33 @@
 /**
- * Contenu du Village : ressources, bâtiments et valeurs d'équilibrage.
- * Ce fichier ne contient que des données. Les règles qui les utilisent
- * se trouvent dans village.ts : rééquilibrer le jeu ne demande de modifier qu'ici.
+ * Village content: resources, buildings and balancing values. This file only
+ * holds data; the rules using it live in `village.ts`, so rebalancing the game
+ * only changes this file.
+ *
+ * @packageDocumentation
  */
 
-/** Ressources du jeu. « as const » permet d'en déduire un type union. */
+/** Game resources, declared `as const` to derive a union type. */
 export const RESOURCES = ['wood', 'stone', 'gold'] as const
+/** A game resource. */
 export type Resource = (typeof RESOURCES)[number]
 
-/** Quantité de chaque ressource. */
+/** Amount of each resource. */
 export type Stock = Record<Resource, number>
 
-/** Bâtiments du village. */
+/** Village buildings. */
 export const BUILDINGS = ['sawmill', 'quarry', 'mine'] as const
+/** A village building. */
 export type Building = (typeof BUILDINGS)[number]
 
-/** Niveau de chaque bâtiment (0 : non construit). */
+/** Level of each building, 0 meaning not built. */
 export type Levels = Record<Building, number>
 
-/** Niveau maximal d'un bâtiment. */
+/** Maximum level of a building. */
 export const MAX_LEVEL = 10
 
 /**
- * Pour chaque bâtiment : la ressource produite, la production par minute
- * et par niveau, et le coût de la première amélioration.
+ * For each building: the produced resource, the production per minute and
+ * per level, and the cost of the first upgrade.
  */
 export const CATALOG: Record<
   Building,
@@ -34,9 +38,10 @@ export const CATALOG: Record<
   mine: { produces: 'gold', perMinute: 2, baseCost: { wood: 80, stone: 60 } },
 }
 
-/** Exposant de la règle de coût : coût de base × (niveau + 1) ^ COST_EXPONENT. */
+/** Cost rule exponent: base cost × (level + 1) ^ COST_EXPONENT. */
 export const COST_EXPONENT = 1.3
 
-/** Stock et niveaux d'un village au moment de sa fondation. */
+/** Stock of a village when founded. */
 export const STARTING_STOCK: Stock = { wood: 100, stone: 50, gold: 0 }
+/** Building levels of a village when founded. */
 export const STARTING_LEVELS: Levels = { sawmill: 1, quarry: 1, mine: 0 }

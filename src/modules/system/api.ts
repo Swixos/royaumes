@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
 
 /**
- * Sous-application Hono du module System, montée sur /api/system.
- * Les routes sont déclarées par appels chaînés : le type renvoyé décrit
- * alors chaque route, sa méthode et la forme de sa réponse.
+ * Hono sub-app of the system module, mounted on `/api/system`. Routes are
+ * chained so the returned type describes each route, its method and response.
+ *
+ * @param startedAt - Module start time in milliseconds, used for the uptime.
+ * @returns The system sub-app exposing `GET /health`.
  */
 export function createSystemApi(startedAt: number) {
   return new Hono().get('/health', (c) =>
@@ -15,5 +17,5 @@ export function createSystemApi(startedAt: number) {
   )
 }
 
-/** Type de la sous-application, utilisé par le client typé de l'interface. */
+/** Type of the sub-app, used by the typed client of the interface. */
 export type SystemApi = ReturnType<typeof createSystemApi>

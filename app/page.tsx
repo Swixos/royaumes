@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { HealthStatus } from '@/modules/system/ui'
 
 /**
- * Page d'accueil provisoire.
- * Elle sera remplacée lorsque l'authentification sera en place.
+ * Temporary home page, replaced once authentication is in place.
+ *
+ * @returns The home page with the API status and a link to the village.
  */
 export default function Home() {
   return (

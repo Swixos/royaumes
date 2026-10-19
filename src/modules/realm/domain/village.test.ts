@@ -14,7 +14,13 @@ const minutes = (n: number) => n * 60_000
 
 const founded: VillageEvent = { type: 'VillageFounded', data: { name: 'Valombre', at: T0 } }
 
-/** Applique une décision supposée acceptée et renvoie ses événements. */
+/**
+ * Unwraps a decision expected to be accepted.
+ *
+ * @param decision - Decision returned by `decide`.
+ * @returns Its events.
+ * @throws If the decision was refused.
+ */
 function eventsOf(decision: ReturnType<typeof decide>): VillageEvent[] {
   if (!decision.ok) throw new Error(`Décision refusée : ${decision.error.code}`)
   return decision.events

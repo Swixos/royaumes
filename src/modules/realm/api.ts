@@ -4,7 +4,7 @@ import { validateJson } from '@/platform/http/validate'
 import type { VillageService } from './application/village-service'
 import { type DomainError, FoundVillageInput, UpgradeBuildingInput } from './contracts'
 
-/** Code HTTP associé à chaque erreur métier. */
+/** HTTP status code for each domain error. */
 const STATUS: Record<DomainError['code'], 404 | 409 | 422> = {
   NOT_FOUNDED: 404,
   ALREADY_FOUNDED: 409,
@@ -13,9 +13,12 @@ const STATUS: Record<DomainError['code'], 404 | 409 | 422> = {
 }
 
 /**
- * Sous-application Hono du module Village, montée sur /api/realm.
- * Chaque route traduit une requête HTTP en appel au service, puis le résultat
- * en réponse HTTP. Aucune règle métier n'est écrite ici.
+ * Hono sub-app of the realm module, mounted on `/api/realm`. Each route turns
+ * an HTTP request into a service call, then the result into an HTTP response.
+ * No business rule lives here.
+ *
+ * @param service - Village application service.
+ * @returns The realm sub-app with its chained routes.
  */
 export function createRealmApi(service: VillageService) {
   return new Hono<AppEnv>()
@@ -42,5 +45,5 @@ export function createRealmApi(service: VillageService) {
     })
 }
 
-/** Type de la sous-application, utilisé par le client typé de l'interface. */
+/** Type of the sub-app, used by the typed client of the interface. */
 export type RealmApi = ReturnType<typeof createRealmApi>

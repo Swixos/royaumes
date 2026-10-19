@@ -1,13 +1,15 @@
 import { createMiddleware } from 'hono/factory'
 import type { AppEnv } from './types'
 
-/** Identifiant du joueur unique, en attendant l'authentification (TD4). */
+/** Single player identifier, until authentication. */
 export const DEMO_USER_ID = 'demo'
 
 /**
- * Middleware provisoire : toutes les requêtes sont attribuées au même joueur.
- * DETTE TECHNIQUE (docs/qualite/dette-technique.md) : à remplacer au TD4
- * par un middleware qui identifie le joueur connecté.
+ * Temporary middleware assigning every request to the same player.
+ * DETTE TECHNIQUE (docs/qualite/dette-technique.md): to be replaced by a
+ * middleware identifying the signed-in player.
+ *
+ * @returns A Hono middleware setting `userId` in the context.
  */
 export const demoUser = () =>
   createMiddleware<AppEnv>(async (c, next) => {
