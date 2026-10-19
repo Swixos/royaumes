@@ -18,11 +18,9 @@ export function createInMemoryVillageRepository(): VillageRepository {
 
     async save(userId, expectedVersion, events) {
       const current = streams.get(userId) ?? []
-      // Contrôle de concurrence : personne ne doit avoir écrit depuis le chargement.
       if (current.length !== expectedVersion) {
         throw new VersionConflictError(userId, expectedVersion, current.length)
       }
-      // Un nouveau tableau est enregistré : les événements déjà lus ne sont jamais modifiés.
       streams.set(userId, [...current, ...events])
     },
   }

@@ -9,7 +9,6 @@ export function createSystemApi(startedAt: number) {
   return new Hono().get('/health', (c) =>
     c.json({
       ok: true,
-      // Heure du serveur et durée de fonctionnement de l'instance, en secondes.
       time: new Date().toISOString(),
       uptime: Math.round((Date.now() - startedAt) / 1000),
     }),

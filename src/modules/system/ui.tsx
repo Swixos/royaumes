@@ -22,7 +22,6 @@ export function HealthStatus() {
       .$get()
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        // Le type de « data » est déduit de la route : { ok, time, uptime }.
         const data = await res.json()
         setHealth({ status: 'ok', time: data.time })
       })

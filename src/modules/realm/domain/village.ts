@@ -18,10 +18,6 @@ import {
   type Stock,
 } from './catalog'
 
-// ---------------------------------------------------------------------------
-// État
-// ---------------------------------------------------------------------------
-
 export interface VillageState {
   /** Faux tant que le village n'a pas été fondé. */
   founded: boolean
@@ -42,10 +38,6 @@ export const initialState: VillageState = {
   asOf: 0,
 }
 
-// ---------------------------------------------------------------------------
-// Événements : des faits accomplis, nommés au participe passé
-// ---------------------------------------------------------------------------
-
 export type VillageEvent =
   | { type: 'VillageFounded'; data: { name: string; at: number } }
   | {
@@ -53,17 +45,9 @@ export type VillageEvent =
       data: { building: Building; toLevel: number; cost: Partial<Stock>; at: number }
     }
 
-// ---------------------------------------------------------------------------
-// Commandes : des intentions, nommées à l'impératif
-// ---------------------------------------------------------------------------
-
 export type VillageCommand =
   | { type: 'FoundVillage'; name: string }
   | { type: 'UpgradeBuilding'; building: Building }
-
-// ---------------------------------------------------------------------------
-// Résultat d'une décision : des événements, ou une erreur métier
-// ---------------------------------------------------------------------------
 
 export type DomainError =
   | { code: 'ALREADY_FOUNDED' }
@@ -72,10 +56,6 @@ export type DomainError =
   | { code: 'INSUFFICIENT_RESOURCES'; missing: Partial<Stock> }
 
 export type Decision = { ok: true; events: VillageEvent[] } | { ok: false; error: DomainError }
-
-// ---------------------------------------------------------------------------
-// Production
-// ---------------------------------------------------------------------------
 
 /** Production par minute de chaque ressource, pour des niveaux donnés. */
 export function productionPerMinute(levels: Levels): Stock {
@@ -101,14 +81,9 @@ export function accrue(state: VillageState, at: number): VillageState {
   return { ...state, stock, asOf: at }
 }
 
-// ---------------------------------------------------------------------------
-// evolve : applique un événement, sans aucune vérification
-// ---------------------------------------------------------------------------
-
 export function evolve(state: VillageState, event: VillageEvent): VillageState {
   switch (event.type) {
     case 'VillageFounded':
-      // La fondation repart de l'état initial, complété par le contenu de départ.
       return {
         ...initialState,
         founded: true,
@@ -119,15 +94,11 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
       }
 
     case 'BuildingUpgraded': {
-      // 1. Le stock est d'abord calculé à l'instant de l'amélioration,
-      //    avec la production des anciens niveaux.
       const current = accrue(state, event.data.at)
-      // 2. Le coût enregistré dans l'événement est déduit du stock.
       const stock = { ...current.stock }
       for (const [resource, amount] of Object.entries(event.data.cost)) {
         stock[resource as Resource] -= amount ?? 0
       }
-      // 3. Le nouveau niveau s'applique à partir de cet instant.
       return {
         ...current,
         stock,
@@ -141,10 +112,6 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
 export function replay(events: VillageEvent[]): VillageState {
   return events.reduce(evolve, initialState)
 }
-
-// ---------------------------------------------------------------------------
-// Coût d'amélioration
-// ---------------------------------------------------------------------------
 
 /** Coût pour faire passer un bâtiment du niveau level au niveau level + 1. */
 export function upgradeCost(building: Building, level: number): Partial<Stock> {
@@ -166,10 +133,6 @@ function missingFor(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
   return missing
 }
 
-// ---------------------------------------------------------------------------
-// decide : vérifie une commande et en déduit les événements
-// ---------------------------------------------------------------------------
-
 export function decide(state: VillageState, command: VillageCommand, now: number): Decision {
   switch (command.type) {
     case 'FoundVillage':
@@ -185,15 +148,12 @@ export function decide(state: VillageState, command: VillageCommand, now: number
       if (level >= MAX_LEVEL) {
         return { ok: false, error: { code: 'MAX_LEVEL_REACHED', building: command.building } }
       }
-      // Le stock est évalué à l'instant de la commande, production comprise.
       const current = accrue(state, now)
       const cost = upgradeCost(command.building, level)
       const missing = missingFor(current.stock, cost)
       if (Object.keys(missing).length > 0) {
         return { ok: false, error: { code: 'INSUFFICIENT_RESOURCES', missing } }
       }
-      // Le coût est enregistré dans l'événement : si la règle de coût change
-      // plus tard, les améliorations passées resteront rejouées à l'identique.
       return {
         ok: true,
         events: [
@@ -206,10 +166,6 @@ export function decide(state: VillageState, command: VillageCommand, now: number
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Vue : l'état présenté au joueur à un instant donné
-// ---------------------------------------------------------------------------
 
 export interface VillageView {
   name: string
