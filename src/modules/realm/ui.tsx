@@ -35,12 +35,10 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
 
 /** Écran du Village : fondation, stock et bâtiments. */
 export function VillageScreen() {
-  // undefined : chargement en cours ; null : aucun village fondé.
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
 
-  // REQUÊTE : lecture de la vue du village.
   const refresh = useCallback(async () => {
     const res = await client.village.$get()
     if (res.ok) setView((await res.json()).view)
@@ -50,13 +48,11 @@ export function VillageScreen() {
     refresh()
   }, [refresh])
 
-  // Le stock est extrapolé localement deux fois par seconde, sans interroger le serveur.
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(timer)
   }, [])
 
-  // COMMANDES : chaque réponse contient la vue à jour, ou une erreur.
   async function found(name: string) {
     const res = await client.village.$post({ json: { name } })
     handle(await res.json())
@@ -80,10 +76,8 @@ export function VillageScreen() {
     </h1>
   )
 
-  // Chargement en cours.
   if (view === undefined) return title
 
-  // Aucun village : formulaire de fondation.
   if (view === null) {
     return (
       <>
@@ -105,7 +99,6 @@ export function VillageScreen() {
     )
   }
 
-  // Village fondé : stock extrapolé à l'instant courant, puis bâtiments.
   const stock = stockAt(view, now)
   return (
     <>

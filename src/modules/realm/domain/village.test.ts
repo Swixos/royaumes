@@ -9,11 +9,9 @@ import {
   type VillageEvent,
 } from './village'
 
-// Instant de référence et conversion des minutes en millisecondes.
 const T0 = Date.UTC(2026, 0, 1)
 const minutes = (n: number) => n * 60_000
 
-// Un village fondé à T0, point de départ de la plupart des tests.
 const founded: VillageEvent = { type: 'VillageFounded', data: { name: 'Valombre', at: T0 } }
 
 /** Applique une décision supposée acceptée et renvoie ses événements. */
@@ -40,7 +38,6 @@ describe('Village - fondation', () => {
 
 describe('Village - production paresseuse', () => {
   it('accumule la production en fonction du temps écoulé', () => {
-    // Scierie 1 et carrière 1 : 10 bois et 6 pierres par minute.
     const view = toView(replay([founded]), T0 + minutes(5))
     expect(view.stock).toEqual({ wood: 150, stone: 80, gold: 0 })
   })
@@ -52,9 +49,7 @@ describe('Village - production paresseuse', () => {
     )
     const after = replay([founded, ...events])
 
-    // Juste après l'amélioration : 150 - 80 bois, 80 - 60 pierres.
     expect(after.stock).toEqual({ wood: 70, stone: 20, gold: 0 })
-    // Dix minutes plus tard, la mine produit 2 unités d'or par minute.
     expect(toView(after, T0 + minutes(15)).stock).toEqual({ wood: 170, stone: 80, gold: 20 })
   })
 
@@ -77,12 +72,10 @@ describe('Village - amélioration', () => {
     const state = replay([founded, ...events])
 
     expect(state.levels.quarry).toBe(2)
-    // 100 + 10 minutes x 10 = 200 bois, moins 148 pour la carrière.
     expect(state.stock.wood).toBe(52)
   })
 
   it('indique les ressources manquantes', () => {
-    // À T0, la mine coûte 60 pierres et le village n'en possède que 50.
     const decision = decide(replay([founded]), { type: 'UpgradeBuilding', building: 'mine' }, T0)
     expect(decision).toEqual({
       ok: false,

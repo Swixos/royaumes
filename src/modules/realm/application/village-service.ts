@@ -17,20 +17,15 @@ export type CommandResult = { ok: true; view: VillageView } | { ok: false; error
 export function createVillageService(repo: VillageRepository, clock = () => Date.now()) {
   /** Traite une commande : charger, décider, enregistrer, puis renvoyer la vue. */
   async function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
-    // 1. Charger l'état courant et sa version.
     const { state, version } = await repo.load(userId)
 
-    // 2. Lire l'horloge une seule fois : la décision et la vue portent sur le même instant.
     const now = clock()
 
-    // 3. Demander la décision au domaine. Un refus est renvoyé tel quel.
     const decision = decide(state, command, now)
     if (!decision.ok) return decision
 
-    // 4. Enregistrer les événements produits, à la suite de la version lue.
     await repo.save(userId, version, decision.events)
 
-    // 5. Renvoyer la vue de l'état obtenu.
     const updated = await repo.load(userId)
     return { ok: true, view: toView(updated.state, now) }
   }

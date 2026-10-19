@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
 
-// Métadonnées par défaut de toutes les pages : titre de l'onglet et description.
 export const metadata: Metadata = {
   title: 'Royaumes',
   description: 'Jeu multijoueur - monolithe modulaire',
