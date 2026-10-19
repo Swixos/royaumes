@@ -4,16 +4,19 @@ import { createSystemModule } from '@/modules/system'
 import { demoUser } from '@/platform/http/demo-user'
 import type { AppEnv } from '@/platform/http/types'
 
-/** Dépendances fournies à l'application par son point d'entrée. */
+/** Dependencies provided to the application by its entry point. */
 export interface ApiDeps {
-  /** Horloge de référence ; l'heure réelle par défaut. Remplacée dans les tests. */
+  /** Reference clock in milliseconds; real time by default, replaced in tests. */
   clock?: () => number
 }
 
 /**
- * Racine de composition : le seul endroit du projet qui connaît à la fois
- * la plateforme technique et l'ensemble des modules.
- * Ajouter un module consiste à l'instancier ici, puis à monter son API.
+ * Composition root: the only place that knows both the technical platform
+ * and every business module. Adding a module means instantiating it here
+ * and mounting its API.
+ *
+ * @param deps - Optional dependencies, such as the clock.
+ * @returns The main Hono application, with every route under `/api`.
  */
 export function createApi({ clock }: ApiDeps = {}) {
   const system = createSystemModule()
@@ -33,5 +36,5 @@ export function createApi({ clock }: ApiDeps = {}) {
   return app.route('/system', system.api).route('/realm', realm.api)
 }
 
-/** Type de l'application complète, déduit de ses routes. */
+/** Type of the whole application, inferred from its routes. */
 export type Api = ReturnType<typeof createApi>

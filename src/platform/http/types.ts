@@ -1,7 +1,5 @@
-/**
- * Variables partagées par les routes de l'API, dans le contexte Hono.
- * userId identifie le joueur à l'origine de la requête.
- */
+/** Hono environment shared by the API routes. */
 export interface AppEnv {
+  /** Context variables: `userId` identifies the player behind the request. */
   Variables: { userId: string }
 }

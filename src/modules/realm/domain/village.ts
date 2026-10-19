@@ -1,8 +1,10 @@
 /**
- * Domaine du Village, selon le modèle decider :
- *   decide(état, commande, maintenant) -> événements ou erreur métier
- *   evolve(état, événement)            -> nouvel état
- * Ce fichier est écrit en TypeScript pur : il n'importe que le catalogue du domaine.
+ * Village domain, following the decider pattern:
+ *   decide(state, command, now) -> events or domain error
+ *   evolve(state, event)        -> new state
+ * Pure TypeScript: it only imports the domain catalog.
+ *
+ * @packageDocumentation
  */
 import {
   BUILDINGS,
@@ -18,18 +20,21 @@ import {
   type Stock,
 } from './catalog'
 
+/** State of a village, rebuilt from its events. */
 export interface VillageState {
-  /** Faux tant que le village n'a pas été fondé. */
+  /** False until the village is founded. */
   founded: boolean
+  /** Village name. */
   name: string
-  /** Stock calculé à l'instant asOf (valeurs décimales conservées). */
+  /** Stock computed at `asOf`, decimals kept. */
   stock: Stock
+  /** Level of each building. */
   levels: Levels
-  /** Instant, en millisecondes, auquel le stock a été calculé pour la dernière fois. */
+  /** Time in milliseconds at which the stock was last computed. */
   asOf: number
 }
 
-/** État d'un village qui n'a encore connu aucun événement. */
+/** State of a village before any event. */
 export const initialState: VillageState = {
   founded: false,
   name: '',
@@ -38,6 +43,7 @@ export const initialState: VillageState = {
   asOf: 0,
 }
 
+/** Facts recorded for a village. */
 export type VillageEvent =
   | { type: 'VillageFounded'; data: { name: string; at: number } }
   | {
@@ -45,19 +51,27 @@ export type VillageEvent =
       data: { building: Building; toLevel: number; cost: Partial<Stock>; at: number }
     }
 
+/** Requests a player can make on their village. */
 export type VillageCommand =
   | { type: 'FoundVillage'; name: string }
   | { type: 'UpgradeBuilding'; building: Building }
 
+/** Business reasons for refusing a command. */
 export type DomainError =
   | { code: 'ALREADY_FOUNDED' }
   | { code: 'NOT_FOUNDED' }
   | { code: 'MAX_LEVEL_REACHED'; building: Building }
   | { code: 'INSUFFICIENT_RESOURCES'; missing: Partial<Stock> }
 
+/** Outcome of {@link decide}: the events to record, or the refusal. */
 export type Decision = { ok: true; events: VillageEvent[] } | { ok: false; error: DomainError }
 
-/** Production par minute de chaque ressource, pour des niveaux donnés. */
+/**
+ * Computes the production rate of each resource.
+ *
+ * @param levels - Building levels.
+ * @returns Production per minute of each resource.
+ */
 export function productionPerMinute(levels: Levels): Stock {
   const rates: Stock = { wood: 0, stone: 0, gold: 0 }
   for (const building of BUILDINGS) {
@@ -68,9 +82,13 @@ export function productionPerMinute(levels: Levels): Stock {
 }
 
 /**
- * Ajoute au stock la production accumulée entre state.asOf et l'instant at,
- * puis fait de at le nouvel instant de référence.
- * Un nouvel objet est renvoyé : l'état reçu n'est jamais modifié.
+ * Adds the production accumulated between `state.asOf` and `at` to the stock.
+ * The given state is never modified.
+ *
+ * @param state - Current village state.
+ * @param at - Time in milliseconds to compute the stock at.
+ * @returns A new state whose stock is computed at `at`, or the same state if
+ *   the village is not founded or `at` is not later than `state.asOf`.
  */
 export function accrue(state: VillageState, at: number): VillageState {
   if (!state.founded || at <= state.asOf) return state
@@ -81,6 +99,13 @@ export function accrue(state: VillageState, at: number): VillageState {
   return { ...state, stock, asOf: at }
 }
 
+/**
+ * Applies an event to a state.
+ *
+ * @param state - Current village state.
+ * @param event - Event to apply.
+ * @returns The new state; the given state is never modified.
+ */
 export function evolve(state: VillageState, event: VillageEvent): VillageState {
   switch (event.type) {
     case 'VillageFounded':
@@ -108,12 +133,23 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
   }
 }
 
-/** Reconstruit l'état d'un village à partir de la suite de ses événements. */
+/**
+ * Rebuilds a village from its events.
+ *
+ * @param events - Events of the village, in order.
+ * @returns The resulting state.
+ */
 export function replay(events: VillageEvent[]): VillageState {
   return events.reduce(evolve, initialState)
 }
 
-/** Coût pour faire passer un bâtiment du niveau level au niveau level + 1. */
+/**
+ * Computes the cost of an upgrade.
+ *
+ * @param building - Building to upgrade.
+ * @param level - Current level of the building.
+ * @returns The cost to go from `level` to `level + 1`.
+ */
 export function upgradeCost(building: Building, level: number): Partial<Stock> {
   const factor = (level + 1) ** COST_EXPONENT
   const cost: Partial<Stock> = {}
@@ -123,7 +159,13 @@ export function upgradeCost(building: Building, level: number): Partial<Stock> {
   return cost
 }
 
-/** Quantités manquantes pour payer un coût ; objet vide si le stock suffit. */
+/**
+ * Computes what is missing to pay a cost.
+ *
+ * @param stock - Available stock.
+ * @param cost - Cost to pay.
+ * @returns Missing amounts, rounded up; empty if the stock is enough.
+ */
 function missingFor(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
   const missing: Partial<Stock> = {}
   for (const [resource, amount] of Object.entries(cost)) {
@@ -133,6 +175,14 @@ function missingFor(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
   return missing
 }
 
+/**
+ * Decides whether a command is accepted.
+ *
+ * @param state - Current village state.
+ * @param command - Command to decide on.
+ * @param now - Current time in milliseconds.
+ * @returns The events to record, or the domain error.
+ */
 export function decide(state: VillageState, command: VillageCommand, now: number): Decision {
   switch (command.type) {
     case 'FoundVillage':
@@ -167,17 +217,29 @@ export function decide(state: VillageState, command: VillageCommand, now: number
   }
 }
 
+/** Snapshot of a village sent to the interface. */
 export interface VillageView {
+  /** Village name. */
   name: string
+  /** Stock at `asOf`. */
   stock: Stock
+  /** Level of each building. */
   levels: Levels
+  /** Production per minute of each resource. */
   ratesPerMinute: Stock
-  /** Coût de la prochaine amélioration de chaque bâtiment ; null au niveau maximal. */
+  /** Cost of the next upgrade of each building; `null` at max level. */
   nextCosts: Record<Building, Partial<Stock> | null>
-  /** Instant auquel la vue a été calculée. */
+  /** Time in milliseconds at which the view was computed. */
   asOf: number
 }
 
+/**
+ * Builds the view of a village for the interface.
+ *
+ * @param state - Current village state.
+ * @param now - Current time in milliseconds.
+ * @returns The view computed at `now`.
+ */
 export function toView(state: VillageState, now: number): VillageView {
   const current = accrue(state, now)
   const nextCosts = {} as Record<Building, Partial<Stock> | null>
@@ -196,8 +258,12 @@ export function toView(state: VillageState, now: number): VillageView {
 }
 
 /**
- * Stock extrapolé à partir d'une vue, à un instant ultérieur.
- * Utilisé par l'interface pour faire évoluer l'affichage sans interroger le serveur.
+ * Extrapolates the stock of a view to a later time, so the interface can
+ * update the display without calling the server.
+ *
+ * @param view - Last view received.
+ * @param at - Time in milliseconds to extrapolate to.
+ * @returns The stock at `at`.
  */
 export function stockAt(view: VillageView, at: number): Stock {
   const minutes = Math.max(0, at - view.asOf) / 60_000

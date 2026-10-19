@@ -1,9 +1,9 @@
 /**
- * Règles d'architecture du projet (fonctions d'aptitude).
- * La vérification échoue dès qu'une importation enfreint l'une d'elles.
+ * Architecture rules of the project (fitness functions).
+ * The check fails as soon as an import breaks one of them.
  *
- * Un module est un répertoire src/modules/<nom>/. Seules ses entrées publiques
- * (index.ts, contracts.ts et ui.tsx) peuvent être importées depuis l'extérieur.
+ * A module is a `src/modules/<name>/` directory. Only its public entries
+ * (`index.ts`, `contracts.ts` and `ui.tsx`) may be imported from outside.
  */
 const PUBLIC_ENTRIES = '^src/modules/[^/]+/(index\\.ts|contracts\\.ts|ui\\.tsx)$'
 

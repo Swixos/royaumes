@@ -1,22 +1,22 @@
 import { type Api, createApi } from './create-api'
 
-/** Ce que l'application expose à Next.js : pour l'instant, la seule API. */
+/** What the application exposes to Next.js: for now, the API only. */
 interface Server {
   api: Api
 }
 
 /**
- * L'instance est conservée dans l'objet global du processus.
- * En développement, Next.js recharge les modules à chaque modification :
- * une simple variable de module serait alors réinitialisée, et l'application
- * reconstruite à chaque fois.
+ * The instance is kept on the process global object. In development, Next.js
+ * reloads modules on every change: a plain module variable would be reset and
+ * the application rebuilt each time.
  */
 const globalForServer = globalThis as unknown as { royaumes?: Server }
 
 /**
- * Renvoie l'application, en la construisant à la première demande.
- * Cette construction paresseuse garantit qu'aucun code de l'application
- * ne s'exécute lorsque Next.js analyse les fichiers pendant la construction.
+ * Returns the application, building it on first use. Lazy construction
+ * ensures no application code runs while Next.js analyses files at build time.
+ *
+ * @returns The single server instance.
  */
 export function getServer(): Server {
   if (!globalForServer.royaumes) {

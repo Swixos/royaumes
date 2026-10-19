@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createApi } from './create-api'
 
-/** Application complète avec une horloge contrôlée, et un utilitaire d'envoi JSON. */
+/**
+ * Builds the full application with a controlled clock.
+ *
+ * @returns The application, a JSON `post` helper and an `advance` function
+ *   moving the clock forward by a number of minutes.
+ */
 function setup() {
   let now = Date.UTC(2026, 0, 1)
   const api = createApi({ clock: () => now })

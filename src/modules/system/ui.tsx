@@ -4,16 +4,19 @@ import { useEffect, useState } from 'react'
 import type { SystemApi } from './api'
 
 /**
- * Client HTTP typé, déduit de la sous-application Hono du module.
- * Seul le type de l'API est importé : aucun code serveur n'est embarqué
- * dans le navigateur.
+ * Typed HTTP client inferred from the system Hono sub-app. Only the API type is
+ * imported, so no server code is shipped to the browser.
  */
 const client = hc<SystemApi>('/api/system')
 
-/** Résultat de l'appel : en cours, réussi (avec l'heure du serveur) ou en échec. */
+/** Call result: loading, success with the server time, or failure. */
 type Health = { status: 'loading' } | { status: 'ok'; time: string } | { status: 'error' }
 
-/** Indique si l'API répond, en interrogeant la route de santé au chargement. */
+/**
+ * Shows whether the API responds, by calling the health route on mount.
+ *
+ * @returns The API status line.
+ */
 export function HealthStatus() {
   const [health, setHealth] = useState<Health>({ status: 'loading' })
 

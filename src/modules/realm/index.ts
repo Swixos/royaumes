@@ -1,18 +1,25 @@
 /**
- * Entrée publique « serveur » du module Village.
- * Avec contracts.ts et ui.tsx, c'est le seul fichier du module qui peut être
- * importé depuis l'extérieur.
+ * Server public entry of the realm module. Along with `contracts.ts` and
+ * `ui.tsx`, it is the only file of the module importable from outside.
+ *
+ * @packageDocumentation
  */
 import { createRealmApi } from './api'
 import { createVillageService } from './application/village-service'
 import { createInMemoryVillageRepository } from './infrastructure/in-memory-village-repository'
 
+/** Dependencies of the realm module. */
 export interface RealmModuleDeps {
-  /** Horloge de référence ; l'heure réelle par défaut. */
+  /** Reference clock in milliseconds; real time by default. */
   clock?: () => number
 }
 
-/** Fabrique du module : assemble l'adaptateur, le service et l'API. */
+/**
+ * Module factory: wires the storage adapter, the service and the API.
+ *
+ * @param deps - Optional dependencies, such as the clock.
+ * @returns The module, exposing its Hono sub-app.
+ */
 export function createRealmModule({ clock }: RealmModuleDeps = {}) {
   const repo = createInMemoryVillageRepository()
   const service = createVillageService(repo, clock)

@@ -1,8 +1,13 @@
 import { look } from './theme'
 
 /**
- * Affiche une entité du jeu (ressource, bâtiment...) à partir du thème.
- * Le symbole est masqué aux lecteurs d'écran, qui lisent le libellé à la place.
+ * Renders a game entity (resource, building...) from the theme. The glyph is
+ * hidden from screen readers, which read the label instead.
+ *
+ * @param props - Component props.
+ * @param props.kind - Entity identifier in the theme.
+ * @param props.showLabel - Whether to display the label next to the glyph.
+ * @returns The entity glyph with its label.
  */
 export function Entity({ kind, showLabel = false }: { kind: string; showLabel?: boolean }) {
   const { glyph, label } = look(kind)

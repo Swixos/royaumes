@@ -13,13 +13,13 @@ import {
   type VillageView,
 } from './contracts'
 
-/** Client HTTP typé, déduit de la sous-application Hono du module. */
+/** Typed HTTP client inferred from the realm Hono sub-app. */
 const client = hc<RealmApi>('/api/realm')
 
-/** Erreurs que l'API peut renvoyer : erreurs métier et erreur de validation. */
+/** Errors the API can return: domain errors and the validation error. */
 type ApiError = { code: DomainError['code'] | 'INVALID_INPUT'; message?: string }
 
-/** Message affiché au joueur pour chaque erreur. */
+/** Message shown to the player for each error. */
 const ERRORS: Record<ApiError['code'], string> = {
   INVALID_INPUT: 'Saisie invalide.',
   ALREADY_FOUNDED: 'Village déjà fondé.',
@@ -28,17 +28,28 @@ const ERRORS: Record<ApiError['code'], string> = {
   INSUFFICIENT_RESOURCES: 'Ressources insuffisantes.',
 }
 
-/** Indique si le stock couvre un coût ; faux si le coût est absent (niveau maximal). */
+/**
+ * Tells whether a stock covers a cost.
+ *
+ * @param stock - Available stock.
+ * @param cost - Cost to cover; `null` at max level.
+ * @returns True if every amount is covered, false if not or if `cost` is `null`.
+ */
 function canAfford(stock: Stock, cost: Partial<Stock> | null) {
   return !!cost && Object.entries(cost).every(([r, n]) => stock[r as keyof Stock] >= (n ?? 0))
 }
 
-/** Écran du Village : fondation, stock et bâtiments. */
+/**
+ * Village screen: founding form, ticking stock and buildings.
+ *
+ * @returns The village screen.
+ */
 export function VillageScreen() {
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
 
+  /** Reloads the village view from the API. */
   const refresh = useCallback(async () => {
     const res = await client.village.$get()
     if (res.ok) setView((await res.json()).view)
@@ -53,14 +64,29 @@ export function VillageScreen() {
     return () => clearInterval(timer)
   }, [])
 
+  /**
+   * Founds the village.
+   *
+   * @param name - Village name.
+   */
   async function found(name: string) {
     const res = await client.village.$post({ json: { name } })
     handle(await res.json())
   }
+  /**
+   * Upgrades a building.
+   *
+   * @param building - Building to upgrade.
+   */
   async function upgrade(building: Building) {
     const res = await client.village.upgrade.$post({ json: { building } })
     handle(await res.json())
   }
+  /**
+   * Applies an API response: shows the error, or stores the new view.
+   *
+   * @param body - Response body.
+   */
   function handle(body: { view: VillageView } | { error: ApiError }) {
     if ('error' in body) {
       setError(ERRORS[body.error.code])
