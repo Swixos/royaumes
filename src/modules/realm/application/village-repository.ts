@@ -1,27 +1,37 @@
 import type { VillageEvent, VillageState } from '../domain/village'
 
 /**
- * Port de persistance du Village, défini par la couche application.
- * Il est exprimé dans les termes du domaine (états, événements) et ignore
- * tout du stockage concret, fourni par un adaptateur de l'infrastructure.
+ * Village persistence port, owned by the application layer. It speaks the
+ * domain language (states, events) and knows nothing about the concrete
+ * storage, provided by an infrastructure adapter.
  */
 export interface VillageRepository {
   /**
-   * Charge l'état du village d'un joueur, reconstruit à partir de ses événements,
-   * ainsi que sa version : le nombre d'événements déjà enregistrés.
+   * Loads a player's village, rebuilt from its events.
+   *
+   * @param userId - Player identifier.
+   * @returns The village state and its version, the number of stored events.
    */
   load(userId: string): Promise<{ state: VillageState; version: number }>
 
   /**
-   * Enregistre de nouveaux événements à la suite des précédents.
-   * expectedVersion est la version lue au chargement : si d'autres événements
-   * ont été enregistrés entre-temps, l'enregistrement est refusé.
+   * Appends new events after the stored ones.
+   *
+   * @param userId - Player identifier.
+   * @param expectedVersion - Version read at load time.
+   * @param events - Events to append.
+   * @throws {@link VersionConflictError} If other events were stored in between.
    */
   save(userId: string, expectedVersion: number, events: VillageEvent[]): Promise<void>
 }
 
-/** Erreur levée lorsque la version attendue ne correspond plus à la version enregistrée. */
+/** Thrown when the expected version no longer matches the stored version. */
 export class VersionConflictError extends Error {
+  /**
+   * @param userId - Player whose stream is in conflict.
+   * @param expected - Version the caller expected.
+   * @param actual - Version actually stored.
+   */
   constructor(userId: string, expected: number, actual: number) {
     super(`Conflit de version pour ${userId} : attendue ${expected}, enregistrée ${actual}`)
     this.name = 'VersionConflictError'

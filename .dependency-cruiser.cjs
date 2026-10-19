@@ -1,17 +1,15 @@
 /**
- * Règles d'architecture du projet (fonctions d'aptitude).
- * La vérification échoue dès qu'une importation enfreint l'une d'elles.
+ * Architecture rules of the project (fitness functions).
+ * The check fails as soon as an import breaks one of them.
  *
- * Un module est un répertoire src/modules/<nom>/. Seules ses entrées publiques
- * (index.ts, contracts.ts et ui.tsx) peuvent être importées depuis l'extérieur.
+ * A module is a `src/modules/<name>/` directory. Only its public entries
+ * (`index.ts`, `contracts.ts` and `ui.tsx`) may be imported from outside.
  */
 const PUBLIC_ENTRIES = '^src/modules/[^/]+/(index\\.ts|contracts\\.ts|ui\\.tsx)$'
 
 module.exports = {
   forbidden: [
     {
-      // Règle 1, vue depuis un module : il n'atteint un autre module que par ses entrées publiques.
-      // « $1 » reprend le nom du module d'origine, capturé dans « from ».
       name: 'module-encapsulation',
       comment:
         "Un module n'importe jamais l'intérieur d'un autre module, seulement ses entrées publiques.",
@@ -20,7 +18,6 @@ module.exports = {
       to: { path: '^src/modules/[^/]+/', pathNot: ['^src/modules/$1/', PUBLIC_ENTRIES] },
     },
     {
-      // Règle 1, vue depuis le reste du projet (pages, racine de composition, plateforme).
       name: 'outside-uses-public-entries',
       comment: "Hors des modules, on n'importe que les entrées publiques d'un module.",
       severity: 'error',
@@ -28,7 +25,6 @@ module.exports = {
       to: { path: '^src/modules/', pathNot: PUBLIC_ENTRIES },
     },
     {
-      // Règle 2 : le domaine ne dépend que de lui-même (ni base, ni HTTP, ni bibliothèque).
       name: 'pure-domain',
       comment: "Le domaine d'un module n'importe que son propre répertoire domain/.",
       severity: 'error',
@@ -36,8 +32,6 @@ module.exports = {
       to: { pathNot: '^src/modules/$1/domain/' },
     },
     {
-      // Règle 2 bis : la couche application ne dépend que du domaine et de ses propres ports,
-      // jamais des adaptateurs de l'infrastructure (architecture hexagonale).
       name: 'application-ignores-infrastructure',
       comment: "La couche application d'un module n'importe jamais son infrastructure.",
       severity: 'error',
@@ -45,7 +39,6 @@ module.exports = {
       to: { path: '^src/modules/$1/infrastructure/' },
     },
     {
-      // Règle 3 : la plateforme est générique et ignore les modules métier.
       name: 'platform-ignores-modules',
       comment:
         'La plateforme technique ne connaît aucun module métier ni la racine de composition.',
@@ -54,8 +47,6 @@ module.exports = {
       to: { path: '^src/(modules|bootstrap)/' },
     },
     {
-      // Règle 4 : le code exécuté dans le navigateur n'embarque aucun code serveur.
-      // Les importations de types sont autorisées : elles disparaissent à la compilation.
       name: 'client-without-server-code',
       comment:
         "Le code client (ui.tsx, src/ui) n'importe jamais de code serveur ; seuls les types sont autorisés.",
@@ -67,7 +58,6 @@ module.exports = {
       },
     },
     {
-      // Règle 5 : aucune dépendance circulaire.
       name: 'no-circular',
       comment: "Deux fichiers ne doivent jamais dépendre l'un de l'autre, même indirectement.",
       severity: 'error',
@@ -76,13 +66,9 @@ module.exports = {
     },
   ],
   options: {
-    // Les paquets installés ne sont pas analysés.
     doNotFollow: { path: 'node_modules' },
-    // Les tests peuvent importer librement le code qu'ils testent.
     exclude: { path: '\\.test\\.ts$' },
-    // Les importations de types sont prises en compte, pour pouvoir les distinguer.
     tsPreCompilationDeps: true,
-    // L'alias « @/ » est résolu à partir de tsconfig.json.
     tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {
       exportsFields: ['exports'],
