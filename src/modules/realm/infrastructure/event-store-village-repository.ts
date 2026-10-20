@@ -1,14 +1,13 @@
 import type { EventStore, NewEvent } from '@/platform/event-store/event-store'
 import type { VillageRepository } from '../application/village-repository'
+import { villageChannel } from '../contracts'
 import { replay, type VillageEvent } from '../domain/village'
 
 /**
- * Builds the name of the stream holding a player's village events.
- *
- * @param userId - Player identifier.
- * @returns The stream name, `village-<userId>`.
+ * Name of the stream holding a player's village events: the name of its
+ * channel, so both can never diverge.
  */
-export const villageStream = (userId: string) => `village-${userId}`
+const villageStream = villageChannel
 
 /**
  * {@link VillageRepository} adapter backed by the event store. It translates

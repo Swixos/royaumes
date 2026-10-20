@@ -26,3 +26,13 @@ export const FoundVillageInput = z.object({
 export const UpgradeBuildingInput = z.object({
   building: z.enum(BUILDINGS),
 })
+
+/**
+ * Builds the name of the real-time channel of a player's village. It equals the
+ * name of the event store stream holding the village events: listening to this
+ * channel means receiving that stream.
+ *
+ * @param userId - Player identifier.
+ * @returns The channel name, `village-<userId>`.
+ */
+export const villageChannel = (userId: string) => `village-${userId}`
