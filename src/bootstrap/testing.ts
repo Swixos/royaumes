@@ -1,30 +1,64 @@
+import type { AuthPort } from '@/platform/auth/port'
 import { createTestDatabase } from '@/platform/db/client'
 import { createEventStore } from '@/platform/event-store/event-store'
 import { createApi } from './create-api'
 
 /**
- * Builds the full application on an emptied test database with a controlled
- * clock, wiring the platform the same way `server.ts` does.
+ * Authentication adapter for tests only: the player is identified by the
+ * `x-test-user` header, without account or cookie. Never used by `server.ts`.
+ */
+export const testAuth: AuthPort = {
+  handler: async () => new Response(null, { status: 404 }),
+  getUser: async (headers) => {
+    const id = headers.get('x-test-user')
+    return id ? { id, name: id } : null
+  },
+}
+
+/** Player a test request is sent as; `null` for an anonymous request. */
+type TestUser = string | null
+
+/**
+ * Builds the full application on an emptied test database, with a controlled
+ * clock and the test authentication adapter.
  *
- * @returns The application, a JSON `post` helper and an `advance` function
- *   moving the clock forward.
+ * @returns The application, `get` and `post` helpers sending requests as a
+ *   player, and an `advance` function moving the clock forward.
  */
 export async function createTestApi() {
   let now = Date.UTC(2026, 0, 1)
   const store = createEventStore(await createTestDatabase())
-  const api = createApi({ store, clock: () => now })
+  const api = createApi({ auth: testAuth, store, clock: () => now })
+
+  /**
+   * Builds the headers identifying a player.
+   *
+   * @param user - Player, or `null` for an anonymous request.
+   * @returns The `x-test-user` header, or no header.
+   */
+  const as = (user: TestUser): Record<string, string> => (user ? { 'x-test-user': user } : {})
+
+  /**
+   * Sends a GET request.
+   *
+   * @param path - Request path, starting with `/api`.
+   * @param user - Player sending the request; `alice` by default.
+   * @returns The response.
+   */
+  const get = (path: string, user: TestUser = 'alice') => api.request(path, { headers: as(user) })
 
   /**
    * Sends a POST request with a JSON body.
    *
    * @param path - Request path, starting with `/api`.
    * @param body - Value serialized as the JSON body.
+   * @param user - Player sending the request; `alice` by default.
    * @returns The response.
    */
-  const post = (path: string, body: unknown) =>
+  const post = (path: string, body: unknown, user: TestUser = 'alice') =>
     api.request(path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...as(user) },
       body: JSON.stringify(body),
     })
 
@@ -37,5 +71,5 @@ export async function createTestApi() {
     now += minutes * 60_000
   }
 
-  return { api, post, advance }
+  return { api, get, post, advance }
 }
