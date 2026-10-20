@@ -20,7 +20,8 @@ type TestUser = string | null
 
 /**
  * Builds the full application on an emptied test database, with a controlled
- * clock and the test authentication adapter.
+ * clock, the test authentication adapter and very short real-time streams so
+ * tests never hang on an open stream.
  *
  * @returns The application, `get` and `post` helpers sending requests as a
  *   player, and an `advance` function moving the clock forward.
@@ -28,7 +29,12 @@ type TestUser = string | null
 export async function createTestApi() {
   let now = Date.UTC(2026, 0, 1)
   const store = createEventStore(await createTestDatabase())
-  const api = createApi({ auth: testAuth, store, clock: () => now })
+  const api = createApi({
+    auth: testAuth,
+    store,
+    clock: () => now,
+    realtime: { pollMs: 20, maxStreamMs: 150 },
+  })
 
   /**
    * Builds the headers identifying a player.

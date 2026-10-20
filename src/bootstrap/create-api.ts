@@ -5,6 +5,8 @@ import type { AuthPort } from '@/platform/auth/port'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
+import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
 
 /** Dependencies provided to the application by its entry point. */
 export interface ApiDeps {
@@ -16,6 +18,8 @@ export interface ApiDeps {
   ready?: Promise<void>
   /** Reference clock in milliseconds; real time by default, replaced in tests. */
   clock?: () => number
+  /** Real-time settings (stream duration, polling interval); shortened in tests. */
+  realtime?: Partial<Omit<RealtimeOptions, 'store' | 'policies'>>
 }
 
 /**
@@ -28,12 +32,18 @@ export interface ApiDeps {
  * are protected one by one: every new protected module must be added here, or
  * its routes stay open.
  *
- * @param deps - Authentication, event store, database readiness and optional clock.
+ * Channel access rules declared by the modules are gathered here and passed to
+ * the real-time sub-app; with no rule, every channel is refused.
+ *
+ * @param deps - Authentication, event store, database readiness, optional clock
+ *   and real-time settings.
  * @returns The main Hono application, with every route under `/api`.
  */
-export function createApi({ auth, store, ready, clock }: ApiDeps) {
+export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
+
+  const policies: ChannelPolicy[] = []
 
   const app = new Hono<AppEnv>().basePath('/api')
 
@@ -52,8 +62,12 @@ export function createApi({ auth, store, ready, clock }: ApiDeps) {
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
 
   app.use('/realm/*', requireUser(auth))
+  app.use('/stream/*', requireUser(auth))
 
-  return app.route('/system', system.api).route('/realm', realm.api)
+  return app
+    .route('/system', system.api)
+    .route('/realm', realm.api)
+    .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
 /** Type of the whole application, inferred from its routes. */
