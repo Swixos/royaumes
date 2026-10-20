@@ -12,6 +12,12 @@ const policy: ChannelPolicy = {
   canSubscribe: (channel, userId) => channel === `test-${userId}`,
 }
 
+/**
+ * Test rule of a discreet channel: any player may listen to `secret-...`, but
+ * the stream does not send event data.
+ */
+const secretPolicy: ChannelPolicy = { prefix: 'secret-', canSubscribe: () => true, redact: true }
+
 let store: EventStore
 let app: Hono<AppEnv>
 
@@ -24,7 +30,12 @@ beforeEach(async () => {
     })
     .route(
       '/stream',
-      createRealtimeApi({ store, policies: [policy], pollMs: 20, maxStreamMs: 150 }),
+      createRealtimeApi({
+        store,
+        policies: [policy, secretPolicy],
+        pollMs: 20,
+        maxStreamMs: 150,
+      }),
     )
 })
 
@@ -114,5 +125,26 @@ describe('Flux temps réel', () => {
     const { events } = await res.json()
 
     expect(events.map((e: { type: string }) => e.type)).toEqual(['B'])
+  })
+})
+
+describe('Canal discret', () => {
+  it("transmet le type et la version d'un événement, sans ses données", async () => {
+    await store.append('secret-1', 0, [{ type: 'A', data: { choice: 'attack' } }])
+    const { body } = await readStream('/stream/secret-1')
+
+    expect(eventIds(body)).toEqual(['1'])
+    expect(body).toContain('"type":"A"')
+    expect(body).not.toContain('attack')
+  })
+
+  it('retire aussi les données sur la route de repli', async () => {
+    await store.append('secret-1', 0, [{ type: 'A', data: { choice: 'attack' } }])
+    const res = await app.request('/stream/secret-1/events', {
+      headers: { 'x-test-user': 'alice' },
+    })
+    expect(await res.json()).toEqual({
+      events: [{ stream: 'secret-1', version: 1, type: 'A', data: {} }],
+    })
   })
 })
