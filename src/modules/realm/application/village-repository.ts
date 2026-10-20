@@ -20,20 +20,8 @@ export interface VillageRepository {
    * @param userId - Player identifier.
    * @param expectedVersion - Version read at load time.
    * @param events - Events to append.
-   * @throws {@link VersionConflictError} If other events were stored in between.
+   * @throws `ConcurrencyError` from the platform event store if other events
+   *   were stored in between.
    */
   save(userId: string, expectedVersion: number, events: VillageEvent[]): Promise<void>
-}
-
-/** Thrown when the expected version no longer matches the stored version. */
-export class VersionConflictError extends Error {
-  /**
-   * @param userId - Player whose stream is in conflict.
-   * @param expected - Version the caller expected.
-   * @param actual - Version actually stored.
-   */
-  constructor(userId: string, expected: number, actual: number) {
-    super(`Conflit de version pour ${userId} : attendue ${expected}, enregistrée ${actual}`)
-    this.name = 'VersionConflictError'
-  }
 }

@@ -1,3 +1,4 @@
+import { withOptimisticRetry } from '@/platform/event-store/retry'
 import {
   type DomainError,
   decide,
@@ -19,26 +20,27 @@ export type CommandResult = { ok: true; view: VillageView } | { ok: false; error
  */
 export function createVillageService(repo: VillageRepository, clock = () => Date.now()) {
   /**
-   * Handles a command: load, decide, save, then return the view.
+   * Handles a command: load, read the clock once, decide, save, then return
+   * the view. On a write conflict, the whole handling is replayed on the fresh
+   * state.
    *
    * @param userId - Player issuing the command.
    * @param command - Command to apply.
    * @returns The updated view, or the domain error if the command is refused.
    */
-  async function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
-    const { state, version } = await repo.load(userId)
+  function execute(userId: string, command: VillageCommand): Promise<CommandResult> {
+    return withOptimisticRetry(async () => {
+      const { state, version } = await repo.load(userId)
+      const now = clock()
 
-    const now = clock()
+      const decision = decide(state, command, now)
+      if (!decision.ok) return decision
 
-    const decision = decide(state, command, now)
-    if (!decision.ok) return decision
+      await repo.save(userId, version, decision.events)
 
-    // DETTE TECHNIQUE DT-003 (docs/qualite/dette-technique.md): a version conflict
-    // throws an unhandled error; it will be retried in TD3.
-    await repo.save(userId, version, decision.events)
-
-    const updated = await repo.load(userId)
-    return { ok: true, view: toView(updated.state, now) }
+      const updated = await repo.load(userId)
+      return { ok: true, view: toView(updated.state, now) }
+    })
   }
 
   /**

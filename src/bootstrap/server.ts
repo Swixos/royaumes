@@ -1,26 +1,34 @@
+import { createDatabase } from '@/platform/db/client'
+import { createEventStore } from '@/platform/event-store/event-store'
 import { type Api, createApi } from './create-api'
 
-/** What the application exposes to Next.js: for now, the API only. */
+/** What the application exposes to Next.js. */
 interface Server {
+  /** The API application. */
   api: Api
+  /** Resolves once the database is ready. */
+  ready: Promise<void>
 }
 
 /**
  * The instance is kept on the process global object. In development, Next.js
  * reloads modules on every change: a plain module variable would be reset and
- * the application rebuilt each time.
+ * the application rebuilt each time, with a new database connection.
  */
 const globalForServer = globalThis as unknown as { royaumes?: Server }
 
 /**
- * Returns the application, building it on first use. Lazy construction
- * ensures no application code runs while Next.js analyses files at build time.
+ * Returns the application, building the platform (database, then event store)
+ * and the API on first use. Lazy construction ensures no application code, and
+ * no database connection, runs while Next.js analyses files at build time.
  *
  * @returns The single server instance.
  */
 export function getServer(): Server {
   if (!globalForServer.royaumes) {
-    globalForServer.royaumes = { api: createApi() }
+    const { db, ready } = createDatabase()
+    const store = createEventStore(db)
+    globalForServer.royaumes = { api: createApi({ store, ready }), ready }
   }
   return globalForServer.royaumes
 }

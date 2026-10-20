@@ -1,30 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createApi } from './create-api'
-
-/**
- * Builds the full application with a controlled clock.
- *
- * @returns The application, a JSON `post` helper and an `advance` function
- *   moving the clock forward by a number of minutes.
- */
-function setup() {
-  let now = Date.UTC(2026, 0, 1)
-  const api = createApi({ clock: () => now })
-  const post = (path: string, body: unknown) =>
-    api.request(path, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  const advance = (minutes: number) => {
-    now += minutes * 60_000
-  }
-  return { api, post, advance }
-}
+import { createTestApi } from './testing'
 
 describe('API du module Village', () => {
   it("renvoie une vue nulle tant qu'aucun village n'est fondé", async () => {
-    const { api } = setup()
+    const { api } = await createTestApi()
     const res = await api.request('/api/realm/village')
 
     expect(res.status).toBe(200)
@@ -32,7 +11,7 @@ describe('API du module Village', () => {
   })
 
   it('fonde un village (201) puis refuse une seconde fondation (409)', async () => {
-    const { post } = setup()
+    const { post } = await createTestApi()
 
     const first = await post('/api/realm/village', { name: 'Valombre' })
     expect(first.status).toBe(201)
@@ -44,7 +23,7 @@ describe('API du module Village', () => {
   })
 
   it('rejette une entrée invalide avant tout appel au service (400)', async () => {
-    const { post } = setup()
+    const { post } = await createTestApi()
     const res = await post('/api/realm/village', { name: 'V' })
 
     expect(res.status).toBe(400)
@@ -52,7 +31,7 @@ describe('API du module Village', () => {
   })
 
   it('rejette un bâtiment inconnu (400)', async () => {
-    const { post } = setup()
+    const { post } = await createTestApi()
     await post('/api/realm/village', { name: 'Valombre' })
     const res = await post('/api/realm/village/upgrade', { building: 'castle' })
 
@@ -60,7 +39,7 @@ describe('API du module Village', () => {
   })
 
   it('traduit un stock insuffisant en erreur 422, puis accepte avec le temps', async () => {
-    const { post, advance } = setup()
+    const { post, advance } = await createTestApi()
     await post('/api/realm/village', { name: 'Valombre' })
 
     const tooEarly = await post('/api/realm/village/upgrade', { building: 'mine' })
