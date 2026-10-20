@@ -1,6 +1,7 @@
 'use client'
 import { hc } from 'hono/client'
 import { useCallback, useEffect, useState } from 'react'
+import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import type { RealmApi } from './api'
 import {
@@ -11,6 +12,7 @@ import {
   type Stock,
   stockAt,
   type VillageView,
+  villageChannel,
 } from './contracts'
 
 /** Typed HTTP client inferred from the realm Hono sub-app. */
@@ -39,12 +41,23 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
   return !!cost && Object.entries(cost).every(([r, n]) => stock[r as keyof Stock] >= (n ?? 0))
 }
 
+/** Label shown for each state of the real-time connection. */
+const STATUS_LABELS = {
+  connecting: 'Connexion...',
+  open: 'Temps réel connecté',
+  reconnecting: 'Reconnexion...',
+} as const
+
 /**
- * Village screen: founding form, ticking stock and buildings.
+ * Village screen: founding form, ticking stock and buildings, kept up to date in
+ * real time. Every event of the village, including from another tab or device,
+ * triggers a reload of the view ("notify, then reread").
  *
+ * @param props - Component props.
+ * @param props.userId - Signed-in player, naming the village channel.
  * @returns The village screen.
  */
-export function VillageScreen() {
+export function VillageScreen({ userId }: { userId: string }) {
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
@@ -58,6 +71,8 @@ export function VillageScreen() {
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  const status = useChannel(villageChannel(userId), refresh)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500)
@@ -97,9 +112,14 @@ export function VillageScreen() {
   }
 
   const title = (
-    <h1>
-      <Entity kind="village" /> {view?.name ?? 'Royaumes'}
-    </h1>
+    <div className="row" style={{ justifyContent: 'space-between' }}>
+      <h1>
+        <Entity kind="village" /> {view?.name ?? 'Royaumes'}
+      </h1>
+      <span className="status" data-status={status}>
+        {STATUS_LABELS[status]}
+      </span>
+    </div>
   )
 
   if (view === undefined) return title

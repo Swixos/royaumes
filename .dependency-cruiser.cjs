@@ -54,7 +54,7 @@ module.exports = {
       from: { path: '(^src/modules/[^/]+/ui\\.tsx$)|(^src/ui/)' },
       to: {
         path: '^src/(platform/|bootstrap/|modules/[^/]+/(api\\.ts|index\\.ts|application/|infrastructure/))',
-        pathNot: '^src/platform/auth/client\\.ts$',
+        pathNot: ['^src/platform/auth/client\\.ts$', '^src/platform/realtime/use-channel\\.ts$'],
         dependencyTypesNot: ['type-only'],
       },
     },
