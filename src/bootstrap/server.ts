@@ -27,6 +27,9 @@ const globalForServer = globalThis as unknown as { royaumes?: Server }
  * construction ensures no application code, and no database connection, runs
  * while Next.js analyses files at build time.
  *
+ * Real-time streams last 240 s by default, under the 300 s Vercel limit;
+ * `STREAM_MAX_SECONDS` shortens them to observe reconnection in development.
+ *
  * @returns The single server instance.
  */
 export function getServer(): Server {
@@ -34,7 +37,12 @@ export function getServer(): Server {
     const { db, ready } = createDatabase()
     const store = createEventStore(db)
     const auth = createBetterAuth(db)
-    globalForServer.royaumes = { api: createApi({ auth, store, ready }), auth, ready }
+    const maxStreamMs = Number(process.env.STREAM_MAX_SECONDS ?? 240) * 1000
+    globalForServer.royaumes = {
+      api: createApi({ auth, store, ready, realtime: { maxStreamMs } }),
+      auth,
+      ready,
+    }
   }
   return globalForServer.royaumes
 }
