@@ -45,7 +45,7 @@ export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
   const realm = createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, clock })
 
-  const policies: ChannelPolicy[] = [realm.channelPolicy]
+  const policies: ChannelPolicy[] = [realm.channelPolicy, dungeon.channelPolicy]
 
   const app = new Hono<AppEnv>().basePath('/api')
 
