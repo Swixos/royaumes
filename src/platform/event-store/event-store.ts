@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { events } from './schema'
 
@@ -55,6 +55,16 @@ export interface EventStore {
    * @returns The events, sorted by version.
    */
   read(stream: string, afterVersion?: number): Promise<StoredEvent[]>
+
+  /**
+   * Reads, in global position order, the events of every stream whose name
+   * starts with a prefix, optionally limited to some types.
+   *
+   * @param options - Stream prefix, which must contain neither `%` nor `_`
+   *   (special characters of the LIKE operator), and optional event types.
+   * @returns The matching events, in global order.
+   */
+  readAll(options: { streamPrefix: string; types?: string[] }): Promise<StoredEvent[]>
 }
 
 /**
@@ -125,6 +135,17 @@ export function createEventStore(db: Db): EventStore {
         .from(events)
         .where(and(eq(events.stream, stream), gt(events.version, afterVersion)))
         .orderBy(asc(events.version))
+      return rows.map(toStored)
+    },
+
+    async readAll({ streamPrefix, types }) {
+      const conditions = [like(events.stream, `${streamPrefix}%`)]
+      if (types) conditions.push(inArray(events.type, types))
+      const rows = await db
+        .select()
+        .from(events)
+        .where(and(...conditions))
+        .orderBy(asc(events.position))
       return rows.map(toStored)
     },
   }

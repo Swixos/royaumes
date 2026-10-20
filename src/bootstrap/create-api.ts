@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { createDungeonModule } from '@/modules/dungeon'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import type { AuthPort } from '@/platform/auth/port'
@@ -42,6 +43,7 @@ export interface ApiDeps {
 export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
+  const dungeon = createDungeonModule({ store, clock })
 
   const policies: ChannelPolicy[] = [realm.channelPolicy]
 
@@ -62,11 +64,13 @@ export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
 
   app.use('/realm/*', requireUser(auth))
+  app.use('/dungeon/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   return app
     .route('/system', system.api)
     .route('/realm', realm.api)
+    .route('/dungeon', dungeon.api)
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
