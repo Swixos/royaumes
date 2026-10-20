@@ -31,6 +31,8 @@ export function createEventStoreGameRepository(store: EventStore): GameRepositor
     },
 
     async listOpenGames(now) {
+      // DETTE TECHNIQUE DT-005 (docs/qualite/dette-technique.md): the list is recomputed on every
+      // read from the history of every expedition ever opened.
       const stored = await store.readAll({
         streamPrefix: GAME_CHANNEL_PREFIX,
         types: ['GameCreated', 'PlayerJoined', 'GameStarted'],
