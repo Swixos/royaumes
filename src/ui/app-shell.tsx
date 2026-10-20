@@ -6,7 +6,10 @@ import { authClient } from '@/platform/auth/client'
 import { Entity } from './entity'
 
 /** Navigation links: every module added to the game gets an entry here. */
-export const NAV = [{ href: '/village', kind: 'village', label: 'Village' }]
+export const NAV = [
+  { href: '/village', kind: 'village', label: 'Village' },
+  { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
+]
 
 /**
  * Game area shell: navigation, player name and sign-out.
