@@ -4,12 +4,15 @@
  *
  * @packageDocumentation
  */
+import type { EventStore } from '@/platform/event-store/event-store'
 import { createRealmApi } from './api'
 import { createVillageService } from './application/village-service'
-import { createInMemoryVillageRepository } from './infrastructure/in-memory-village-repository'
+import { createEventStoreVillageRepository } from './infrastructure/event-store-village-repository'
 
 /** Dependencies of the realm module. */
 export interface RealmModuleDeps {
+  /** Platform event store, provided by the composition root. */
+  store: EventStore
   /** Reference clock in milliseconds; real time by default. */
   clock?: () => number
 }
@@ -17,13 +20,11 @@ export interface RealmModuleDeps {
 /**
  * Module factory: wires the storage adapter, the service and the API.
  *
- * @param deps - Optional dependencies, such as the clock.
+ * @param deps - Event store and optional clock.
  * @returns The module, exposing its Hono sub-app.
  */
-export function createRealmModule({ clock }: RealmModuleDeps = {}) {
-  // DETTE TECHNIQUE DT-002 (docs/qualite/dette-technique.md): in-memory storage,
-  // replaced by the event store in TD3.
-  const repo = createInMemoryVillageRepository()
+export function createRealmModule({ store, clock }: RealmModuleDeps) {
+  const repo = createEventStoreVillageRepository(store)
   const service = createVillageService(repo, clock)
   return { api: createRealmApi(service) }
 }
