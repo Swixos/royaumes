@@ -1,5 +1,5 @@
 import { createBetterAuth } from '@/platform/auth/better-auth'
-import type { AuthPort } from '@/platform/auth/port'
+import type { AuthPort, AuthUser } from '@/platform/auth/port'
 import { createDatabase } from '@/platform/db/client'
 import { createEventStore } from '@/platform/event-store/event-store'
 import { type Api, createApi } from './create-api'
@@ -37,4 +37,17 @@ export function getServer(): Server {
     globalForServer.royaumes = { api: createApi({ auth, store, ready }), auth, ready }
   }
   return globalForServer.royaumes
+}
+
+/**
+ * Finds the signed-in player for server-rendered pages. Pages do not call the
+ * API: they query the authentication port directly from the request headers.
+ *
+ * @param headers - Headers of the request received by Next.js.
+ * @returns The signed-in player, or `null` if nobody is signed in.
+ */
+export async function currentUser(headers: Headers): Promise<AuthUser | null> {
+  const { auth, ready } = getServer()
+  await ready
+  return auth.getUser(headers)
 }
