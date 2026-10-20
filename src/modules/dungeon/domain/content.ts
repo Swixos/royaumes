@@ -52,3 +52,6 @@ export const ROOM_ODDS = { empty: 0.3, treasure: 0.3, monsters: 0.4 }
 
 /** Gold held in a treasure: minimum and maximum. */
 export const TREASURE_GOLD = { min: 10, max: 30 }
+
+/** Time during which an expedition not started yet stays listed, in milliseconds. */
+export const OPEN_GAME_MS = 60 * 60_000
