@@ -14,22 +14,28 @@ export interface ChannelPolicy {
    * @returns True if the player may subscribe.
    */
   canSubscribe(channel: string, userId: string): boolean | Promise<boolean>
+  /**
+   * Discreet channel: the stream only sends the type and version of each event,
+   * never its data. Each subscriber then rereads its own view from the API.
+   */
+  redact?: boolean
 }
 
 /**
- * Tells whether a player may listen to a channel. A channel no rule covers is
- * refused: access is closed by default.
+ * Finds the rule allowing a player to listen to a channel. A channel no rule
+ * covers is refused: access is closed by default.
  *
  * @param policies - Rules declared by the modules.
  * @param channel - Channel name.
  * @param userId - Player identifier.
- * @returns True if the first rule matching the channel prefix allows it.
+ * @returns The matching rule if it allows the player, `null` otherwise.
  */
-export async function isAllowed(
+export async function authorize(
   policies: ChannelPolicy[],
   channel: string,
   userId: string,
-): Promise<boolean> {
+): Promise<ChannelPolicy | null> {
   const policy = policies.find((p) => channel.startsWith(p.prefix))
-  return policy ? policy.canSubscribe(channel, userId) : false
+  if (!policy) return null
+  return (await policy.canSubscribe(channel, userId)) ? policy : null
 }
