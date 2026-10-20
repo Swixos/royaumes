@@ -1,3 +1,5 @@
+import { createBetterAuth } from '@/platform/auth/better-auth'
+import type { AuthPort } from '@/platform/auth/port'
 import { createDatabase } from '@/platform/db/client'
 import { createEventStore } from '@/platform/event-store/event-store'
 import { type Api, createApi } from './create-api'
@@ -6,6 +8,8 @@ import { type Api, createApi } from './create-api'
 interface Server {
   /** The API application. */
   api: Api
+  /** Authentication, also used by server-rendered pages. */
+  auth: AuthPort
   /** Resolves once the database is ready. */
   ready: Promise<void>
 }
@@ -18,9 +22,10 @@ interface Server {
 const globalForServer = globalThis as unknown as { royaumes?: Server }
 
 /**
- * Returns the application, building the platform (database, then event store)
- * and the API on first use. Lazy construction ensures no application code, and
- * no database connection, runs while Next.js analyses files at build time.
+ * Returns the application, building the platform (database, then the event
+ * store and Better Auth on the same connection) and the API on first use. Lazy
+ * construction ensures no application code, and no database connection, runs
+ * while Next.js analyses files at build time.
  *
  * @returns The single server instance.
  */
@@ -28,7 +33,8 @@ export function getServer(): Server {
   if (!globalForServer.royaumes) {
     const { db, ready } = createDatabase()
     const store = createEventStore(db)
-    globalForServer.royaumes = { api: createApi({ store, ready }), ready }
+    const auth = createBetterAuth(db)
+    globalForServer.royaumes = { api: createApi({ auth, store, ready }), auth, ready }
   }
   return globalForServer.royaumes
 }
