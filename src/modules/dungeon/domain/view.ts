@@ -18,7 +18,9 @@ export interface HeroView {
   hp: number
   /** Maximum hit points. */
   maxHp: number
-  /** True if the hero has chosen an action for the current round. */
+  /** True if the hero is a companion driven by the game. */
+  companion: boolean
+  /** True if the hero has chosen an action for the current round; always true for a companion in combat. */
   ready: boolean
   /** Chosen action: only known to the hero's own player, `null` for the others. */
   action: Action | null
@@ -34,7 +36,7 @@ export interface GameView {
   hostId: string
   /** True if the viewer is the host. */
   isHost: boolean
-  /** True if the viewer takes part in the expedition. */
+  /** True if the viewer plays a hero of the expedition. */
   isMember: boolean
   /** Heroes, filtered for the viewer. */
   heroes: HeroView[]
@@ -77,13 +79,14 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
     difficulty: current.difficulty,
     hostId: current.hostId,
     isHost: current.hostId === viewerId,
-    isMember: current.heroes.some((hero) => hero.id === viewerId),
+    isMember: current.heroes.some((hero) => hero.id === viewerId && !hero.companion),
     heroes: current.heroes.map((hero) => ({
       id: hero.id,
       name: hero.name,
       hp: hero.hp,
       maxHp: hero.maxHp,
-      ready: inCombat && current.choices[hero.id] !== undefined,
+      companion: hero.companion,
+      ready: inCombat && (hero.companion || current.choices[hero.id] !== undefined),
       action: hero.id === viewerId ? (current.choices[hero.id] ?? null) : null,
     })),
     turnHeroId: current.phase === 'exploring' ? current.heroes[current.turn].id : null,

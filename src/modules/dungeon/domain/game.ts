@@ -27,7 +27,7 @@ export interface MonsterSpec {
 
 /** A hero taking part in the expedition. */
 export interface Hero {
-  /** Identifier of the player playing the hero. */
+  /** Identifier of the player playing the hero, or of the companion. */
   id: string
   /** Display name. */
   name: string
@@ -37,6 +37,8 @@ export interface Hero {
   maxHp: number
   /** Attack value. */
   attack: number
+  /** Whether the hero is a companion driven by the game rather than a player. */
+  companion: boolean
 }
 
 /** Starting stats of a hero, recorded when they join the expedition. */
@@ -96,7 +98,7 @@ export interface GameState {
   turn: number
   /** Number of the current round; it never restarts at 1 from one room to the next. */
   round: number
-  /** Deadline of the current round, in milliseconds; `null` outside combat. */
+  /** Deadline of the current round or exploration turn, in milliseconds; `null` when none applies. */
   deadline: number | null
   /** Actions already chosen for the current round, by hero identifier. */
   choices: Record<string, Action>
@@ -140,7 +142,19 @@ export type GameEvent =
       }
     }
   | { type: 'PlayerJoined'; data: { playerId: string; name: string; hero: HeroSpec; at: number } }
-  | { type: 'GameStarted'; data: { rooms: Room[]; at: number } }
+  | {
+      type: 'CompanionAdded'
+      data: { companionId: string; name: string; hero: HeroSpec; at: number }
+    }
+  | {
+      type: 'GameStarted'
+      data: {
+        rooms: Room[]
+        /** Deadline of the first exploration turn; missing from older events. */
+        deadline?: number
+        at: number
+      }
+    }
   | {
       type: 'RoomEntered'
       data: { heroId: string; room: number; deadline: number | null; at: number }
@@ -156,6 +170,8 @@ export type GameEvent =
         effects: Effect[]
         /** Deadline of the next round; `null` when the combat is over. */
         nextDeadline: number | null
+        /** Deadline to open the next door once the combat is won; missing from older events. */
+        exploreDeadline?: number | null
         at: number
       }
     }
@@ -182,16 +198,26 @@ export const standingMonsters = (state: GameState) =>
   state.monsters.filter((monster) => monster.hp > 0)
 
 /**
- * Finds the next standing hero after an index, wrapping around if needed.
+ * Lists the standing heroes played by a player, leaving companions out.
+ *
+ * @param state - Expedition state.
+ * @returns Standing heroes that are not companions.
+ */
+export const standingPlayerHeroes = (state: GameState) =>
+  state.heroes.filter((hero) => hero.hp > 0 && !hero.companion)
+
+/**
+ * Finds the next explorer after an index, wrapping around if needed: a standing hero
+ * played by a player. Companions never take an exploration turn.
  *
  * @param heroes - Heroes of the expedition.
  * @param from - Index to start after.
- * @returns Index of the next standing hero, or `from` if none is standing.
+ * @returns Index of the next explorer, or `from` if there is none.
  */
-export function nextStandingHero(heroes: Hero[], from: number): number {
+export function nextExplorer(heroes: Hero[], from: number): number {
   for (let step = 1; step <= heroes.length; step++) {
     const index = (from + step) % heroes.length
-    if (heroes[index].hp > 0) return index
+    if (heroes[index].hp > 0 && !heroes[index].companion) return index
   }
   return from
 }
@@ -202,14 +228,16 @@ export function nextStandingHero(heroes: Hero[], from: number): number {
  * @param id - Player identifier.
  * @param name - Display name.
  * @param spec - Starting stats.
+ * @param companion - Whether the hero is a companion driven by the game.
  * @returns The hero, at full health.
  */
-const newHero = (id: string, name: string, spec: HeroSpec): Hero => ({
+const newHero = (id: string, name: string, spec: HeroSpec, companion = false): Hero => ({
   id,
   name,
   hp: spec.hp,
   maxHp: spec.hp,
   attack: spec.attack,
+  companion,
 })
 
 /**
@@ -269,15 +297,26 @@ export function evolve(state: GameState, event: GameEvent): GameState {
         ...state,
         heroes: [...state.heroes, newHero(event.data.playerId, event.data.name, event.data.hero)],
       }
+    case 'CompanionAdded': {
+      const { companionId, name, hero } = event.data
+      return { ...state, heroes: [...state.heroes, newHero(companionId, name, hero, true)] }
+    }
 
     case 'GameStarted':
-      return { ...state, phase: 'exploring', rooms: event.data.rooms, turn: 0 }
+      return {
+        ...state,
+        phase: 'exploring',
+        rooms: event.data.rooms,
+        turn: 0,
+        deadline: event.data.deadline ?? null,
+      }
 
     case 'RoomEntered': {
       const room = state.rooms[event.data.room]
-      const turn = nextStandingHero(state.heroes, state.turn)
+      const turn = nextExplorer(state.heroes, state.turn)
+      const deadline = event.data.deadline
       if (room.kind === 'treasure') {
-        return { ...state, room: event.data.room, turn, loot: state.loot + room.gold }
+        return { ...state, room: event.data.room, turn, deadline, loot: state.loot + room.gold }
       }
       if (room.kind === 'monsters') {
         return {
@@ -287,12 +326,12 @@ export function evolve(state: GameState, event: GameEvent): GameState {
           phase: 'combat',
           monsters: spawn(room.monsters),
           round: state.round + 1,
-          deadline: event.data.deadline,
+          deadline,
           choices: {},
           lastRound: null,
         }
       }
-      return { ...state, room: event.data.room, turn }
+      return { ...state, room: event.data.room, turn, deadline }
     }
 
     case 'ActionSubmitted':
@@ -319,8 +358,8 @@ export function evolve(state: GameState, event: GameEvent): GameState {
         choices: {},
         phase: combatOver ? 'exploring' : 'combat',
         round: combatOver ? state.round : state.round + 1,
-        deadline: event.data.nextDeadline,
-        turn: heroes[state.turn]?.hp > 0 ? state.turn : nextStandingHero(heroes, state.turn),
+        deadline: combatOver ? (event.data.exploreDeadline ?? null) : event.data.nextDeadline,
+        turn: heroes[state.turn]?.hp > 0 ? state.turn : nextExplorer(heroes, state.turn),
       }
     }
 
