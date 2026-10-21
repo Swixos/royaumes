@@ -24,13 +24,16 @@ type TestUser = string | null
 /**
  * Builds the full application on an emptied test database, with a controlled
  * clock, the test authentication adapter and very short real-time streams so
- * tests never hang on an open stream.
+ * tests never hang on an open stream. The outbox dispatcher compares the availability
+ * of messages, set by the database in real time, with its own clock: that clock starts
+ * at real time and moves forward with the application clock.
  *
  * @returns The application, `get` and `post` helpers sending requests as a
  *   player, and an `advance` function moving the clock forward.
  */
 export async function createTestApi() {
-  let now = Date.UTC(2026, 0, 1)
+  const start = Date.UTC(2026, 0, 1)
+  let now = start
   const db = await createTestDatabase()
   const store = createEventStore(db)
   const api = createApi({
@@ -40,6 +43,7 @@ export async function createTestApi() {
     clock: () => now,
     realtime: { pollMs: 20, maxStreamMs: 150 },
     cronSecret: TEST_CRON_SECRET,
+    outbox: { now: () => Date.now() + (now - start) },
   })
 
   /**
