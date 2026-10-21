@@ -1,11 +1,14 @@
 import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
+import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import type { AuthPort } from '@/platform/auth/port'
+import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
 
@@ -13,6 +16,8 @@ import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/str
 export interface ApiDeps {
   /** Authentication: Better Auth in production, a simplified adapter in tests. */
   auth: AuthPort
+  /** Database, in which the projection runner keeps the read models. */
+  db: Db
   /** Event store, passed to the modules using it. */
   store: EventStore
   /** Awaited before each request; resolves once the database is migrated. */
@@ -34,16 +39,20 @@ export interface ApiDeps {
  * its routes stay open.
  *
  * Channel access rules declared by the modules are gathered here and passed to
- * the real-time sub-app; with no rule, every channel is refused.
+ * the real-time sub-app; with no rule, every channel is refused. The projection
+ * runner is created here from the database, and shared by every module keeping a
+ * read model.
  *
- * @param deps - Authentication, event store, database readiness, optional clock
+ * @param deps - Authentication, database, event store, database readiness, optional clock
  *   and real-time settings.
  * @returns The main Hono application, with every route under `/api`.
  */
-export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
+export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) {
+  const projections = createProjectionRunner(db)
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, clock })
+  const ranking = createRankingModule({ db, projections })
 
   const policies: ChannelPolicy[] = [realm.channelPolicy, dungeon.channelPolicy]
 
@@ -65,12 +74,14 @@ export function createApi({ auth, store, ready, clock, realtime }: ApiDeps) {
 
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))
+  app.use('/ranking/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   return app
     .route('/system', system.api)
     .route('/realm', realm.api)
     .route('/dungeon', dungeon.api)
+    .route('/ranking', ranking.api)
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
