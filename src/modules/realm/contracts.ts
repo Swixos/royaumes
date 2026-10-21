@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
-import { BUILDINGS } from './domain/catalog'
+import { BUILDINGS, type Stock } from './domain/catalog'
 
 export type { Building, Resource, Stock } from './domain/catalog'
 export { BUILDINGS, MAX_LEVEL, RESOURCES } from './domain/catalog'
@@ -39,3 +39,48 @@ export const VILLAGE_CHANNEL_PREFIX = 'village-'
  * @returns The channel name, `village-<userId>`.
  */
 export const villageChannel = (userId: string) => `${VILLAGE_CHANNEL_PREFIX}${userId}`
+
+/**
+ * Topics of the messages the village module handles: its published language for
+ * resource transfers.
+ */
+export const REALM_TOPICS = {
+  /** Withdraw resources from a village; it may be refused. */
+  withdraw: 'realm.withdraw',
+  /** Deposit resources into a village; it cannot be refused. */
+  deposit: 'realm.deposit',
+} as const
+
+/** Amount of a resource in a transfer: a strictly positive integer. */
+const Amount = z.number().int().positive()
+
+/** Resource amounts of a transfer: at least one resource, and no other key. */
+export const ResourceAmounts = z
+  .object({ wood: Amount.optional(), stone: Amount.optional(), gold: Amount.optional() })
+  .strict()
+  .refine((amounts) => Object.keys(amounts).length > 0, 'Au moins une ressource est attendue')
+
+/** Content of a withdrawal or deposit message. */
+export const TransferRequest = z.object({
+  /** Transfer identifier, chosen by the requester: a duplicate carries the same one. */
+  transferId: z.string().min(1),
+  /** Player whose village is concerned. */
+  playerId: z.string().min(1),
+  /** Resources to move. */
+  resources: ResourceAmounts,
+  /** Topic of the reply message; missing if the requester expects no reply. */
+  replyTo: z.string().min(1).optional(),
+})
+
+/** Content of a withdrawal or deposit message, inferred from its schema. */
+export type TransferRequest = z.infer<typeof TransferRequest>
+
+/** Content of the reply message sent by the village module to the `replyTo` topic. */
+export interface TransferResult {
+  /** Identifier of the transfer the reply is about. */
+  transferId: string
+  /** Outcome of the transfer. */
+  outcome: 'withdrawn' | 'refused' | 'deposited'
+  /** Missing amounts, when refused. */
+  missing?: Partial<Stock>
+}

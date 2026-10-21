@@ -26,8 +26,13 @@ export function createEventStoreVillageRepository(store: EventStore): VillageRep
       return { state: replay(events), version: stored.at(-1)?.version ?? 0 }
     },
 
-    async save(userId, expectedVersion, events) {
-      await store.append(villageStream(userId), expectedVersion, events as unknown as NewEvent[])
+    async save(userId, expectedVersion, events, messages) {
+      await store.append(
+        villageStream(userId),
+        expectedVersion,
+        events as unknown as NewEvent[],
+        messages,
+      )
     },
   }
 }

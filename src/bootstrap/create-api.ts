@@ -45,7 +45,7 @@ export interface ApiDeps {
  * Channel access rules declared by the modules are gathered here and passed to
  * the real-time sub-app; with no rule, every channel is refused. The projection
  * runner and the outbox dispatcher are created here from the database, and shared by
- * the modules. The scheduled outbox dispatch is mounted outside the player routes: it
+ * the modules, which hand their message handlers to the dispatcher. The scheduled outbox dispatch is mounted outside the player routes: it
  * authenticates the Vercel scheduled task with a secret, not a player session.
  *
  * @param deps - Authentication, database, event store, database readiness, optional clock,
@@ -59,6 +59,7 @@ export function createApi({ auth, db, store, ready, clock, realtime, cronSecret 
   const realm = createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
+  dispatcher.register(realm.handlers)
 
   const policies: ChannelPolicy[] = [
     realm.channelPolicy,

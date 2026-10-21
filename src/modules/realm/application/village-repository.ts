@@ -1,3 +1,4 @@
+import type { NewMessage } from '@/platform/outbox/outbox'
 import type { VillageEvent, VillageState } from '../domain/village'
 
 /**
@@ -20,8 +21,14 @@ export interface VillageRepository {
    * @param userId - Player identifier.
    * @param expectedVersion - Version read at load time.
    * @param events - Events to append.
+   * @param messages - Messages recorded in the outbox in the same transaction.
    * @throws `ConcurrencyError` from the platform event store if other events
    *   were stored in between.
    */
-  save(userId: string, expectedVersion: number, events: VillageEvent[]): Promise<void>
+  save(
+    userId: string,
+    expectedVersion: number,
+    events: VillageEvent[],
+    messages?: NewMessage[],
+  ): Promise<void>
 }
