@@ -44,4 +44,11 @@ export interface MessageRepository {
    * @returns The posting times.
    */
   postedSince(authorId: string, since: number): Promise<number[]>
+  /**
+   * Deletes the messages posted before a given time.
+   *
+   * @param before - Expiry threshold in milliseconds.
+   * @returns The number of deleted messages.
+   */
+  removeOlderThan(before: number): Promise<number>
 }

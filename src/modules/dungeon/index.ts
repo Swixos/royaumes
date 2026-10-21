@@ -13,6 +13,7 @@ import { createDungeonService } from './application/dungeon-service'
 import { GAME_CHANNEL_PREFIX } from './contracts'
 import { createDrizzleOpenGamesReader } from './infrastructure/drizzle-open-games-reader'
 import { createEventStoreGameRepository } from './infrastructure/event-store-game-repository'
+import { createDungeonPersonalData } from './personal-data'
 
 /** Dependencies of the dungeon module. */
 export interface DungeonModuleDeps {
@@ -33,7 +34,8 @@ export interface DungeonModuleDeps {
  * it carries no event data, since `ActionSubmitted` would reveal a hero's action.
  *
  * @param deps - Event store, database, projection runner and optional clock.
- * @returns The module, exposing its Hono sub-app and its channel policy.
+ * @returns The module, exposing its Hono sub-app, its channel policy and its personal
+ *   data contributor.
  */
 export function createDungeonModule({ store, db, projections, clock }: DungeonModuleDeps) {
   const repo = createEventStoreGameRepository(store)
@@ -49,7 +51,11 @@ export function createDungeonModule({ store, db, projections, clock }: DungeonMo
     },
   }
 
-  return { api: createDungeonApi(service), channelPolicy }
+  return {
+    api: createDungeonApi(service),
+    channelPolicy,
+    personalData: createDungeonPersonalData(store, db),
+  }
 }
 
 export type { DungeonApi } from './api'

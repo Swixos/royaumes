@@ -11,6 +11,7 @@ import { createVillageService } from './application/village-service'
 import { villageChannel } from './contracts'
 import { createEventStoreVillageRepository } from './infrastructure/event-store-village-repository'
 import { createRealmHandlers } from './messages'
+import { createRealmPersonalData } from './personal-data'
 
 /** Dependencies of the realm module. */
 export interface RealmModuleDeps {
@@ -26,7 +27,8 @@ export interface RealmModuleDeps {
  * handlers of the messages sent by other modules.
  *
  * @param deps - Event store and optional clock.
- * @returns The module, exposing its Hono sub-app, its channel policy and its message handlers.
+ * @returns The module, exposing its Hono sub-app, its channel policy, its message handlers
+ *   and its personal data contributor.
  */
 export function createRealmModule({ store, clock }: RealmModuleDeps) {
   const repo = createEventStoreVillageRepository(store)
@@ -36,7 +38,12 @@ export function createRealmModule({ store, clock }: RealmModuleDeps) {
     canSubscribe: (channel, userId) => channel === villageChannel(userId),
   }
 
-  return { api: createRealmApi(service), channelPolicy, handlers: createRealmHandlers(service) }
+  return {
+    api: createRealmApi(service),
+    channelPolicy,
+    handlers: createRealmHandlers(service),
+    personalData: createRealmPersonalData(service),
+  }
 }
 
 export type { RealmApi } from './api'
