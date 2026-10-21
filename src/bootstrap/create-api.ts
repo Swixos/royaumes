@@ -8,6 +8,8 @@ import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import { createDispatchApi } from '@/platform/outbox/dispatch-api'
+import { createDispatcher } from '@/platform/outbox/outbox'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
@@ -26,6 +28,8 @@ export interface ApiDeps {
   clock?: () => number
   /** Real-time settings (stream duration, polling interval); shortened in tests. */
   realtime?: Partial<Omit<RealtimeOptions, 'store' | 'policies'>>
+  /** Secret expected from the scheduled task dispatching the outbox; route closed without it. */
+  cronSecret?: string
 }
 
 /**
@@ -40,15 +44,17 @@ export interface ApiDeps {
  *
  * Channel access rules declared by the modules are gathered here and passed to
  * the real-time sub-app; with no rule, every channel is refused. The projection
- * runner is created here from the database, and shared by every module keeping a
- * read model.
+ * runner and the outbox dispatcher are created here from the database, and shared by
+ * the modules. The scheduled outbox dispatch is mounted outside the player routes: it
+ * authenticates the Vercel scheduled task with a secret, not a player session.
  *
- * @param deps - Authentication, database, event store, database readiness, optional clock
- *   and real-time settings.
+ * @param deps - Authentication, database, event store, database readiness, optional clock,
+ *   real-time settings and scheduled task secret.
  * @returns The main Hono application, with every route under `/api`.
  */
-export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) {
+export function createApi({ auth, db, store, ready, clock, realtime, cronSecret }: ApiDeps) {
   const projections = createProjectionRunner(db)
+  const dispatcher = createDispatcher(db)
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
@@ -75,6 +81,7 @@ export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) 
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Route inconnue' } }, 404))
 
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
+  app.route('/outbox', createDispatchApi(dispatcher, cronSecret))
 
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))

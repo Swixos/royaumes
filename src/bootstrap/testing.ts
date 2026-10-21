@@ -15,6 +15,9 @@ export const testAuth: AuthPort = {
   },
 }
 
+/** Secret of the scheduled task, in tests. */
+export const TEST_CRON_SECRET = 'secret-de-test'
+
 /** Player a test request is sent as; `null` for an anonymous request. */
 type TestUser = string | null
 
@@ -36,6 +39,7 @@ export async function createTestApi() {
     store,
     clock: () => now,
     realtime: { pollMs: 20, maxStreamMs: 150 },
+    cronSecret: TEST_CRON_SECRET,
   })
 
   /**
