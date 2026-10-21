@@ -3,6 +3,7 @@ import { DEFAULT_DIFFICULTY, type Difficulty, MAX_HEROES } from '../domain/conte
 import { decide, type GameCommand, type GameError } from '../domain/rules'
 import { type GameView, toView } from '../domain/view'
 import type { GameRepository } from './game-repository'
+import type { OpenGamesReader } from './open-games-reader'
 
 /** Result of a command: the updated view for the player, or the domain error. */
 export type CommandResult = { ok: true; view: GameView } | { ok: false; error: GameError }
@@ -29,12 +30,14 @@ export interface DungeonServiceOptions {
  * expedition identifier and seed are drawn by the server, never taken from the
  * request: a player choosing the seed could choose the dungeon content.
  *
- * @param repo - Persistence port.
+ * @param repo - Persistence port, serving the commands.
+ * @param openGames - Read port of the open expeditions.
  * @param options - Clock, identifier and seed generators; replaced in tests.
  * @returns The `execute`, `create`, `getView` and `listOpenGames` operations.
  */
 export function createDungeonService(
   repo: GameRepository,
+  openGames: OpenGamesReader,
   {
     clock = () => Date.now(),
     newId = () => crypto.randomUUID(),
@@ -106,7 +109,7 @@ export function createDungeonService(
    * @returns The open expeditions, most recent first.
    */
   function listOpenGames() {
-    return repo.listOpenGames(clock())
+    return openGames.list(clock())
   }
 
   return { execute, create, getView, listOpenGames }
