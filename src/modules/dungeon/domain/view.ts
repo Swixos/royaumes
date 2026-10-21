@@ -4,7 +4,7 @@
  *
  * @packageDocumentation
  */
-import { DUNGEON_LENGTH } from './content'
+import { type Difficulty, DUNGEON_LENGTH } from './content'
 import { type Action, evolve, type GameState, type Monster, type Phase, type Room } from './game'
 import { settle } from './rules'
 
@@ -28,6 +28,8 @@ export interface HeroView {
 export interface GameView {
   /** Current phase. */
   phase: Phase
+  /** Difficulty level, chosen by the host; not secret. */
+  difficulty: Difficulty
   /** Player who opened the expedition. */
   hostId: string
   /** True if the viewer is the host. */
@@ -72,6 +74,7 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
 
   return {
     phase: current.phase,
+    difficulty: current.difficulty,
     hostId: current.hostId,
     isHost: current.hostId === viewerId,
     isMember: current.heroes.some((hero) => hero.id === viewerId),

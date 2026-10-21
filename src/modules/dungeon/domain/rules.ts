@@ -10,6 +10,7 @@ import {
   BOSS,
   COMMON_MONSTERS,
   DAMAGE_SPREAD,
+  type Difficulty,
   DUNGEON_LENGTH,
   HEAL_AMOUNT,
   HERO,
@@ -27,14 +28,13 @@ import {
   evolve,
   type GameEvent,
   type GameState,
-  type Hero,
-  type Monster,
   type MonsterSpec,
   type Phase,
   type Room,
   standingHeroes,
   standingMonsters,
 } from './game'
+import { MONSTER_STRATEGIES } from './monster-strategies'
 import { mix, pick, type Random, randomInt, seeded } from './random'
 
 /**
@@ -43,7 +43,7 @@ import { mix, pick, type Random, randomInt, seeded } from './random'
  * recording the rounds whose deadline has passed.
  */
 export type GameCommand =
-  | { type: 'CreateGame'; playerId: string; name: string; seed: number }
+  | { type: 'CreateGame'; playerId: string; name: string; difficulty: Difficulty; seed: number }
   | { type: 'JoinGame'; playerId: string; name: string }
   | { type: 'StartGame'; playerId: string }
   | { type: 'OpenDoor'; playerId: string }
@@ -131,20 +131,9 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
   Math.max(1, randomInt(random, attack - spread, attack + spread))
 
 /**
- * Picks a monster's target: the standing hero with the fewest hit points, the
- * first in hero order on a tie. Fixed rule, replaced by an AI in TD7.
- *
- * @param _monster - Monster choosing its target.
- * @param heroes - Standing heroes.
- * @returns The targeted hero.
- */
-export function chooseMonsterTarget(_monster: Monster, heroes: Hero[]): Hero {
-  return heroes.reduce((weakest, hero) => (hero.hp < weakest.hp ? hero : weakest))
-}
-
-/**
  * Resolves the current round. The derived seed `mix(seed, 1, round)` only depends
  * on the round, so resolution always gives the same result whenever it is computed.
+ * Monsters pick their target with the strategy of the expedition difficulty.
  *
  * @param state - Expedition state, in combat.
  * @param at - Time of the resolution, in milliseconds.
@@ -184,11 +173,12 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
     const amount = rollDamage(random, attack, DAMAGE_SPREAD.hero)
     record({ kind: 'damage', source: heroId, target, amount })
   }
+  const strategy = MONSTER_STRATEGIES[state.difficulty]
 
   for (const monster of monsters) {
     const targets = heroes.filter((hero) => hero.hp > 0)
     if (monster.hp <= 0 || targets.length === 0) continue
-    const target = chooseMonsterTarget(monster, targets)
+    const target = strategy({ monster, heroes: targets, actions, random })
     let amount = rollDamage(random, monster.attack, DAMAGE_SPREAD.monster)
     if (actions[target.id]?.type === 'defend') amount = Math.ceil(amount / 2)
     record({ kind: 'damage', source: monster.id, target: target.id, amount })
@@ -274,13 +264,13 @@ const isMember = (state: GameState, playerId: string) =>
 function decideCommand(state: GameState, command: GameCommand, now: number): Decision {
   if (command.type === 'CreateGame') {
     if (state.exists) return fail({ code: 'ALREADY_EXISTS' })
-    const { playerId, name, seed } = command
+    const { playerId, name, difficulty, seed } = command
     return {
       ok: true,
       events: [
         {
           type: 'GameCreated',
-          data: { hostId: playerId, hostName: name, hero: { ...HERO }, seed, at: now },
+          data: { hostId: playerId, hostName: name, hero: { ...HERO }, difficulty, seed, at: now },
         },
       ],
     }
