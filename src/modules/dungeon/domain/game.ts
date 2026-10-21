@@ -4,7 +4,7 @@
  *
  * @packageDocumentation
  */
-import type { MonsterKind } from './content'
+import { DEFAULT_DIFFICULTY, type Difficulty, type MonsterKind } from './content'
 
 /** Phase of an expedition. */
 export type Phase = 'lobby' | 'exploring' | 'combat' | 'won' | 'lost'
@@ -78,6 +78,8 @@ export interface GameState {
   exists: boolean
   /** Player who opened the expedition. */
   hostId: string
+  /** Difficulty level, which sets the monster strategy. */
+  difficulty: Difficulty
   /** Random seed of the expedition: secret, never sent to players. */
   seed: number
   /** Current phase. */
@@ -108,6 +110,7 @@ export interface GameState {
 export const initialState: GameState = {
   exists: false,
   hostId: '',
+  difficulty: DEFAULT_DIFFICULTY,
   seed: 0,
   phase: 'lobby',
   heroes: [],
@@ -126,7 +129,15 @@ export const initialState: GameState = {
 export type GameEvent =
   | {
       type: 'GameCreated'
-      data: { hostId: string; hostName: string; hero: HeroSpec; seed: number; at: number }
+      data: {
+        hostId: string
+        hostName: string
+        hero: HeroSpec
+        /** Optional: missing from events recorded before difficulty levels existed. */
+        difficulty?: Difficulty
+        seed: number
+        at: number
+      }
     }
   | { type: 'PlayerJoined'; data: { playerId: string; name: string; hero: HeroSpec; at: number } }
   | { type: 'GameStarted'; data: { rooms: Room[]; at: number } }
@@ -248,6 +259,7 @@ export function evolve(state: GameState, event: GameEvent): GameState {
         ...initialState,
         exists: true,
         hostId: event.data.hostId,
+        difficulty: event.data.difficulty ?? DEFAULT_DIFFICULTY,
         seed: event.data.seed,
         heroes: [newHero(event.data.hostId, event.data.hostName, event.data.hero)],
       }
