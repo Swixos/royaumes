@@ -5,13 +5,19 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
+import { DIFFICULTIES } from './domain/content'
 
-export type { MonsterKind } from './domain/content'
-export { MAX_HEROES, MONSTERS, ROUND_MS } from './domain/content'
+export type { Difficulty, MonsterKind } from './domain/content'
+export { DIFFICULTIES, MAX_HEROES, MONSTERS, ROUND_MS } from './domain/content'
 export type { Action, Effect, Monster, Phase, Room } from './domain/game'
 export type { OpenGame } from './domain/lobby'
 export type { GameError } from './domain/rules'
 export type { GameView, HeroView } from './domain/view'
+
+/** Expected body to open an expedition: the difficulty level, easy by default. */
+export const CreateGameInput = z.object({
+  difficulty: z.enum(DIFFICULTIES).default('easy'),
+})
 
 /** Expected body to choose an action: the targeted round and the action itself. */
 export const SubmitActionInput = z.object({
