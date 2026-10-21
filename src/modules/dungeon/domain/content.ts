@@ -23,8 +23,14 @@ export const DUNGEON_LENGTH = 6
 /** Maximum duration of a combat round, in milliseconds. */
 export const ROUND_MS = 30_000
 
+/** Time allowed to open the next door, in milliseconds. */
+export const EXPLORE_MS = 60_000
+
 /** Hit points restored by a heal. */
 export const HEAL_AMOUNT = 8
+
+/** Share of maximum hit points under which a companion heals a hero rather than attacking. */
+export const COMPANION_HEAL_RATIO = 0.4
 
 /** Starting stats of each hero. */
 export const HERO = { hp: 30, attack: 6 }
