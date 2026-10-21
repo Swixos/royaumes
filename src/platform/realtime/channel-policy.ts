@@ -1,3 +1,26 @@
+import type { StoredEvent } from '../event-store/event-store'
+
+/**
+ * Source of a channel that does not read the log, provided by the module declaring it.
+ * Its items are presented as events, identified by their position, so the interface
+ * receives them like those of the other channels.
+ */
+export interface ChannelSource {
+  /**
+   * Reads the items after a position.
+   *
+   * @param after - Position of the last item already sent.
+   * @returns The later items, in increasing position order.
+   */
+  read(after: number): Promise<StoredEvent[]>
+  /**
+   * Gives the starting position of a subscriber that provides none.
+   *
+   * @returns The position to read after.
+   */
+  start(): Promise<number>
+}
+
 /**
  * Access rule for the real-time channels of a module. Each module declares who
  * may listen to its channels; the platform, which knows no module, receives
@@ -25,6 +48,11 @@ export interface ChannelPolicy {
    * version, and it only sends the events recorded after it opens.
    */
   global?: { types: string[] }
+  /**
+   * Channel fed by a source of the module rather than by the log: for instance a table,
+   * for a module that records no events.
+   */
+  source?: ChannelSource
 }
 
 /**

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import type { EventStore, StoredEvent } from '../event-store/event-store'
 import type { AppEnv } from '../http/types'
-import { authorize, type ChannelPolicy } from './channel-policy'
+import { authorize, type ChannelPolicy, type ChannelSource } from './channel-policy'
 
 /** Options of the real-time sub-app. */
 export interface RealtimeOptions {
@@ -42,15 +42,8 @@ function present(event: StoredEvent, policy: ChannelPolicy) {
   }
 }
 
-/** Source of the events of a channel: how to read them, and how to identify them. */
-interface ChannelSource {
-  /**
-   * Reads the events after an identifier, in order.
-   *
-   * @param after - Identifier of the last event already sent.
-   * @returns The later events.
-   */
-  read(after: number): Promise<StoredEvent[]>
+/** Source of the events of a channel, along with the way to identify them. */
+interface IdentifiedSource extends ChannelSource {
   /**
    * Identifies an event, as sent back by the browser in `Last-Event-ID`.
    *
@@ -58,26 +51,25 @@ interface ChannelSource {
    * @returns Its identifier.
    */
   idOf(event: StoredEvent): number
-  /**
-   * Gives the starting identifier, when the browser provides none.
-   *
-   * @returns The identifier to read after.
-   */
-  start(): Promise<number>
 }
 
 /**
  * Builds the event source of a channel. A regular channel is a stream of the log,
  * whose events are identified by their version and sent from the start. A global
  * channel follows the whole log: its events are identified by their position, and
- * only upcoming events are sent.
+ * only upcoming events are sent. A channel with its own source reads that source, and
+ * identifies its items by their position.
  *
  * @param store - Event store.
  * @param channel - Channel name.
  * @param policy - Access rule matching the channel.
  * @returns The source of the channel events.
  */
-function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): ChannelSource {
+function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): IdentifiedSource {
+  if (policy.source) {
+    const source = policy.source
+    return { read: source.read, start: source.start, idOf: (event) => event.position }
+  }
   const global = policy.global
   if (global) {
     return {
@@ -100,7 +92,7 @@ function sourceOf(store: EventStore, channel: string, policy: ChannelPolicy): Ch
  * @param source - Source of the channel events.
  * @returns The given identifier, or the starting one of the source.
  */
-async function startFrom(given: string | undefined, source: ChannelSource) {
+async function startFrom(given: string | undefined, source: IdentifiedSource) {
   return given === undefined ? source.start() : Number(given) || 0
 }
 
