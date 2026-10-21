@@ -1,5 +1,7 @@
 import { and, asc, eq, gt, inArray, like, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
+import { type NewMessage, toOutboxRow } from '../outbox/outbox'
+import { outbox } from '../outbox/schema'
 import { events } from './schema'
 
 /** Event to record: a type and data the platform does not interpret. */
@@ -37,15 +39,23 @@ export class ConcurrencyError extends Error {
 /** Event store port, used by the module adapters. */
 export interface EventStore {
   /**
-   * Appends events at the end of a stream, all or none.
+   * Appends events at the end of a stream, all or none. Messages, if any, are recorded
+   * in the outbox in the same transaction: they are only recorded if the events are,
+   * so a refused append (a version conflict, notably) records no message.
    *
    * @param stream - Target stream.
    * @param expectedVersion - Stream version read before deciding.
    * @param newEvents - Events to append.
+   * @param messages - Messages produced by the decision, recorded in the outbox.
    * @returns The recorded events.
    * @throws {@link ConcurrencyError} If `expectedVersion` is no longer the current version.
    */
-  append(stream: string, expectedVersion: number, newEvents: NewEvent[]): Promise<StoredEvent[]>
+  append(
+    stream: string,
+    expectedVersion: number,
+    newEvents: NewEvent[],
+    messages?: NewMessage[],
+  ): Promise<StoredEvent[]>
 
   /**
    * Reads the events of a stream, in order.
@@ -122,7 +132,7 @@ function toStored(row: typeof events.$inferSelect): StoredEvent {
  */
 export function createEventStore(db: Db): EventStore {
   return {
-    async append(stream, expectedVersion, newEvents) {
+    async append(stream, expectedVersion, newEvents, messages = []) {
       if (newEvents.length === 0) return []
 
       const rows = newEvents.map((event, i) => ({
@@ -133,7 +143,15 @@ export function createEventStore(db: Db): EventStore {
       }))
 
       try {
-        const inserted = await db.insert(events).values(rows).returning()
+        if (messages.length === 0) {
+          const inserted = await db.insert(events).values(rows).returning()
+          return inserted.map(toStored)
+        }
+        const inserted = await db.transaction(async (tx) => {
+          const stored = await tx.insert(events).values(rows).returning()
+          await tx.insert(outbox).values(messages.map(toOutboxRow))
+          return stored
+        })
         return inserted.map(toStored)
       } catch (error) {
         if (isUniqueViolation(error)) throw new ConcurrencyError(stream, expectedVersion)
