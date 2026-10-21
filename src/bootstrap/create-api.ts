@@ -4,6 +4,7 @@ import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
+import { createTavernModule } from '@/modules/tavern'
 import type { AuthPort } from '@/platform/auth/port'
 import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
@@ -79,6 +80,7 @@ export function createApi({
     dispatch: () => dispatcher.dispatch(),
     clock,
   })
+  const tavern = createTavernModule({ db, clock })
   dispatcher.register(realm.handlers)
   dispatcher.register(market.handlers)
 
@@ -87,6 +89,7 @@ export function createApi({
     dungeon.channelPolicy,
     ranking.channelPolicy,
     market.channelPolicy,
+    tavern.channelPolicy,
   ]
 
   const app = new Hono<AppEnv>().basePath('/api')
@@ -110,6 +113,7 @@ export function createApi({
   app.use('/dungeon/*', requireUser(auth))
   app.use('/ranking/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
+  app.use('/tavern/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   return app
@@ -118,6 +122,7 @@ export function createApi({
     .route('/dungeon', dungeon.api)
     .route('/ranking', ranking.api)
     .route('/market', market.api)
+    .route('/tavern', tavern.api)
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
