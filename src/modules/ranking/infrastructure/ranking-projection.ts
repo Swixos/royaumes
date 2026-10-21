@@ -69,10 +69,12 @@ async function recordPlayer(tx: DbTransaction, gameId: string, playerId: string,
  * Ranking projection: updates the totals of the players from the log. The outcome of
  * an expedition goes to its players only, companions excluded, and the list of its
  * players is dropped once it ends.
+ *
+ * Version 2: adds the best loot.
  */
 export const rankingProjection: Projection = {
   name: 'ranking',
-  version: 1,
+  version: 2,
   eventTypes: ['GameCreated', 'PlayerJoined', 'GameEnded', 'VillageFounded', 'BuildingUpgraded'],
 
   async apply(event, tx) {
@@ -102,6 +104,7 @@ export const rankingProjection: Projection = {
               gamesPlayed: sql`${players.gamesPlayed} + 1`,
               gamesWon: sql`${players.gamesWon} + ${won ? 1 : 0}`,
               gold: sql`${players.gold} + ${won ? data.loot : 0}`,
+              bestLoot: sql`greatest(${players.bestLoot}, ${won ? data.loot : 0})`,
             })
             .where(inArray(players.playerId, ids))
         }
