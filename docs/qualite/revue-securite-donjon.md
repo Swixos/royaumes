@@ -1,7 +1,7 @@
 # Revue de sécurité du Donjon : dissimulation d'informations et intégrité du jeu
 
 - Date : 2026-10-20
-- Périmètre : API du module Donjon, canal temps réel des expéditions, tirages au sort, compagnons et intelligence artificielle.
+- Périmètre : API du module Donjon, canal temps réel des expéditions, tirages au sort, compagnons et intelligence artificielle, canal du classement.
 - Références : OWASP Top 10 (A01 Broken Access Control, A04 Insecure Design).
 
 | N° | Exigence | Vérification | Constat | Statut |
@@ -18,13 +18,15 @@
 | D10 | Connaître l'adresse d'une expédition ne permet pas d'y agir sans en être membre | Action envoyée par un joueur qui n'est pas membre | Une action envoyée par un joueur non membre reçoit 403 `NOT_A_MEMBER`. Ce joueur peut en revanche consulter la vue de l'expédition : ce choix est volontaire, puisqu'il permet de rejoindre une expédition à partir de son adresse. La vue consultée ne contient que des informations publiques (ni graine, ni actions, ni salles suivantes), et l'identifiant, un UUID tiré au hasard, ne peut pas être deviné. | Risque accepté |
 | D11 | Aucun joueur ne peut agir au nom d'un compagnon ni écouter le canal en son nom | Test « présente le compagnon comme prêt, et ne le compte pas parmi les membres » ; fonction `isMember` de `rules.ts` | Le test réussit : la vue lue sous l'identifiant d'un compagnon n'en fait pas un membre. Dans `rules.ts`, `isMember` exclut les compagnons, et `SubmitAction` refuse toute action destinée à un compagnon (`NOT_A_MEMBER`). La règle du canal repose sur `isMember` de la vue, qui exclut aussi les compagnons. L'identifiant du joueur provient toujours de la session (D5) : aucune requête ne peut se présenter comme un compagnon. | Conforme |
 | D12 | L'intelligence artificielle ne transmet aux joueurs aucune information qu'ils n'auraient pas autrement | Lecture de `companion.ts` et `monster-strategies.ts` ; vue filtrée inchangée | Le compagnon décide sur la situation du début de la manche (héros et monstres debout), sans connaître les actions des joueurs. Les monstres, qui connaissent ces actions, s'exécutent sur le serveur, dans `resolveRound` : leurs décisions ne sont transmises qu'une fois la manche résolue, dans l'événement `RoundResolved`. La vue filtrée n'a reçu que l'indicateur `companion`, public, et ne contient toujours ni graine, ni actions, ni salles suivantes. | Conforme |
+| D13 | Le canal du classement ne transmet aucune donnée d'événement, en particulier la graine d'une expédition | Test « annonce sur son canal les événements du classement, sans leurs données » | Le test réussit : la route de repli du canal `ranking` renvoie l'événement `GameCreated` sans aucune clé `seed`. La règle du canal est discrète (`redact: true`) : la fonction `present` remplace les données de chaque événement par un objet vide, par le flux comme par la route de repli. | Conforme |
+| D14 | Les informations transmises par le canal du classement sont déjà accessibles à tout joueur connecté | Lecture de la fonction `present` de `stream-api.ts` ; réponse de l'API du classement | Le canal transmet encore la position, le type, la version et le nom du flux de chaque événement. Le nom d'un flux de village contient l'identifiant d'un joueur, qui figure déjà dans la réponse de l'API du classement (`playerId`). Le nom d'un flux d'expédition contient l'identifiant de l'expédition, qui n'était jusqu'ici connu que de ses membres et des joueurs qui la voyaient dans la liste des expéditions ouvertes. Cet identifiant ne permet ni d'agir dans l'expédition (D10), ni d'écouter son canal (D3) ; il permet seulement d'en consulter la vue publique, sans graine, actions ni salles suivantes, comme le prévoit déjà D10. Le canal révèle aussi le rythme de l'activité du jeu (types et positions des événements), sans conséquence pour l'intégrité d'une partie. | Risque accepté |
 
 ## Synthèse
 
-- Conformes : 11 (D1 à D9, D11 et D12).
+- Conformes : 12 (D1 à D9, D11 à D13).
 - Non conforme : aucune.
-- Risque accepté : 1 (D10), la consultation d'une expédition par un joueur qui en connaît
-  l'adresse.
+- Risque accepté : 2 (D10 et D14), la consultation d'une expédition par un joueur qui en
+  connaît l'adresse, et l'annonce des identifiants d'expédition par le canal du classement.
 
 Actions décidées :
 
