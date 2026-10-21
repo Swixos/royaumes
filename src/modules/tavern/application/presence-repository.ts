@@ -22,9 +22,9 @@ export interface PresenceRepository {
    * Deletes the rows of the players whose last signal is older than a given time.
    *
    * @param before - Staleness threshold in milliseconds.
-   * @returns Resolves once the rows are deleted.
+   * @returns The number of deleted rows.
    */
-  removeStale(before: number): Promise<void>
+  removeStale(before: number): Promise<number>
   /**
    * Lists the present players.
    *

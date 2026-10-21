@@ -11,6 +11,7 @@ import { createRankingApi } from './api'
 import { RANKING_CHANNEL } from './contracts'
 import { createDrizzleRankingReader } from './infrastructure/drizzle-ranking-reader'
 import { rankingProjection } from './infrastructure/ranking-projection'
+import { createRankingPersonalData } from './personal-data'
 
 /** Dependencies of the ranking module. */
 export interface RankingModuleDeps {
@@ -28,7 +29,8 @@ export interface RankingModuleDeps {
  * only needs their position.
  *
  * @param deps - Database and projection runner.
- * @returns The module, exposing its Hono sub-app and its channel policy.
+ * @returns The module, exposing its Hono sub-app, its channel policy and its personal
+ *   data contributor.
  */
 export function createRankingModule({ db, projections }: RankingModuleDeps) {
   const reader = createDrizzleRankingReader(db, projections)
@@ -38,7 +40,11 @@ export function createRankingModule({ db, projections }: RankingModuleDeps) {
     redact: true,
     global: { types: rankingProjection.eventTypes },
   }
-  return { api: createRankingApi(reader), channelPolicy }
+  return {
+    api: createRankingApi(reader),
+    channelPolicy,
+    personalData: createRankingPersonalData(db, projections),
+  }
 }
 
 export type { RankingApi } from './api'
