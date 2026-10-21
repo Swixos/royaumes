@@ -29,6 +29,27 @@
       "when": 1792578006990,
       "tag": "0003_classement",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792578410384,
+      "tag": "0004_version_projections",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792578470113,
+      "tag": "0005_meilleur_butin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792578554252,
+      "tag": "0006_expeditions_ouvertes",
+      "breakpoints": true
     }
   ]
 }

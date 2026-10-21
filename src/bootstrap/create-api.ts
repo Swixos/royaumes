@@ -51,10 +51,14 @@ export function createApi({ auth, db, store, ready, clock, realtime }: ApiDeps) 
   const projections = createProjectionRunner(db)
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
-  const dungeon = createDungeonModule({ store, clock })
+  const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
 
-  const policies: ChannelPolicy[] = [realm.channelPolicy, dungeon.channelPolicy]
+  const policies: ChannelPolicy[] = [
+    realm.channelPolicy,
+    dungeon.channelPolicy,
+    ranking.channelPolicy,
+  ]
 
   const app = new Hono<AppEnv>().basePath('/api')
 
