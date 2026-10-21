@@ -25,5 +25,19 @@ export interface RankingEntry {
   bestLoot: number
 }
 
+/** Ranking returned by the API. */
+export interface Ranking {
+  /**
+   * Position of the log up to which the ranking is up to date. The interface compares
+   * it with the position of the events announced by the ranking channel.
+   */
+  position: number
+  /** Ranking rows, best first. */
+  entries: RankingEntry[]
+}
+
 /** Number of players shown by the ranking. */
 export const RANKING_SIZE = 20
+
+/** Name of the real-time channel of the ranking, which matches no stream of the log. */
+export const RANKING_CHANNEL = 'ranking'
