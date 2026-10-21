@@ -8,10 +8,15 @@ export interface NewMessage {
   topic: string
   /** Content of the message, which the platform does not interpret. */
   payload: Record<string, unknown>
+  /**
+   * Delay before the first delivery, in milliseconds. A delayed message acts as a timer:
+   * it is delivered by the first dispatch after the delay has elapsed.
+   */
+  delayMs?: number
 }
 
 /** Message delivered to a handler. */
-export interface Message extends NewMessage {
+export interface Message extends Omit<NewMessage, 'delayMs'> {
   /** Unique message identifier. */
   id: string
   /** Number of the current attempt, starting at 1. */
@@ -29,7 +34,9 @@ export interface Message extends NewMessage {
 export type MessageHandler = (message: Message) => Promise<void>
 
 /**
- * Converts a message to record into a row of the table, with a unique identifier.
+ * Converts a message to record into a row of the table, with a unique identifier. The
+ * availability of a delayed message is computed by the database, like that of a regular
+ * message: now, plus the delay.
  *
  * @param message - Message to record.
  * @returns The outbox row.
@@ -38,6 +45,9 @@ export const toOutboxRow = (message: NewMessage) => ({
   id: crypto.randomUUID(),
   topic: message.topic,
   payload: message.payload,
+  ...(message.delayMs
+    ? { availableAt: sql`now() + make_interval(secs => ${message.delayMs / 1000})` }
+    : {}),
 })
 
 /** Options of the dispatcher. */

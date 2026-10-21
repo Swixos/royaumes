@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
+import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
@@ -9,7 +10,7 @@ import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
 import { createDispatchApi } from '@/platform/outbox/dispatch-api'
-import { createDispatcher } from '@/platform/outbox/outbox'
+import { createDispatcher, type DispatcherOptions } from '@/platform/outbox/outbox'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
@@ -30,6 +31,8 @@ export interface ApiDeps {
   realtime?: Partial<Omit<RealtimeOptions, 'store' | 'policies'>>
   /** Secret expected from the scheduled task dispatching the outbox; route closed without it. */
   cronSecret?: string
+  /** Outbox dispatcher settings; its clock is shifted in tests. */
+  outbox?: DispatcherOptions
 }
 
 /**
@@ -45,26 +48,45 @@ export interface ApiDeps {
  * Channel access rules declared by the modules are gathered here and passed to
  * the real-time sub-app; with no rule, every channel is refused. The projection
  * runner and the outbox dispatcher are created here from the database, and shared by
- * the modules, which hand their message handlers to the dispatcher. The scheduled outbox dispatch is mounted outside the player routes: it
+ * the modules, which hand their message handlers to the dispatcher. The market module
+ * triggers a dispatch after its commands and reads. The scheduled outbox dispatch is mounted outside the player routes: it
  * authenticates the Vercel scheduled task with a secret, not a player session.
  *
  * @param deps - Authentication, database, event store, database readiness, optional clock,
- *   real-time settings and scheduled task secret.
+ *   real-time settings scheduled task secret and outbox settings.
  * @returns The main Hono application, with every route under `/api`.
  */
-export function createApi({ auth, db, store, ready, clock, realtime, cronSecret }: ApiDeps) {
+export function createApi({
+  auth,
+  db,
+  store,
+  ready,
+  clock,
+  realtime,
+  cronSecret,
+  outbox,
+}: ApiDeps) {
   const projections = createProjectionRunner(db)
-  const dispatcher = createDispatcher(db)
+  const dispatcher = createDispatcher(db, outbox)
   const system = createSystemModule()
   const realm = createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
+  const market = createMarketModule({
+    store,
+    db,
+    projections,
+    dispatch: () => dispatcher.dispatch(),
+    clock,
+  })
   dispatcher.register(realm.handlers)
+  dispatcher.register(market.handlers)
 
   const policies: ChannelPolicy[] = [
     realm.channelPolicy,
     dungeon.channelPolicy,
     ranking.channelPolicy,
+    market.channelPolicy,
   ]
 
   const app = new Hono<AppEnv>().basePath('/api')
@@ -87,6 +109,7 @@ export function createApi({ auth, db, store, ready, clock, realtime, cronSecret 
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))
   app.use('/ranking/*', requireUser(auth))
+  app.use('/market/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   return app
@@ -94,6 +117,7 @@ export function createApi({ auth, db, store, ready, clock, realtime, cronSecret 
     .route('/realm', realm.api)
     .route('/dungeon', dungeon.api)
     .route('/ranking', ranking.api)
+    .route('/market', market.api)
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
