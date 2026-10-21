@@ -27,3 +27,14 @@ export const messages = tavern.table(
     index('messages_posted_at_idx').on(t.postedAt),
   ],
 )
+
+/**
+ * Present players: one row per player, updated on each presence signal, and deleted when
+ * the player has left. No history of visits is kept.
+ */
+export const presence = tavern.table('presence', {
+  playerId: text('player_id').primaryKey(),
+  playerName: text('player_name').notNull(),
+  /** Time of the last presence signal, in milliseconds. */
+  lastSeen: bigint('last_seen', { mode: 'number' }).notNull(),
+})
