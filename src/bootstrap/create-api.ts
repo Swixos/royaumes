@@ -120,6 +120,8 @@ export function createApi({
   })
 
   app.onError((error, c) => {
+    // DETTE TECHNIQUE DT-009 (docs/qualite/dette-technique.md): the whole error is logged,
+    // including the parameters of a failed SQL query, which may hold personal data.
     console.error(error)
     return c.json({ error: { code: 'INTERNAL', message: 'Erreur interne' } }, 500)
   })
@@ -135,6 +137,8 @@ export function createApi({
         // counted; no tool lets anyone review or retry them.
         outbox: async () => ({ ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }),
         tavern: tavern.dailyTask,
+        // DETTE TECHNIQUE DT-008 (docs/qualite/dette-technique.md): no task deletes expired
+        // sessions, so their IP addresses and user agents are kept with no limit.
       },
       cronSecret,
     ),
