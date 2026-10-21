@@ -39,7 +39,7 @@ export function getServer(): Server {
     const auth = createBetterAuth(db)
     const maxStreamMs = Number(process.env.STREAM_MAX_SECONDS ?? 240) * 1000
     globalForServer.royaumes = {
-      api: createApi({ auth, store, ready, realtime: { maxStreamMs } }),
+      api: createApi({ auth, db, store, ready, realtime: { maxStreamMs } }),
       auth,
       ready,
     }
