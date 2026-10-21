@@ -8,5 +8,12 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     testTimeout: 20_000,
     env: { NODE_ENV: 'test' },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: ['src/**/*.test.ts'],
+      reporter: ['text-summary', 'html'],
+      reportsDirectory: 'coverage',
+    },
   },
 })
