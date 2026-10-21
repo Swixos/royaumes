@@ -12,12 +12,14 @@ import {
   BOSS,
   COMMON_MONSTERS,
   DAMAGE_SPREAD,
+  DEFAULT_DIFFICULTY,
   type Difficulty,
   DUNGEON_LENGTH,
   EXPLORE_MS,
   HEAL_AMOUNT,
   HERO,
   MAX_HEROES,
+  MONSTER_ATTACK_BONUS,
   MONSTERS,
   type MonsterKind,
   ROOM_ODDS,
@@ -84,14 +86,26 @@ const fail = (error: GameError): Decision => ({ ok: false, error })
 
 /**
  * Draws the content of the rooms. The derived seed `mix(seed, 0)` is only used for
- * rooms, so the same seed and hero count always give the same dungeon.
+ * rooms, so the same seed, hero count and difficulty always give the same dungeon.
+ * Monster stats are read from the game content at draw time, with the attack bonus
+ * of the difficulty level.
  *
  * @param seed - Expedition seed.
  * @param heroCount - Number of heroes, which scales monster rooms and the boss.
+ * @param difficulty - Difficulty level, which sets the monster attack bonus.
  * @returns The rooms, the last one holding the boss.
  */
-export function generateRooms(seed: number, heroCount: number): Room[] {
+export function generateRooms(
+  seed: number,
+  heroCount: number,
+  difficulty: Difficulty = DEFAULT_DIFFICULTY,
+): Room[] {
   const random = seeded(mix(seed, 0))
+  const spec = (kind: MonsterKind): MonsterSpec => ({
+    kind,
+    hp: MONSTERS[kind].hp,
+    attack: MONSTERS[kind].attack + MONSTER_ATTACK_BONUS[difficulty],
+  })
   const rooms: Room[] = []
   for (let index = 0; index < DUNGEON_LENGTH - 1; index++) {
     const roll = random()
@@ -114,18 +128,6 @@ export function generateRooms(seed: number, heroCount: number): Room[] {
 }
 
 /**
- * Reads the stats of a monster from the game content at draw time.
- *
- * @param kind - Kind of monster.
- * @returns Its stats.
- */
-const spec = (kind: MonsterKind): MonsterSpec => ({
-  kind,
-  hp: MONSTERS[kind].hp,
-  attack: MONSTERS[kind].attack,
-})
-
-/**
  * Draws the damage dealt by a fighter: its attack, plus or minus the allowed spread.
  *
  * @param random - Generator.
@@ -139,7 +141,8 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
 /**
  * Resolves the current round. The derived seed `mix(seed, 1, round)` only depends
  * on the round, so resolution always gives the same result whenever it is computed.
- * Companions choose their action through their own logic, and monsters pick their
+ * Companions choose their action through their own logic, but only when at least one
+ * player has chosen an action; otherwise they defend, like absent players. Monsters pick their
  * target with the strategy of the expedition difficulty. When the combat is won
  * before the last room, the event carries the deadline to open the next door.
  *
@@ -149,12 +152,16 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
  */
 export function resolveRound(state: GameState, at: number): GameEvent[] {
   const random = seeded(mix(state.seed, 1, state.round))
+  const playersActed = Object.keys(state.choices).length > 0
 
   const actions: Record<string, Action> = {}
   for (const hero of standingHeroes(state)) {
-    actions[hero.id] = hero.companion
-      ? chooseCompanionAction({ heroes: standingHeroes(state), monsters: standingMonsters(state) })
-      : (state.choices[hero.id] ?? { type: 'defend' })
+    if (hero.companion && playersActed) {
+      const situation = { heroes: standingHeroes(state), monsters: standingMonsters(state) }
+      actions[hero.id] = chooseCompanionAction(situation)
+    } else {
+      actions[hero.id] = state.choices[hero.id] ?? { type: 'defend' }
+    }
   }
 
   let heroes = state.heroes
@@ -355,7 +362,7 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
           {
             type: 'GameStarted',
             data: {
-              rooms: generateRooms(state.seed, state.heroes.length),
+              rooms: generateRooms(state.seed, state.heroes.length, state.difficulty),
               deadline: now + EXPLORE_MS,
               at: now,
             },
