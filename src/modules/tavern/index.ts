@@ -10,6 +10,7 @@ import { createTavernApi } from './api'
 import { createTavernService } from './application/tavern-service'
 import { MESSAGE_POSTED, TAVERN_CHANNEL } from './contracts'
 import { createDrizzleMessageRepository } from './infrastructure/drizzle-message-repository'
+import { createDrizzlePresenceRepository } from './infrastructure/drizzle-presence-repository'
 
 /** Dependencies of the tavern module. */
 export interface TavernModuleDeps {
@@ -23,7 +24,7 @@ export interface TavernModuleDeps {
 const CHANNEL_BATCH = 100
 
 /**
- * Module factory: wires the adapter, the service, the API and the channel access rule.
+ * Module factory: wires the adapters, the service, the API and the channel access rule.
  * Every signed-in player may listen to the tavern channel. It does not read the log but
  * the messages table: each message is presented as an event whose position is the
  * message identifier. The channel is not discreet, since messages are meant for every
@@ -35,7 +36,7 @@ const CHANNEL_BATCH = 100
  */
 export function createTavernModule({ db, clock }: TavernModuleDeps) {
   const repo = createDrizzleMessageRepository(db)
-  const service = createTavernService(repo, clock)
+  const service = createTavernService(repo, createDrizzlePresenceRepository(db), clock)
 
   const channelPolicy: ChannelPolicy = {
     prefix: TAVERN_CHANNEL,

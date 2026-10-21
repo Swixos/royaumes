@@ -16,6 +16,12 @@ const STATUS: Record<MessageError['code'], 422 | 429> = {
  * a message is always the signed-in player. When rate limited, the `Retry-After` header
  * gives the delay to wait, in seconds.
  *
+ * - `GET /messages` and `POST /messages`: latest messages, and posting one.
+ * - `GET /presence`: present players.
+ * - `POST /presence`: presence signal, sent regularly by the browser; the response holds
+ *   the present players, which spares the interface a second request.
+ * - `POST /presence/leave`: explicit departure, sent when the player leaves the page.
+ *
  * @param service - Tavern application service.
  * @returns The tavern sub-app.
  */
@@ -31,6 +37,17 @@ export function createTavernApi(service: TavernService) {
         c.header('Retry-After', String(Math.ceil(result.error.retryAfterMs / 1000)))
       }
       return c.json({ error: result.error }, STATUS[result.error.code])
+    })
+    .get('/presence', async (c) => c.json({ players: await service.present() }))
+
+    .post('/presence', async (c) => {
+      const players = await service.heartbeat({ id: c.var.userId, name: c.var.userName })
+      return c.json({ players })
+    })
+
+    .post('/presence/leave', async (c) => {
+      await service.leave(c.var.userId)
+      return c.body(null, 204)
     })
 }
 

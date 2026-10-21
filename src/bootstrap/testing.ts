@@ -28,8 +28,9 @@ type TestUser = string | null
  * of messages, set by the database in real time, with its own clock: that clock starts
  * at real time and moves forward with the application clock.
  *
- * @returns The application, `get` and `post` helpers sending requests as a
- *   player, and an `advance` function moving the clock forward.
+ * @returns The application, its database, so tests can check stored rows, `get` and
+ *   `post` helpers sending requests as a player, and an `advance` function moving the
+ *   clock forward.
  */
 export async function createTestApi() {
   const start = Date.UTC(2026, 0, 1)
@@ -87,5 +88,5 @@ export async function createTestApi() {
     now += minutes * 60_000
   }
 
-  return { api, get, post, advance }
+  return { api, db, get, post, advance }
 }
