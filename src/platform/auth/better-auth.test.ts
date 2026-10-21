@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestDatabase, type Db } from '../db/client'
 import { createBetterAuth } from './better-auth'
 import type { AuthPort } from './port'
-import { account, user } from './schema'
+import { account, rateLimit, user } from './schema'
 
 const AUTH = 'http://localhost:3000/api/auth'
 
@@ -108,5 +108,37 @@ describe('Revue de sécurité', () => {
 
     expect(known.status).toBe(unknown.status)
     expect(await known.json()).toEqual(await unknown.json())
+  })
+})
+describe('Limitation des tentatives', () => {
+  /**
+   * Sends a sign-in attempt with a wrong password, from a given IP address.
+   *
+   * @param instance - Authentication adapter.
+   * @returns The response.
+   */
+  const attempt = (instance: AuthPort) =>
+    instance.handler(
+      new Request(`${AUTH}/sign-in/email`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://localhost:3000',
+          'x-forwarded-for': '203.0.113.7',
+        },
+        body: JSON.stringify({ email: 'inconnu@example.com', password: 'mauvais-mot' }),
+      }),
+    )
+
+  it('conserve les compteurs dans la base, où toutes les instances les partagent', async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 61; i++) statuses.push((await attempt(auth)).status)
+
+    expect(statuses.slice(0, 60).every((status) => status === 401)).toBe(true)
+    expect(statuses[60]).toBe(429)
+
+    const rows = await db.select().from(rateLimit)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].count).toBe(60)
   })
 })

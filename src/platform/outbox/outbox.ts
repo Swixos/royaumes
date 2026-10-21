@@ -1,4 +1,4 @@
-import { eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { outbox } from './schema'
 
@@ -79,7 +79,7 @@ const retryDelayMs = (attempt: number) => Math.min(2 ** attempt * 1000, 3_600_00
  *
  * @param db - Database holding the outbox.
  * @param options - Attempts, lease, batch sizes and clock.
- * @returns The `register`, `dispatch` and `status` functions.
+ * @returns The `register`, `dispatch`, `status`, `abandoned` and `retry` functions.
  */
 export function createDispatcher(
   db: Db,
@@ -200,7 +200,45 @@ export function createDispatcher(
     return { pending: Number(row.pending), abandoned: Number(row.abandoned) }
   }
 
-  return { register, dispatch, status }
+  /**
+   * Lists the messages abandoned after the maximum number of attempts (dead letters),
+   * with the cause of their last failure. Meant for operations: they help diagnose an
+   * interrupted saga.
+   *
+   * @returns The abandoned messages, oldest first.
+   */
+  function abandoned() {
+    return db
+      .select({
+        id: outbox.id,
+        topic: outbox.topic,
+        payload: outbox.payload,
+        attempts: outbox.attempts,
+        lastError: outbox.lastError,
+        createdAt: outbox.createdAt,
+      })
+      .from(outbox)
+      .where(and(isNull(outbox.processedAt), gte(outbox.attempts, maxAttempts)))
+      .orderBy(asc(outbox.createdAt))
+  }
+
+  /**
+   * Retries an abandoned message, once the cause of its failures is fixed: its attempt
+   * count is reset, and it is delivered by the next dispatch.
+   *
+   * @param id - Message identifier.
+   * @returns False if the message does not exist or is not abandoned.
+   */
+  async function retry(id: string) {
+    const updated = await db
+      .update(outbox)
+      .set({ attempts: 0, availableAt: new Date(now()), lastError: null })
+      .where(and(eq(outbox.id, id), isNull(outbox.processedAt), gte(outbox.attempts, maxAttempts)))
+      .returning({ id: outbox.id })
+    return updated.length === 1
+  }
+
+  return { register, dispatch, status, abandoned, retry }
 }
 
 /** Type of the dispatcher, inferred from its factory. */
