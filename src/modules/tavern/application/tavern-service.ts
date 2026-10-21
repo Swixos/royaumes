@@ -1,5 +1,11 @@
 import type { PresentPlayer, TavernMessage } from '../contracts'
-import { checkBody, checkRate, type MessageError, RATE_LIMIT } from '../domain/message'
+import {
+  checkBody,
+  checkRate,
+  expiredBefore,
+  type MessageError,
+  RATE_LIMIT,
+} from '../domain/message'
 import { staleBefore } from '../domain/presence'
 import type { MessageRepository } from './message-repository'
 import type { PresenceRepository } from './presence-repository'
@@ -16,7 +22,8 @@ export type PostResult = { ok: true; message: TavernMessage } | { ok: false; err
  * @param repo - Persistence port of the messages.
  * @param presence - Persistence port of the presence.
  * @param clock - Reference clock in milliseconds; real time by default.
- * @returns The `post`, `heartbeat` and `leave` commands and the `latest` and `present` queries.
+ * @returns The `post`, `heartbeat` and `leave` commands, the `latest` and `present` queries
+ *   and the daily `purge` task.
  */
 export function createTavernService(
   repo: MessageRepository,
@@ -47,11 +54,28 @@ export function createTavernService(
   }
 
   /**
-   * Reads the latest messages of the tavern.
+   * Reads the latest messages of the tavern, after deleting the expired ones.
    *
    * @returns The messages, oldest first.
    */
-  const latest = () => repo.latest(HISTORY_SIZE)
+  async function latest() {
+    await repo.removeOlderThan(expiredBefore(clock()))
+    return repo.latest(HISTORY_SIZE)
+  }
+
+  /**
+   * Daily task: applies the retention periods of messages and presence, even if nobody
+   * visits the tavern.
+   *
+   * @returns The number of deleted messages and presence rows.
+   */
+  async function purge() {
+    const now = clock()
+    return {
+      messages: await repo.removeOlderThan(expiredBefore(now)),
+      presence: await presence.removeStale(staleBefore(now)),
+    }
+  }
 
   /**
    * Lists the present players. The rows of the players who left are deleted first:
@@ -84,7 +108,7 @@ export function createTavernService(
    */
   const leave = (playerId: string) => presence.remove(playerId)
 
-  return { post, latest, present, heartbeat, leave }
+  return { post, latest, present, heartbeat, leave, purge }
 }
 
 /** Service type inferred from its factory. */

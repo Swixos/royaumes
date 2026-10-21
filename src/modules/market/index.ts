@@ -15,6 +15,7 @@ import { createDrizzleOffersReader } from './infrastructure/drizzle-offers-reade
 import { createEventStoreOfferRepository } from './infrastructure/event-store-offer-repository'
 import { offersProjection } from './infrastructure/offers-projection'
 import { createMarketHandlers } from './messages'
+import { createMarketPersonalData } from './personal-data'
 
 /** Dependencies of the market module. */
 export interface MarketModuleDeps {
@@ -36,7 +37,8 @@ export interface MarketModuleDeps {
  * and discreet channel announcing offer changes.
  *
  * @param deps - Event store, database, projection runner, outbox dispatch and optional clock.
- * @returns The module, exposing its Hono sub-app, its channel policy and its message handlers.
+ * @returns The module, exposing its Hono sub-app, its channel policy, its message handlers
+ *   and its personal data contributor.
  */
 export function createMarketModule({ store, db, projections, dispatch, clock }: MarketModuleDeps) {
   const repo = createEventStoreOfferRepository(store)
@@ -50,7 +52,12 @@ export function createMarketModule({ store, db, projections, dispatch, clock }: 
     global: { types: offersProjection.eventTypes },
   }
 
-  return { api: createMarketApi(service), channelPolicy, handlers: createMarketHandlers(service) }
+  return {
+    api: createMarketApi(service),
+    channelPolicy,
+    handlers: createMarketHandlers(service),
+    personalData: createMarketPersonalData(store, db),
+  }
 }
 
 export type { MarketApi } from './api'

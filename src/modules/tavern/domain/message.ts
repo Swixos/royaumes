@@ -8,6 +8,17 @@
 /** Maximum length of a message, in characters. */
 export const MESSAGE_MAX_LENGTH = 280
 
+/** Retention period of a message: thirty days, in milliseconds. */
+export const RETENTION_MS = 30 * 24 * 60 * 60_000
+
+/**
+ * Computes the time before which a message has exceeded its retention period.
+ *
+ * @param now - Current time in milliseconds.
+ * @returns The expiry threshold in milliseconds.
+ */
+export const expiredBefore = (now: number) => now - RETENTION_MS
+
 /** Maximum number of messages of a player during the rate limiting window. */
 export const RATE_LIMIT = { messages: 5, windowMs: 30_000 }
 

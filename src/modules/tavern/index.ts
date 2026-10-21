@@ -11,6 +11,7 @@ import { createTavernService } from './application/tavern-service'
 import { MESSAGE_POSTED, TAVERN_CHANNEL } from './contracts'
 import { createDrizzleMessageRepository } from './infrastructure/drizzle-message-repository'
 import { createDrizzlePresenceRepository } from './infrastructure/drizzle-presence-repository'
+import { createTavernPersonalData } from './personal-data'
 
 /** Dependencies of the tavern module. */
 export interface TavernModuleDeps {
@@ -32,7 +33,9 @@ const CHANNEL_BATCH = 100
  * receives upcoming messages; the history is read through the API.
  *
  * @param deps - Database and optional clock.
- * @returns The module, exposing its Hono sub-app and its channel policy.
+ * @returns The module, exposing its Hono sub-app, its channel policy, its daily task,
+ *   handed to the composition root which has the Vercel scheduled task run it, and its
+ *   personal data contributor.
  */
 export function createTavernModule({ db, clock }: TavernModuleDeps) {
   const repo = createDrizzleMessageRepository(db)
@@ -57,7 +60,12 @@ export function createTavernModule({ db, clock }: TavernModuleDeps) {
     },
   }
 
-  return { api: createTavernApi(service), channelPolicy }
+  return {
+    api: createTavernApi(service),
+    channelPolicy,
+    dailyTask: service.purge,
+    personalData: createTavernPersonalData(db),
+  }
 }
 
 export type { TavernApi } from './api'

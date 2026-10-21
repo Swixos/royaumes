@@ -5,13 +5,16 @@ import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import { createTavernModule } from '@/modules/tavern'
+import { createIdentityPersonalData } from '@/platform/auth/personal-data'
 import type { AuthPort } from '@/platform/auth/port'
+import { createCronApi } from '@/platform/cron/cron-api'
 import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
-import { createDispatchApi } from '@/platform/outbox/dispatch-api'
 import { createDispatcher, type DispatcherOptions } from '@/platform/outbox/outbox'
+import { createPrivacyService } from '@/platform/privacy/privacy'
+import { createPrivacyApi } from '@/platform/privacy/privacy-api'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import type { ChannelPolicy } from '@/platform/realtime/channel-policy'
 import { createRealtimeApi, type RealtimeOptions } from '@/platform/realtime/stream-api'
@@ -50,11 +53,16 @@ export interface ApiDeps {
  * the real-time sub-app; with no rule, every channel is refused. The projection
  * runner and the outbox dispatcher are created here from the database, and shared by
  * the modules, which hand their message handlers to the dispatcher. The market module
- * triggers a dispatch after its commands and reads. The scheduled outbox dispatch is mounted outside the player routes: it
- * authenticates the Vercel scheduled task with a secret, not a player session.
+ * triggers a dispatch after its commands and reads.
+ *
+ * Player rights rely on the personal data each module provides; identity comes last,
+ * so a player can restart an interrupted erasure as long as their account exists. The
+ * daily tasks (dispatch of pending outbox messages, retention of tavern data) are
+ * mounted outside the player routes: they authenticate the Vercel scheduled task with a
+ * secret, not a player session.
  *
  * @param deps - Authentication, database, event store, database readiness, optional clock,
- *   real-time settings scheduled task secret and outbox settings.
+ *   real-time settings, scheduled task secret and outbox settings.
  * @returns The main Hono application, with every route under `/api`.
  */
 export function createApi({
@@ -81,6 +89,18 @@ export function createApi({
     clock,
   })
   const tavern = createTavernModule({ db, clock })
+  const privacy = createPrivacyService(
+    db,
+    [
+      realm.personalData,
+      dungeon.personalData,
+      market.personalData,
+      ranking.personalData,
+      tavern.personalData,
+      createIdentityPersonalData(db),
+    ],
+    clock,
+  )
   dispatcher.register(realm.handlers)
   dispatcher.register(market.handlers)
 
@@ -107,13 +127,26 @@ export function createApi({
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Route inconnue' } }, 404))
 
   app.on(['GET', 'POST'], '/auth/*', (c) => auth.handler(c.req.raw))
-  app.route('/outbox', createDispatchApi(dispatcher, cronSecret))
+  app.route(
+    '/cron',
+    createCronApi(
+      {
+        // DETTE TECHNIQUE DT-007 (docs/qualite/dette-technique.md): abandoned messages are only
+        // counted; no tool lets anyone review or retry them.
+        outbox: async () => ({ ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }),
+        tavern: tavern.dailyTask,
+      },
+      cronSecret,
+    ),
+  )
 
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))
   app.use('/ranking/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
+  app.use('/account', requireUser(auth))
+  app.use('/account/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
 
   return app
@@ -123,6 +156,7 @@ export function createApi({
     .route('/ranking', ranking.api)
     .route('/market', market.api)
     .route('/tavern', tavern.api)
+    .route('/account', createPrivacyApi(privacy))
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
 
