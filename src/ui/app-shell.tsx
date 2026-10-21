@@ -49,6 +49,9 @@ export function AppShell({ userName, children }: { userName: string; children: R
         <span className="muted" style={{ marginLeft: 'auto' }}>
           {userName}
         </span>
+        <Link href="/account" aria-current={pathname === '/account' ? 'page' : undefined}>
+          Mes données
+        </Link>
         <button className="link" type="button" onClick={signOut}>
           Déconnexion
         </button>
