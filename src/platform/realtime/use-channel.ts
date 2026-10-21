@@ -6,6 +6,8 @@ export type ChannelStatus = 'connecting' | 'open' | 'reconnecting'
 
 /** Event received on a channel: an event store event in its generic form. */
 export interface ChannelEvent {
+  /** Global order of the event, across all streams. */
+  position: number
   /** Stream the event belongs to. */
   stream: string
   /** Rank of the event in its stream. */
