@@ -2,7 +2,7 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import type { Db } from '../db/client'
 import type { AuthPort } from './port'
-import { account, session, user, verification } from './schema'
+import { account, rateLimit, session, user, verification } from './schema'
 
 /**
  * Lists the domains Vercel assigns to the current deployment: the production
@@ -63,7 +63,9 @@ function resolveSecret(): string {
  * against cross-site request forgery. Attempts are rate limited per IP address
  * with limits sized for a classroom sharing one public address: 40 sign-ups and
  * 60 sign-ins per minute. The limit can only be turned off locally with
- * `AUTH_RATE_LIMIT=off`, never on Vercel.
+ * `AUTH_RATE_LIMIT=off`, never on Vercel. Counters are kept in the database, so every
+ * instance of the application shares the same limit; each attempt is counted by a
+ * conditional update, safe under concurrent access.
  *
  * @param db - Database connection.
  * @returns The authentication port.
@@ -72,16 +74,15 @@ export function createBetterAuth(db: Db): AuthPort {
   const auth = betterAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
-      schema: { user, session, account, verification },
+      schema: { user, session, account, verification, rateLimit },
     }),
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
     secret: resolveSecret(),
     baseURL: resolveBaseUrl(),
     trustedOrigins: [resolveBaseUrl(), ...vercelOrigins()],
-    // DETTE TECHNIQUE DT-004 (docs/qualite/dette-technique.md): counters live in the memory
-    // of each instance, so they are not shared across instances.
     rateLimit: {
       enabled: process.env.AUTH_RATE_LIMIT !== 'off' || Boolean(process.env.VERCEL),
+      storage: 'database',
       customRules: {
         '/sign-up/email': { window: 60, max: 40 },
         '/sign-in/email': { window: 60, max: 60 },

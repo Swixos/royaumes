@@ -59,7 +59,8 @@ export interface ApiDeps {
  * so a player can restart an interrupted erasure as long as their account exists. The
  * daily tasks (dispatch of pending outbox messages, retention of tavern data) are
  * mounted outside the player routes: they authenticate the Vercel scheduled task with a
- * secret, not a player session.
+ * secret, not a player session. Abandoned outbox messages produce a warning in the logs:
+ * they call for a review with the `scripts/dead-letters.ts` script.
  *
  * @param deps - Authentication, database, event store, database readiness, optional clock,
  *   real-time settings, scheduled task secret and outbox settings.
@@ -133,9 +134,13 @@ export function createApi({
     '/cron',
     createCronApi(
       {
-        // DETTE TECHNIQUE DT-007 (docs/qualite/dette-technique.md): abandoned messages are only
-        // counted; no tool lets anyone review or retry them.
-        outbox: async () => ({ ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }),
+        outbox: async () => {
+          const result = { ...(await dispatcher.dispatch()), ...(await dispatcher.status()) }
+          if (result.abandoned > 0) {
+            console.warn(`Boîte d'envoi : ${result.abandoned} message(s) abandonné(s) à examiner`)
+          }
+          return result
+        },
         tavern: tavern.dailyTask,
         // DETTE TECHNIQUE DT-008 (docs/qualite/dette-technique.md): no task deletes expired
         // sessions, so their IP addresses and user agents are kept with no limit.

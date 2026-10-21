@@ -4,6 +4,10 @@
  *
  * A module is a `src/modules/<name>/` directory. Only its public entries
  * (`index.ts`, `contracts.ts` and `ui.tsx`) may be imported from outside.
+ *
+ * Platform tables are only read and written by the platform: a module goes through the
+ * functions of the event store, the outbox or the projections, and never imports their
+ * tables, so only the platform can modify an event.
  */
 const PUBLIC_ENTRIES = '^src/modules/[^/]+/(index\\.ts|contracts\\.ts|ui\\.tsx)$'
 
@@ -64,6 +68,14 @@ module.exports = {
       severity: 'error',
       from: {},
       to: { circular: true },
+    },
+    {
+      name: 'platform-tables-are-private',
+      comment:
+        "Un module n'importe jamais les tables de la plateforme : il passe par ses fonctions.",
+      severity: 'error',
+      from: { path: '^src/modules/' },
+      to: { path: '^src/platform/[^/]+/schema\\.ts$' },
     },
   ],
   options: {
