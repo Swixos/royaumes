@@ -9,6 +9,7 @@ import { MESSAGE_MAX_LENGTH } from './domain/message'
 
 export type { MessageError } from './domain/message'
 export { MESSAGE_MAX_LENGTH } from './domain/message'
+export { HEARTBEAT_MS } from './domain/presence'
 
 /** Tavern message, as players receive it. */
 export interface TavernMessage {
@@ -22,6 +23,14 @@ export interface TavernMessage {
   body: string
   /** Posting time in milliseconds. */
   postedAt: number
+}
+
+/** Player present in the tavern. The time of their last signal is not sent. */
+export interface PresentPlayer {
+  /** Player identifier. */
+  id: string
+  /** Display name. */
+  name: string
 }
 
 /** Expected body to post a message. The exact length is checked by the domain. */
