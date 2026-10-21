@@ -21,6 +21,8 @@ export interface RankingEntry {
   gold: number
   /** Number of building upgrades of the village. */
   upgrades: number
+  /** Gold brought back by the best won expedition. */
+  bestLoot: number
 }
 
 /** Number of players shown by the ranking. */
