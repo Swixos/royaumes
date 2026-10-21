@@ -27,6 +27,9 @@ export const UpgradeBuildingInput = z.object({
   building: z.enum(BUILDINGS),
 })
 
+/** Prefix shared by the stream, and channel, names of every village. */
+export const VILLAGE_CHANNEL_PREFIX = 'village-'
+
 /**
  * Builds the name of the real-time channel of a player's village. It equals the
  * name of the event store stream holding the village events: listening to this
@@ -35,4 +38,4 @@ export const UpgradeBuildingInput = z.object({
  * @param userId - Player identifier.
  * @returns The channel name, `village-<userId>`.
  */
-export const villageChannel = (userId: string) => `village-${userId}`
+export const villageChannel = (userId: string) => `${VILLAGE_CHANNEL_PREFIX}${userId}`

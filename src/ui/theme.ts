@@ -30,6 +30,7 @@ export const theme: Record<string, Look> = {
   skeleton: { glyph: '💀', label: 'Squelette' },
   troll: { glyph: '👹', label: 'Troll' },
   door: { glyph: '🚪', label: 'Porte' },
+  ranking: { glyph: '🏆', label: 'Classement' },
 }
 
 /**
