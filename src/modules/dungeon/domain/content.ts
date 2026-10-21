@@ -6,6 +6,14 @@
  * @packageDocumentation
  */
 
+/** Difficulty levels of an expedition, declared `as const` to derive a union type. */
+export const DIFFICULTIES = ['easy', 'hard'] as const
+/** A difficulty level. */
+export type Difficulty = (typeof DIFFICULTIES)[number]
+
+/** Level given to expeditions recorded before difficulty levels existed. */
+export const DEFAULT_DIFFICULTY: Difficulty = 'easy'
+
 /** Maximum number of heroes in an expedition. */
 export const MAX_HEROES = 4
 
