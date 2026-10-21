@@ -32,7 +32,15 @@ export interface VillageState {
   levels: Levels
   /** Time in milliseconds at which the stock was last computed. */
   asOf: number
+  /**
+   * Resource transfers already processed, by identifier, with their outcome. They make
+   * transfer commands idempotent: a known identifier is ignored.
+   */
+  transfers: Record<string, TransferOutcome>
 }
+
+/** Outcome of a resource transfer. */
+export type TransferOutcome = 'withdrawn' | 'refused' | 'deposited'
 
 /** State of a village before any event. */
 export const initialState: VillageState = {
@@ -41,6 +49,7 @@ export const initialState: VillageState = {
   stock: { wood: 0, stone: 0, gold: 0 },
   levels: { sawmill: 0, quarry: 0, mine: 0 },
   asOf: 0,
+  transfers: {},
 }
 
 /** Facts recorded for a village. */
@@ -50,11 +59,33 @@ export type VillageEvent =
       type: 'BuildingUpgraded'
       data: { building: Building; toLevel: number; cost: Partial<Stock>; at: number }
     }
+  /**
+   * Resource transfers requested by another module. Each one carries the transfer
+   * identifier, chosen by the requester, which identifies a duplicate.
+   */
+  | {
+      type: 'ResourcesWithdrawn'
+      data: { transferId: string; resources: Partial<Stock>; at: number }
+    }
+  | {
+      type: 'WithdrawalRefused'
+      data: { transferId: string; missing: Partial<Stock>; at: number }
+    }
+  | {
+      type: 'ResourcesDeposited'
+      data: { transferId: string; resources: Partial<Stock>; at: number }
+    }
 
 /** Requests a player can make on their village. */
 export type VillageCommand =
   | { type: 'FoundVillage'; name: string }
   | { type: 'UpgradeBuilding'; building: Building }
+  | TransferCommand
+
+/** Resource transfer commands, sent by another module rather than by the player. */
+export type TransferCommand =
+  | { type: 'WithdrawResources'; transferId: string; resources: Partial<Stock> }
+  | { type: 'DepositResources'; transferId: string; resources: Partial<Stock> }
 
 /** Business reasons for refusing a command. */
 export type DomainError =
@@ -100,7 +131,11 @@ export function accrue(state: VillageState, at: number): VillageState {
 }
 
 /**
- * Applies an event to a state.
+ * Applies an event to a state. Founding starts again from the initial state but keeps
+ * the transfers already processed: a withdrawal may have been refused to a player who
+ * had not founded their village yet. A transfer applies to the stock computed at its
+ * time, like a cost; a refusal leaves the stock unchanged and is kept, so it is repeated
+ * identically.
  *
  * @param state - Current village state.
  * @param event - Event to apply.
@@ -116,6 +151,7 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
         stock: { ...STARTING_STOCK },
         levels: { ...STARTING_LEVELS },
         asOf: event.data.at,
+        transfers: state.transfers,
       }
 
     case 'BuildingUpgraded': {
@@ -130,7 +166,43 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
         levels: { ...current.levels, [event.data.building]: event.data.toLevel },
       }
     }
+    case 'ResourcesWithdrawn': {
+      const current = accrue(state, event.data.at)
+      return {
+        ...current,
+        stock: addTo(current.stock, event.data.resources, -1),
+        transfers: { ...current.transfers, [event.data.transferId]: 'withdrawn' },
+      }
+    }
+
+    case 'WithdrawalRefused':
+      return { ...state, transfers: { ...state.transfers, [event.data.transferId]: 'refused' } }
+
+    case 'ResourcesDeposited': {
+      const current = accrue(state, event.data.at)
+      return {
+        ...current,
+        stock: addTo(current.stock, event.data.resources, 1),
+        transfers: { ...current.transfers, [event.data.transferId]: 'deposited' },
+      }
+    }
   }
+}
+
+/**
+ * Adds amounts to a stock, or removes them.
+ *
+ * @param stock - Current stock.
+ * @param amounts - Amounts to add or remove.
+ * @param sign - 1 to add, -1 to remove.
+ * @returns A new stock; the given one is never modified.
+ */
+function addTo(stock: Stock, amounts: Partial<Stock>, sign: 1 | -1): Stock {
+  const result = { ...stock }
+  for (const [resource, amount] of Object.entries(amounts)) {
+    result[resource as Resource] += sign * (amount ?? 0)
+  }
+  return result
 }
 
 /**
@@ -176,7 +248,11 @@ function missingFor(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
 }
 
 /**
- * Decides whether a command is accepted.
+ * Decides whether a command is accepted. Transfer commands are idempotent: a transfer
+ * already processed produces no new event. The stock is evaluated at the time of the
+ * withdrawal, production included; a village not founded has an empty stock, so a
+ * withdrawal there is simply refused. A refusal is recorded as an event, not returned
+ * as a domain error.
  *
  * @param state - Current village state.
  * @param command - Command to decide on.
@@ -210,6 +286,32 @@ export function decide(state: VillageState, command: VillageCommand, now: number
           {
             type: 'BuildingUpgraded',
             data: { building: command.building, toLevel: level + 1, cost, at: now },
+          },
+        ],
+      }
+    }
+    case 'WithdrawResources': {
+      if (command.transferId in state.transfers) return { ok: true, events: [] }
+      const missing = missingFor(accrue(state, now).stock, command.resources)
+      const { transferId, resources } = command
+      return {
+        ok: true,
+        events:
+          Object.keys(missing).length > 0
+            ? [{ type: 'WithdrawalRefused', data: { transferId, missing, at: now } }]
+            : [{ type: 'ResourcesWithdrawn', data: { transferId, resources, at: now } }],
+      }
+    }
+
+    case 'DepositResources': {
+      if (command.transferId in state.transfers) return { ok: true, events: [] }
+      if (!state.founded) return { ok: false, error: { code: 'NOT_FOUNDED' } }
+      return {
+        ok: true,
+        events: [
+          {
+            type: 'ResourcesDeposited',
+            data: { transferId: command.transferId, resources: command.resources, at: now },
           },
         ],
       }
