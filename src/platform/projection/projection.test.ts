@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestDatabase, type Db } from '../db/client'
 import { ConcurrencyError, createEventStore, type EventStore } from '../event-store/event-store'
 import { createProjectionRunner, type Projection } from './projection'
+import { projections } from './schema'
 
 let db: Db
 let store: EventStore
@@ -176,5 +177,17 @@ describe('Reconstruction et évolution', () => {
     expect(await runner.catchUp(counting)).toBe(0)
     expect(await counts()).toEqual({ A: 1 })
     expect(await runner.positionOf('test-counting')).toBe(1)
+  })
+})
+
+describe('Budget de performance', () => {
+  it("ne verrouille ni n'écrit rien lorsque la projection est à jour", async () => {
+    const runner = createProjectionRunner(db)
+    await store.append('s-1', 0, [{ type: 'A', data: {} }])
+    await runner.catchUp(counting)
+    const before = await db.select().from(projections)
+
+    expect(await runner.catchUp(counting)).toBe(0)
+    expect(await db.select().from(projections)).toEqual(before)
   })
 })
