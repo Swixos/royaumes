@@ -19,6 +19,7 @@ export function useCountdown(deadline: number | null, onExpired: () => void): nu
 
   useEffect(() => {
     if (deadline === null) return
+    setNow(Date.now())
     const timer = setInterval(() => {
       const current = Date.now()
       setNow(current)

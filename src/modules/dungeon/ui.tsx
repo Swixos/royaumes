@@ -9,6 +9,8 @@ import { useCountdown } from '@/ui/use-countdown'
 import type { DungeonApi } from './api'
 import {
   type Action,
+  DIFFICULTIES,
+  type Difficulty,
   type Effect,
   type GameError,
   type GameView,
@@ -42,6 +44,9 @@ const ERRORS: Record<ApiError['code'], string> = {
   INVALID_TARGET: 'Cible invalide.',
 }
 
+/** Label shown for each difficulty level. */
+const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: 'Facile', hard: 'Difficile' }
+
 /** Label shown for each state of the real-time connection. */
 const STATUS_LABELS = {
   connecting: 'Connexion...',
@@ -57,6 +62,7 @@ const STATUS_LABELS = {
 export function DungeonLobby() {
   const router = useRouter()
   const [games, setGames] = useState<OpenGame[] | undefined>(undefined)
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
 
   /** Reloads the list of open expeditions. */
   const refresh = useCallback(async () => {
@@ -70,7 +76,7 @@ export function DungeonLobby() {
 
   /** Opens a new expedition and goes to its page. */
   async function open() {
-    const res = await client.games.$post()
+    const res = await client.games.$post({ json: { difficulty } })
     if (res.ok) router.push(`/dungeon/${(await res.json()).gameId}`)
   }
 
@@ -79,7 +85,19 @@ export function DungeonLobby() {
       <h1>
         <Entity kind="dungeon" /> Donjon
       </h1>
-      <div className="panel">
+      <div className="panel row">
+        <label htmlFor="difficulty">Niveau</label>
+        <select
+          id="difficulty"
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+        >
+          {DIFFICULTIES.map((level) => (
+            <option key={level} value={level}>
+              {DIFFICULTY_LABELS[level]}
+            </option>
+          ))}
+        </select>
         <button type="button" onClick={open}>
           Ouvrir une nouvelle expédition
         </button>
@@ -138,6 +156,14 @@ function describeAction(action: Action, nameOf: (id: string) => string) {
 }
 
 /**
+ * Prefixes a phrase with the French preposition "de", elided before a vowel.
+ *
+ * @param text - Phrase to prefix.
+ * @returns The phrase preceded by "d'" or "de".
+ */
+const ofVerb = (text: string) => (/^[aeéiou]/i.test(text) ? `d'${text}` : `de ${text}`)
+
+/**
  * Describes an effect of the last round.
  *
  * @param effect - Damage or heal.
@@ -192,6 +218,9 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
       setView(body.view)
     }
   }
+  /** Adds a companion to the expedition, as host. */
+  const addCompanion = async () =>
+    handle(await (await client.games[':id'].companion.$post({ param })).json())
   /** Joins the expedition. */
   const join = async () => handle(await (await client.games[':id'].join.$post({ param })).json())
   /** Starts the expedition, as host. */
@@ -219,7 +248,9 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
     if (res.ok) setView((await res.json()).view)
   }, [gameId])
   const remaining = useCountdown(
-    view?.isMember && view.phase === 'combat' ? view.deadline : null,
+    view?.isMember && (view.phase === 'combat' || view.phase === 'exploring')
+      ? view.deadline
+      : null,
     checkDeadline,
   )
 
@@ -227,6 +258,7 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
     <div className="row" style={{ justifyContent: 'space-between' }}>
       <h1>
         <Entity kind="dungeon" /> Expédition
+        {view && <span className="muted"> - {DIFFICULTY_LABELS[view.difficulty]}</span>}
       </h1>
       {view?.isMember && (
         <span className="status" data-status={status}>
@@ -265,8 +297,9 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
         {view.heroes.map((hero) => (
           <div key={hero.id} className="fighter" data-down={hero.hp <= 0}>
             <span>
-              <Entity kind="hero" /> {hero.name}
+              <Entity kind={hero.companion ? 'companion' : 'hero'} /> {hero.name}
               {hero.id === view.hostId && <span className="muted"> (hôte)</span>}
+              {hero.companion && <span className="muted"> (piloté par l'ordinateur)</span>}
             </span>
             <span className="muted">
               {hero.hp}/{hero.maxHp} PV
@@ -287,6 +320,11 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
               Rejoindre l'expédition
             </button>
           )}
+          {view.isHost && view.heroes.length < MAX_HEROES && (
+            <button type="button" onClick={addCompanion}>
+              <Entity kind="companion" /> Ajouter un compagnon
+            </button>
+          )}
           {view.isHost && (
             <button type="button" onClick={start}>
               Entrer dans le donjon
@@ -300,7 +338,14 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
 
       {view.phase === 'exploring' && (
         <div className="panel">
-          <h2>Exploration</h2>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <h2>Exploration</h2>
+            {remaining !== null && (
+              <span className="countdown" title="La porte s'ouvrira d'elle-même">
+                {remaining} s
+              </span>
+            )}
+          </div>
           <p>
             Salle {view.room + 1} sur {view.roomCount}
             {view.currentRoom?.kind === 'treasure' && ` : un trésor de ${view.currentRoom.gold} or`}
@@ -387,7 +432,7 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
           <ul className="log">
             {Object.entries(view.lastRound.actions).map(([heroId, action]) => (
               <li key={heroId}>
-                {nameOf(heroId)} a choisi de {describeAction(action, nameOf)}.
+                {nameOf(heroId)} a choisi {ofVerb(describeAction(action, nameOf))}.
               </li>
             ))}
             {view.lastRound.effects.map((effect) => (
