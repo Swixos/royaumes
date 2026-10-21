@@ -14,6 +14,9 @@ export type Difficulty = (typeof DIFFICULTIES)[number]
 /** Level given to expeditions recorded before difficulty levels existed. */
 export const DEFAULT_DIFFICULTY: Difficulty = 'easy'
 
+/** Attack bonus given to monsters at each difficulty level. */
+export const MONSTER_ATTACK_BONUS: Record<Difficulty, number> = { easy: 0, hard: 3 }
+
 /** Maximum number of heroes in an expedition. */
 export const MAX_HEROES = 4
 
