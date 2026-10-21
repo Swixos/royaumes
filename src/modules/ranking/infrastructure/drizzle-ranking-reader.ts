@@ -18,7 +18,9 @@ const labelOf = (row: typeof players.$inferSelect) =>
  * Creates the adapter of the `RankingReader` port, backed by the ranking table. It
  * catches the projection up before each read, so the table is up to date when read.
  * Players are ordered by wins, then gold, then upgrades; the identifier breaks ties
- * so the order is stable from one read to the next.
+ * so the order is stable from one read to the next. The checkpoint position is read
+ * before the table, so the rows reflect at least that position; read after, it could
+ * announce an event applied in between and missing from the rows.
  *
  * @param db - Database holding the ranking table.
  * @param projections - Projection runner of the platform.
@@ -28,6 +30,7 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
   return {
     async top(limit) {
       await projections.catchUp(rankingProjection)
+      const position = await projections.positionOf(rankingProjection.name)
 
       const rows = await db
         .select()
@@ -40,7 +43,7 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
         )
         .limit(limit)
 
-      return rows.map((row, index) => ({
+      const entries = rows.map((row, index) => ({
         rank: index + 1,
         playerId: row.playerId,
         label: labelOf(row),
@@ -48,7 +51,9 @@ export function createDrizzleRankingReader(db: Db, projections: ProjectionRunner
         gamesWon: row.gamesWon,
         gold: row.gold,
         upgrades: row.upgrades,
+        bestLoot: row.bestLoot,
       }))
+      return { position, entries }
     },
   }
 }

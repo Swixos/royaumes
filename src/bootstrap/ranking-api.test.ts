@@ -40,8 +40,18 @@ describe('API du module Classement', () => {
         gamesWon: 0,
         gold: 0,
         upgrades: 1,
+        bestLoot: 0,
       },
     ])
+  })
+  it('annonce sur son canal les événements du classement, sans leurs données', async () => {
+    const api = await createTestApi()
+    await api.post('/api/dungeon/games', {})
+
+    const res = await api.get('/api/stream/ranking/events?after=0')
+    const { events } = (await res.json()) as { events: { type: string }[] }
+    expect(events.map((event) => event.type)).toEqual(['GameCreated'])
+    expect(JSON.stringify(events)).not.toContain('seed')
   })
 
   it("ne compte qu'une fois chaque événement, quel que soit le nombre de consultations", async () => {

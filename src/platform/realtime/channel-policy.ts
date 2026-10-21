@@ -19,6 +19,12 @@ export interface ChannelPolicy {
    * never its data. Each subscriber then rereads its own view from the API.
    */
   redact?: boolean
+  /**
+   * Global channel: it matches no stream, but follows the events of some types across
+   * the whole log. Its events are identified by their position rather than their
+   * version, and it only sends the events recorded after it opens.
+   */
+  global?: { types: string[] }
 }
 
 /**

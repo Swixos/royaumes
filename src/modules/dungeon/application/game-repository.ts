@@ -1,9 +1,8 @@
 import type { GameEvent, GameState } from '../domain/game'
-import type { OpenGame } from '../domain/lobby'
 
 /**
  * Dungeon persistence port, owned by the application layer. Like the village
- * one, it speaks the domain language.
+ * one, it speaks the domain language. It serves the commands only (write model).
  */
 export interface GameRepository {
   /**
@@ -23,12 +22,4 @@ export interface GameRepository {
    * @throws `ConcurrencyError` if other events were stored since the read.
    */
   save(gameId: string, expectedVersion: number, events: GameEvent[]): Promise<void>
-
-  /**
-   * Lists the expeditions that can still be joined.
-   *
-   * @param now - Current time in milliseconds.
-   * @returns The open expeditions, most recent first.
-   */
-  listOpenGames(now: number): Promise<OpenGame[]>
 }

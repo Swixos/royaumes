@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, like } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, like, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import { events } from './schema'
 
@@ -57,14 +57,26 @@ export interface EventStore {
   read(stream: string, afterVersion?: number): Promise<StoredEvent[]>
 
   /**
-   * Reads, in global position order, the events of every stream whose name
-   * starts with a prefix, optionally limited to some types.
+   * Reads, in global position order, the events of several streams. Each option
+   * narrows the read: streams whose name starts with `streamPrefix`, event types,
+   * positions after `afterPosition`.
    *
-   * @param options - Stream prefix, which must contain neither `%` nor `_`
-   *   (special characters of the LIKE operator), and optional event types.
+   * @param options - Optional stream prefix, which must contain neither `%` nor `_`
+   *   (special characters of the LIKE operator), event types and starting position.
    * @returns The matching events, in global order.
    */
-  readAll(options: { streamPrefix: string; types?: string[] }): Promise<StoredEvent[]>
+  readAll(options: {
+    streamPrefix?: string
+    types?: string[]
+    afterPosition?: number
+  }): Promise<StoredEvent[]>
+
+  /**
+   * Reads the position of the last recorded event, across all streams.
+   *
+   * @returns The last position; 0 if the log is empty.
+   */
+  lastPosition(): Promise<number>
 }
 
 /**
@@ -138,15 +150,22 @@ export function createEventStore(db: Db): EventStore {
       return rows.map(toStored)
     },
 
-    async readAll({ streamPrefix, types }) {
-      const conditions = [like(events.stream, `${streamPrefix}%`)]
+    async readAll({ streamPrefix, types, afterPosition }) {
+      const conditions = []
+      if (streamPrefix !== undefined) conditions.push(like(events.stream, `${streamPrefix}%`))
       if (types) conditions.push(inArray(events.type, types))
+      if (afterPosition !== undefined) conditions.push(gt(events.position, afterPosition))
       const rows = await db
         .select()
         .from(events)
         .where(and(...conditions))
         .orderBy(asc(events.position))
       return rows.map(toStored)
+    },
+
+    async lastPosition() {
+      const [row] = await db.select({ value: max(events.position) }).from(events)
+      return Number(row?.value ?? 0)
     },
   }
 }

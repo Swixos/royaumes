@@ -10,9 +10,20 @@ import { DIFFICULTIES } from './domain/content'
 export type { Difficulty, MonsterKind } from './domain/content'
 export { DIFFICULTIES, MAX_HEROES, MONSTERS, ROUND_MS } from './domain/content'
 export type { Action, Effect, Monster, Phase, Room } from './domain/game'
-export type { OpenGame } from './domain/lobby'
 export type { GameError } from './domain/rules'
 export type { GameView, HeroView } from './domain/view'
+
+/** Expedition that can still be joined. */
+export interface OpenGame {
+  /** Expedition identifier. */
+  gameId: string
+  /** Name of the host. */
+  hostName: string
+  /** Number of heroes, companions included. */
+  heroCount: number
+  /** Creation time in milliseconds. */
+  createdAt: number
+}
 
 /** Expected body to open an expedition: the difficulty level, easy by default. */
 export const CreateGameInput = z.object({
