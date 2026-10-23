@@ -79,7 +79,8 @@ const retryDelayMs = (attempt: number) => Math.min(2 ** attempt * 1000, 3_600_00
  *
  * @param db - Database holding the outbox.
  * @param options - Attempts, lease, batch sizes and clock.
- * @returns The `register`, `dispatch`, `status`, `abandoned` and `retry` functions.
+ * @returns The `register`, `registerFallback`, `handle`, `dispatch`, `status`, `abandoned` and
+ *   `retry` functions.
  */
 export function createDispatcher(
   db: Db,
@@ -92,6 +93,7 @@ export function createDispatcher(
   }: DispatcherOptions = {},
 ) {
   const handlers = new Map<string, MessageHandler>()
+  let fallback: MessageHandler | null = null
 
   /**
    * Registers the handlers of a module.
@@ -100,6 +102,32 @@ export function createDispatcher(
    */
   function register(moduleHandlers: Record<string, MessageHandler>) {
     for (const [topic, handler] of Object.entries(moduleHandlers)) handlers.set(topic, handler)
+  }
+
+  /**
+   * Registers the handler of the topics no module handles. An extracted service uses it
+   * to forward to the application the messages meant for the other modules.
+   *
+   * @param handler - Fallback handler.
+   */
+  function registerFallback(handler: MessageHandler) {
+    fallback = handler
+  }
+
+  /**
+   * Handles a message right away with the handler of its topic, or the fallback one. It
+   * also serves a message received from another process: that message is not recorded,
+   * since the sender keeps it in its own outbox until this handling succeeds, and retries
+   * it otherwise.
+   *
+   * @param message - Message to handle.
+   * @returns Resolves once the message is handled.
+   * @throws Error if no handler matches the topic, or if the handler fails.
+   */
+  async function handle(message: Message) {
+    const handler = handlers.get(message.topic) ?? fallback
+    if (!handler) throw new Error(`Aucun gestionnaire pour le sujet ${message.topic}`)
+    await handler(message)
   }
 
   /**
@@ -144,9 +172,7 @@ export function createDispatcher(
    */
   async function deliver(message: Message): Promise<boolean> {
     try {
-      const handler = handlers.get(message.topic)
-      if (!handler) throw new Error(`Aucun gestionnaire pour le sujet ${message.topic}`)
-      await handler(message)
+      await handle(message)
       await db
         .update(outbox)
         .set({ processedAt: new Date(now()) })
@@ -238,7 +264,7 @@ export function createDispatcher(
     return updated.length === 1
   }
 
-  return { register, dispatch, status, abandoned, retry }
+  return { register, registerFallback, handle, dispatch, status, abandoned, retry }
 }
 
 /** Type of the dispatcher, inferred from its factory. */
