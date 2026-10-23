@@ -50,13 +50,14 @@ offrent une cible au joueur seul, et récompensent celui qui varie ses tactiques
 11. Le capitaine pirate d'une île choisit sa posture sans hasard : celle qui bat la tactique
     que l'attaquant a le plus employée contre les pirates, l'abordage à égalité ou en
     l'absence d'historique.
-12. Le trésor d'une île pirate ne peut être pillé qu'une fois par joueur et par jour.
+12. Un joueur n'attaque chaque île pirate qu'une fois par jour : un raid annulé faute
+    d'équipement, ou rappelé avant l'arrivée, ne compte pas.
 
 ## Les commandes et les lectures
 
 | Action du joueur | Commande ou lecture | Route envisagée |
 | --- | --- | --- |
-| Voir les cibles possibles : villages des autres joueurs et îles pirates | Lecture | `GET /api/fleet/targets` |
+| Voir les cibles possibles : villages les plus proches des autres joueurs, ou ceux dont le nom contient une recherche, et îles pirates | Lecture | `GET /api/fleet/targets?search=` |
 | Voir ses raids, envoyés et subis | Lecture | `GET /api/fleet/raids` |
 | Voir le détail et le rapport de bataille d'un raid | Lecture | `GET /api/fleet/raids/:id` |
 | Lancer un raid | Commande `LaunchRaid` | `POST /api/fleet/raids` |
@@ -115,3 +116,15 @@ subis, et la posture.
 6. B6 : communication avec le Village et avec le Classement.
 7. B8 : fonction d'aptitude qui vérifie que le domaine de la Flotte n'emploie ni hasard ni
    horloge, condition du déterminisme des batailles.
+8. B7 : test de charge des trois lectures de la Flotte, dans le budget de performance.
+9. B10 : tests de bout en bout Playwright d'un raid entre deux joueurs, avec l'alerte en temps
+   réel et le rappel de la flotte.
+10. B11 : droit de rectification du nom d'un joueur, partout où il est recopié, y compris dans
+    les raids.
+11. B12 : jeton signé, à durée de vie courte, à la place du secret partagé entre l'application
+    et le service Village extrait.
+12. B13 : piste « Généraliser le contrôle d'accès » du TD4, un test qui vérifie que toute route
+    non publique refuse une requête anonyme.
+
+L'extraction de la Flotte en service (B9) n'est pas visée : le plafond des bonus est atteint
+sans elle, et le Village extrait au TD11 démontre déjà ce mécanisme.
