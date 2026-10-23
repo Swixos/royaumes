@@ -4,6 +4,11 @@ import type { OfferView } from '@/modules/market/contracts'
 import type { RankingEntry } from '@/modules/ranking/contracts'
 import type { Stock } from '@/modules/realm/contracts'
 import type { Db } from '@/platform/db/client'
+import {
+  SERVICE_TOKEN_TTL_MS,
+  serviceHeaders,
+  signServiceToken,
+} from '@/platform/http/service-auth'
 import { createTestApi, TEST_SERVICE_SECRET } from './testing'
 
 type TestApi = Awaited<ReturnType<typeof createTestApi>>
@@ -52,18 +57,53 @@ describe("Village extrait - contrat avec l'application", () => {
     expect(await typesIn(api.db, 'village-alice')).toEqual(['VillageFounded'])
   })
 
-  it('refuse toute requête au service qui ne porte pas le secret partagé (401)', async () => {
+  it('refuse toute requête au service qui ne porte pas un jeton signé du secret partagé (401)', async () => {
     const api = await withService()
     const service = api.service
     expect((await service?.request('/events'))?.status).toBe(401)
     const forged = await service?.request('/realm/village', {
-      headers: { authorization: 'Bearer autre', 'x-player-id': 'alice' },
+      headers: {
+        authorization: `Bearer ${signServiceToken('autre', { id: 'alice', name: 'Alice' })}`,
+      },
     })
     expect(forged?.status).toBe(401)
-    const genuine = await service?.request('/events', {
+    const rawSecret = await service?.request('/events', {
       headers: { authorization: `Bearer ${TEST_SERVICE_SECRET}` },
     })
+    expect(rawSecret?.status).toBe(401)
+    const genuine = await service?.request('/events', {
+      headers: serviceHeaders(TEST_SERVICE_SECRET),
+    })
     expect(genuine?.status).toBe(200)
+  })
+
+  it("refuse un jeton expiré, ou dont l'identité du joueur a été modifiée (401)", async () => {
+    const api = await withService()
+    const service = api.service
+    const old = signServiceToken(
+      TEST_SERVICE_SECRET,
+      undefined,
+      Date.now() - 2 * SERVICE_TOKEN_TTL_MS,
+    )
+    expect(
+      (await service?.request('/events', { headers: { authorization: `Bearer ${old}` } }))?.status,
+    ).toBe(401)
+
+    const [version, , signature] = signServiceToken(TEST_SERVICE_SECRET, {
+      id: 'bob',
+      name: 'Bob',
+    }).split('.')
+    const claims = { iat: Date.now(), exp: Date.now() + 30_000, sub: 'alice', name: 'Alice' }
+    const swapped = `${version}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.${signature}`
+    const res = await service?.request('/realm/village', {
+      headers: { authorization: `Bearer ${swapped}` },
+    })
+    expect(res?.status).toBe(401)
+
+    const anonymous = await service?.request('/realm/village', {
+      headers: serviceHeaders(TEST_SERVICE_SECRET),
+    })
+    expect(anonymous?.status).toBe(401)
   })
 
   it('présente au Classement les villages du service, par le relais', async () => {
