@@ -14,7 +14,8 @@ import { players } from './infrastructure/schema'
  * village name, copied by the projection. The ranking has no events of its own, so it has
  * nothing to rewrite. Like any ranking read, the export catches the projection up first.
  * On erasure, the player's totals stay in the ranking under a neutral name: they are
- * exactly the values a rebuild would produce from the rewritten log.
+ * exactly the values a rebuild would produce from the rewritten log. A rectified name
+ * replaces the name known from the dungeon events, as a rebuild would.
  *
  * @param db - Database holding the ranking table.
  * @param projections - Projection runner of the platform.
@@ -39,6 +40,13 @@ export function createRankingPersonalData(
         .update(players)
         .set({ village: ERASED_VILLAGE })
         .where(and(eq(players.playerId, playerId), isNotNull(players.village)))
+    },
+
+    async rectify(playerId, name) {
+      await db
+        .update(players)
+        .set({ name })
+        .where(and(eq(players.playerId, playerId), isNotNull(players.name)))
     },
   }
 }

@@ -20,7 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "vercel-build": "pnpm verify && pnpm db:migrate && next build",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.9",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.56.1",
     "@types/autocannon": "7.12.7",
     "@types/node": "^22",
     "@types/pg": "8.23.1",

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -12,7 +12,10 @@ const MODULES = readdirSync(path.join(process.cwd(), 'src/modules'))
  * are not about imports, are checked by tests. The first one fails if a migration creates a
  * table in the `public` schema, or in a schema owned by no module or platform brick. The
  * second one ties the ADR 0008 obligation to a check: every module except `system`, which
- * keeps no data, must take part in player rights.
+ * keeps no data, must take part in player rights. The third one protects the determinism
+ * of the naval battles (ADR 0012): the fleet domain reads neither the clock nor a random
+ * source, so the same raid always ends the same way, and the pirate captains stay
+ * predictable.
  */
 describe("Fonctions d'aptitude", () => {
   it("range chaque table dans le schéma d'une brique de la plateforme ou d'un module", async () => {
@@ -34,6 +37,19 @@ describe("Fonctions d'aptitude", () => {
     for (const module of withData) {
       const file = path.join(process.cwd(), 'src/modules', module, 'personal-data.ts')
       expect(existsSync(file), `${module} n'a pas de fichier personal-data.ts`).toBe(true)
+    }
+  })
+
+  it('garde le domaine de la Flotte déterministe : ni horloge, ni hasard', () => {
+    const dir = path.join(process.cwd(), 'src/modules/fleet/domain')
+    const files = readdirSync(dir).filter(
+      (file) => file.endsWith('.ts') && !file.endsWith('.test.ts'),
+    )
+    expect(files.length).toBeGreaterThan(0)
+    const forbidden = /Math\.random|Date\.now|new Date\b|performance\.now|crypto\./
+    for (const file of files) {
+      const source = readFileSync(path.join(dir, file), 'utf8')
+      expect(forbidden.test(source), `${file} lit l'horloge ou le hasard`).toBe(false)
     }
   })
 })

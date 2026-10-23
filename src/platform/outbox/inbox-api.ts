@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { requireServiceSecret } from '../http/service-auth'
+import { requireServiceToken, serviceHeaders } from '../http/service-auth'
 import type { AppEnv } from '../http/types'
 import type { Dispatcher, Message } from './outbox'
 
@@ -19,7 +19,7 @@ const IncomingMessage = z.object({
  * it, and retries otherwise.
  *
  * @param dispatcher - Outbox dispatcher, whose handlers process the messages.
- * @param secret - Shared secret expected from the sender.
+ * @param secret - Shared secret, the key signing the tokens expected from the sender.
  * @param afterHandle - Called after each handled message, for instance to dispatch at once
  *   the messages its handling produced.
  * @returns The inbox sub-app.
@@ -29,7 +29,7 @@ export function createInboxApi(
   secret: string,
   afterHandle: () => Promise<unknown> = async () => {},
 ) {
-  return new Hono<AppEnv>().use(requireServiceSecret(secret)).post('/messages', async (c) => {
+  return new Hono<AppEnv>().use(requireServiceToken(secret)).post('/messages', async (c) => {
     const parsed = IncomingMessage.safeParse(await c.req.json())
     if (!parsed.success) {
       return c.json({ error: { code: 'INVALID_INPUT', message: 'Message invalide' } }, 400)
@@ -46,7 +46,7 @@ export function createInboxApi(
  * to the usual rules.
  *
  * @param url - Base address of the other process's inbox.
- * @param secret - Shared secret.
+ * @param secret - Shared secret, the key signing the token of each forwarded message.
  * @param fetchFn - Fetch function; replaced in tests.
  * @returns The forwarding message handler.
  */
@@ -54,7 +54,7 @@ export function forwardTo(url: string, secret: string, fetchFn: typeof fetch = f
   return async (message: Message) => {
     const res = await fetchFn(`${url}/messages`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` },
+      headers: { 'content-type': 'application/json', ...serviceHeaders(secret) },
       body: JSON.stringify(message),
     })
     if (!res.ok) throw new Error(`Transmission refusée par ${url} (${res.status})`)

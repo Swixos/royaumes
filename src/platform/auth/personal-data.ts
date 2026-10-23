@@ -8,7 +8,8 @@ import { session, user } from './schema'
  * The password hash and the session tokens are never exported: they are secrets, not
  * information useful to the player. Deleting the account also deletes its sessions and
  * credentials, through the foreign keys declared with `onDelete: 'cascade'`, which signs
- * the player out.
+ * the player out. Rectifying the name updates the account, the source of the name every
+ * session reads.
  *
  * @param db - Database holding the identity tables.
  * @returns The identity contributor.
@@ -36,6 +37,10 @@ export function createIdentityPersonalData(db: Db): PersonalDataContributor {
 
     async erase(playerId) {
       await db.delete(user).where(eq(user.id, playerId))
+    },
+
+    async rectify(playerId, name) {
+      await db.update(user).set({ name, updatedAt: new Date() }).where(eq(user.id, playerId))
     },
   }
 }

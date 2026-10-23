@@ -33,6 +33,17 @@ interface GameEndedData {
   loot: number
 }
 
+/**
+ * Data of `RaidPlundered`, as read by the ranking: the plunder brought back by a
+ * victorious fleet, part of the published language of the fleet module.
+ */
+interface RaidPlunderedData {
+  /** Identifier of the attacker. */
+  attackerId: string
+  /** Plunder brought back. */
+  loot: { gold?: number }
+}
+
 /** Data of `VillageFounded`, as read by the ranking. */
 interface VillageFoundedData {
   /** Name of the village. */
@@ -70,12 +81,19 @@ async function recordPlayer(tx: DbTransaction, gameId: string, playerId: string,
  * an expedition goes to its players only, companions excluded, and the list of its
  * players is dropped once it ends.
  *
- * Version 2: adds the best loot.
+ * Version 2: adds the best loot. Version 3: adds the gold plundered by the fleets.
  */
 export const rankingProjection: Projection = {
   name: 'ranking',
-  version: 2,
-  eventTypes: ['GameCreated', 'PlayerJoined', 'GameEnded', 'VillageFounded', 'BuildingUpgraded'],
+  version: 3,
+  eventTypes: [
+    'GameCreated',
+    'PlayerJoined',
+    'GameEnded',
+    'VillageFounded',
+    'BuildingUpgraded',
+    'RaidPlundered',
+  ],
 
   async apply(event, tx) {
     switch (event.type) {
@@ -119,6 +137,20 @@ export const rankingProjection: Projection = {
           .insert(players)
           .values({ playerId, village: data.name })
           .onConflictDoUpdate({ target: players.playerId, set: { village: data.name } })
+        return
+      }
+
+      case 'RaidPlundered': {
+        const data = event.data as unknown as RaidPlunderedData
+        const gold = data.loot.gold ?? 0
+        if (gold === 0) return
+        await tx
+          .insert(players)
+          .values({ playerId: data.attackerId, gold })
+          .onConflictDoUpdate({
+            target: players.playerId,
+            set: { gold: sql`${players.gold} + ${gold}` },
+          })
         return
       }
 

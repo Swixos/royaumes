@@ -43,7 +43,32 @@ export interface PersonalDataContributor {
    * @returns Resolves once the data is erased.
    */
   erase?(playerId: string, rewritten: StoredEvent[]): Promise<void>
+  /**
+   * Rewrites an event of the module with the rectified name of the player, wherever the
+   * event copies that name. Like `redact`, only the name may change.
+   *
+   * @param event - Candidate event.
+   * @param playerId - Identifier of the player whose name is rectified.
+   * @param name - New name of the player.
+   * @returns The event data with the new name, or null if the event holds no copy of it.
+   */
+  rename?(event: StoredEvent, playerId: string, name: string): Record<string, unknown> | null
+  /**
+   * Rectifies the name of the player in the module tables, once the log is rewritten.
+   *
+   * @param playerId - Identifier of the player whose name is rectified.
+   * @param name - New name of the player.
+   * @param rewritten - Rewritten events, with their new data.
+   * @returns Resolves once the tables are updated.
+   */
+  rectify?(playerId: string, name: string, rewritten: StoredEvent[]): Promise<void>
 }
+
+/** Rewrite of a log event by a contributor: its new data, or null to leave it as is. */
+type Rewrite = (
+  contributor: PersonalDataContributor,
+  event: StoredEvent,
+) => Record<string, unknown> | null
 
 /**
  * Converts a row of the log into a stored event.
@@ -61,7 +86,8 @@ const toStored = (row: typeof events.$inferSelect): StoredEvent => ({
 })
 
 /**
- * Creates the player rights service: export and erasure of personal data. The order of
+ * Creates the player rights service: export, erasure and rectification of personal data.
+ * The order of
  * the contributors is that of the export and of the erasure; identity must come last, so
  * an interrupted erasure can be restarted by the player themselves.
  *
@@ -94,13 +120,15 @@ export function createPrivacyService(
    * function of the project that modifies a recorded event. Candidate events are those
    * whose stream or data mention the player identifier; the SQL `position()` function
    * looks for an exact string, with no special character. Each module rewrites the events
-   * it recognizes, if needed. The rewrites and the entry of the erasure registry are
-   * recorded in a single transaction.
+   * it recognizes, if needed. The rewrites and, for an erasure, the entry of the erasure
+   * registry are recorded in a single transaction.
    *
-   * @param playerId - Identifier of the player being erased.
+   * @param playerId - Identifier of the player concerned.
+   * @param rewrite - Rewrite applied by each contributor: erasure or rectification.
+   * @param registered - True for an erasure, which is recorded in its registry.
    * @returns The rewritten events.
    */
-  async function rewriteJournal(playerId: string) {
+  async function rewriteJournal(playerId: string, rewrite: Rewrite, registered: boolean) {
     return db.transaction(async (tx) => {
       const rows = await tx
         .select()
@@ -117,7 +145,7 @@ export function createPrivacyService(
         let event = toStored(row)
         let changed = false
         for (const contributor of contributors) {
-          const data = contributor.redact?.(event, playerId)
+          const data = rewrite(contributor, event)
           if (data) {
             event = { ...event, data }
             changed = true
@@ -129,7 +157,7 @@ export function createPrivacyService(
         }
       }
 
-      await tx.insert(erasures).values({ eventsRewritten: rewritten.length })
+      if (registered) await tx.insert(erasures).values({ eventsRewritten: rewritten.length })
       return rewritten
     })
   }
@@ -143,12 +171,38 @@ export function createPrivacyService(
    * @returns The number of rewritten events.
    */
   async function erase(playerId: string) {
-    const rewritten = await rewriteJournal(playerId)
+    const rewritten = await rewriteJournal(
+      playerId,
+      (contributor, event) => contributor.redact?.(event, playerId) ?? null,
+      true,
+    )
     for (const contributor of contributors) await contributor.erase?.(playerId, rewritten)
     return { eventsRewritten: rewritten.length }
   }
 
-  return { exportData, erase }
+  /**
+   * Rectifies the name of a player (right to rectification): the copies of the name in the
+   * log are rewritten first, then each contributor updates its tables, identity last, as
+   * for an erasure. Each step is idempotent, so an interrupted rectification can be
+   * restarted with the same name.
+   *
+   * @param playerId - Identifier of the player.
+   * @param name - New name, already validated.
+   * @returns The number of rewritten events.
+   */
+  async function rectifyName(playerId: string, name: string) {
+    const rewritten = await rewriteJournal(
+      playerId,
+      (contributor, event) => contributor.rename?.(event, playerId, name) ?? null,
+      false,
+    )
+    for (const contributor of contributors) {
+      await contributor.rectify?.(playerId, name, rewritten)
+    }
+    return { eventsRewritten: rewritten.length }
+  }
+
+  return { exportData, erase, rectifyName }
 }
 
 /** Service type inferred from its factory. */

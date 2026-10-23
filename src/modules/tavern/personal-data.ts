@@ -5,7 +5,8 @@ import { messages, presence } from './infrastructure/schema'
 
 /**
  * Creates the personal data contributor of the tavern module: the player's messages and
- * presence. The tavern records no events, so erasure is a plain deletion.
+ * presence. The tavern records no events, so erasure is a plain deletion, and a rectified
+ * name is written in the messages and the presence of the player.
  *
  * @param db - Database holding the tavern tables.
  * @returns The tavern contributor.
@@ -31,6 +32,11 @@ export function createTavernPersonalData(db: Db): PersonalDataContributor {
     async erase(playerId) {
       await db.delete(messages).where(eq(messages.authorId, playerId))
       await db.delete(presence).where(eq(presence.playerId, playerId))
+    },
+
+    async rectify(playerId, name) {
+      await db.update(messages).set({ authorName: name }).where(eq(messages.authorId, playerId))
+      await db.update(presence).set({ playerName: name }).where(eq(presence.playerId, playerId))
     },
   }
 }
