@@ -16,8 +16,11 @@ import { OUT_STATUSES, type RaidStatus } from '../domain/raid'
 import { fleetProjection } from './fleet-projection'
 import { harbors, raids } from './schema'
 
-/** Maximum number of raids and villages listed. */
+/** Maximum number of raids listed. */
 const LIST_SIZE = 50
+
+/** Maximum number of villages shown on the sea map: the nearest ones. */
+const SEA_SIZE = 12
 
 /** Raids that never reached their island, and so do not count for its daily treasure. */
 const NEVER_ARRIVED: RaidStatus[] = ['cancelled', 'recalled']
@@ -45,11 +48,9 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
   return {
     async targets(viewerId, now) {
       const position = await fresh()
-      const rows = await db
-        .select()
-        .from(harbors)
-        .orderBy(harbors.villageName)
-        .limit(LIST_SIZE + 1)
+      // DETTE TECHNIQUE DT-015 (docs/qualite/dette-technique.md): every village is read to keep
+      // the nearest ones, since the crossing time is computed, not stored.
+      const rows = await db.select().from(harbors)
       const today = dayOf(now)
       const raided = await db
         .select({ targetId: raids.targetId, launchedAt: raids.launchedAt })
@@ -73,14 +74,15 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           : null,
         villages: rows
           .filter((row) => row.playerId !== viewerId)
-          .slice(0, LIST_SIZE)
           .map((row) => ({
             playerId: row.playerId,
             name: row.villageName,
             defense: villageDefense(row.upgrades),
             travelMinutes: travelMinutes(viewerId, row.playerId),
             map: mapPositionOf(row.playerId),
-          })),
+          }))
+          .sort((a, b) => a.travelMinutes - b.travelMinutes || a.name.localeCompare(b.name))
+          .slice(0, SEA_SIZE),
         islands: PIRATE_ISLANDS.map((island) => ({
           islandId: island.id,
           name: island.name,
@@ -119,6 +121,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           return {
             raidId: row.raidId,
             role: attacker ? 'attacker' : 'defender',
+            attackerId: row.attackerId,
             attackerName: row.attackerName,
             targetKind: row.targetKind as RaidSummary['targetKind'],
             targetId: row.targetId,

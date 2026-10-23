@@ -16,14 +16,17 @@ export {
   DEFAULT_POSTURE,
   equipmentCost,
   fight,
+  hash,
   holdOf,
   MAX_RAIDS_AT_SEA,
   MAX_SHIPS,
   MIN_SHIPS,
+  mapPositionOf,
   PIRATE_ISLANDS,
   SHIP_COST,
   SHIP_HOLD,
   TACTICS,
+  travelMinutes,
 } from './domain/naval'
 export type { RaidError, RaidStatus, Target } from './domain/raid'
 export type { RaidView } from './domain/view'
@@ -132,6 +135,8 @@ export interface RaidSummary {
   raidId: string
   /** Side of the viewer. */
   role: 'attacker' | 'defender'
+  /** Identifier of the attacker, which places their village on the sea map. */
+  attackerId: string
   /** Name of the attacker. */
   attackerName: string
   /** Kind of target. */

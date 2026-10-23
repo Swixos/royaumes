@@ -4,7 +4,8 @@ import type { Tactic } from '../domain/naval'
 /** Read port of the fleet read model, owned by the application layer. */
 export interface FleetReader {
   /**
-   * Lists the targets a player may raid.
+   * Lists the targets a player may raid: the nearest villages of the other players, and
+   * the pirate islands.
    *
    * @param viewerId - Identifier of the viewing player.
    * @param now - Current time in milliseconds.

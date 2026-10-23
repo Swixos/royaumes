@@ -33,6 +33,13 @@ export const theme: Record<string, Look> = {
   ranking: { glyph: '🏆', label: 'Classement' },
   market: { glyph: '⚖️', label: 'Marché' },
   tavern: { glyph: '🍺', label: 'Taverne' },
+  fleet: { glyph: '⛵', label: 'Flotte' },
+  trireme: { glyph: '⛵', label: 'Trirème' },
+  pirates: { glyph: '🏴‍☠️', label: 'Pirates' },
+  harbor: { glyph: '⚓', label: 'Port' },
+  ram: { glyph: '🔱', label: 'Éperonnage' },
+  board: { glyph: '🪝', label: 'Abordage' },
+  blockade: { glyph: '⛓️', label: 'Blocus' },
 }
 
 /**
