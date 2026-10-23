@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { HarborView, RaidSummary, RaidView, TargetsList } from '@/modules/fleet/contracts'
 import type { RankingEntry } from '@/modules/ranking/contracts'
@@ -116,6 +117,20 @@ describe('API du module Flotte - accès et validation', () => {
     ).toBe(400)
     expect((await choosePosture(api, 'canon', 'bob')).status).toBe(400)
   })
+
+  it("ne prend jamais le nom de la cible ni l'identité de l'attaquant dans la requête", async () => {
+    const api = await seaWithVillages()
+    const res = await launch(api, {
+      target: { kind: 'village', playerId: 'bob', name: 'Nom forgé' },
+      ships: 1,
+      tactic: 'ram',
+      attackerId: 'carol',
+      attackerName: 'Carol',
+    })
+    const { view } = (await res.json()) as { view: RaidView }
+    expect(view.target).toEqual({ kind: 'village', playerId: 'bob', name: 'Port de bob' })
+    expect(view).toMatchObject({ role: 'attacker', attackerName: 'alice' })
+  })
 })
 
 describe('API du module Flotte - cibles', () => {
@@ -131,6 +146,15 @@ describe('API du module Flotte - cibles', () => {
       'raven-cove',
       'scarlet-atoll',
     ])
+  })
+
+  it('cherche un port par une partie de son nom, sans tenir compte de la casse', async () => {
+    const api = await seaWithVillages()
+    const res = await api.get('/api/fleet/targets?search=DE%20BOB')
+    const targets = (await res.json()) as TargetsList
+    expect(targets.villages.map((v) => v.playerId)).toEqual(['bob'])
+    expect(targets.home?.name).toBe('Port de alice')
+    expect((await api.get(`/api/fleet/targets?search=${'x'.repeat(31)}`)).status).toBe(400)
   })
 
   it('compte les améliorations du village dans sa défense, par le langage publié du Village', async () => {
@@ -359,6 +383,22 @@ describe('API du module Flotte - données personnelles', () => {
     const after = (await (await viewOf(api, raidId)).json()) as { view: RaidView }
     expect(after.view.status).toBe('aborted')
     expect((await stockOf(api, 'alice')).wood).toBe((await stockOf(api, 'carol')).wood)
+  })
+
+  it("ne recopie aucun nom de joueur dans les avis conservés par la boîte d'envoi", async () => {
+    const api = await seaWithVillages()
+    const { raidId } = await raidBob(api)
+    api.advance(6)
+    await viewOf(api, raidId)
+
+    const result = await api.db.execute(
+      sql`SELECT payload FROM platform.outbox WHERE topic = 'fleet.notice'`,
+    )
+    const payloads = (result as unknown as { rows: { payload: Record<string, unknown> }[] }).rows
+    expect(payloads.length).toBeGreaterThanOrEqual(3)
+    for (const { payload } of payloads) {
+      expect(Object.keys(payload).sort()).toEqual(['notice', 'playerId', 'raidId'])
+    }
   })
 
   it("efface le nom de l'attaquant des ports qui ont vu sa flotte", async () => {

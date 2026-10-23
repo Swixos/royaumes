@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import type { AppEnv } from '@/platform/http/types'
-import { validateJson } from '@/platform/http/validate'
+import { validateJson, validateQuery } from '@/platform/http/validate'
 import type { FleetService } from './application/fleet-service'
-import { ChoosePostureInput, LaunchRaidInput, type RaidError } from './contracts'
+import { ChoosePostureInput, LaunchRaidInput, type RaidError, TargetsQuery } from './contracts'
 
 /** HTTP status code for each domain error. */
 const STATUS: Record<RaidError['code'], 403 | 404 | 409 | 422> = {
@@ -24,7 +24,8 @@ const STATUS: Record<RaidError['code'], 403 | 404 | 409 | 422> = {
  * always the one identified by authentication: no route accepts the identifier of the
  * acting player in the request, only that of a targeted village.
  *
- * - `GET /targets`: villages of the other players and pirate islands.
+ * - `GET /targets`: nearest villages of the other players, or those whose name holds
+ *   `search`, and pirate islands.
  * - `GET /raids`: raids launched and suffered by the player.
  * - `POST /raids`: launches a raid.
  * - `GET /raids/:id`: view of a raid, for its attacker or its defender.
@@ -37,7 +38,10 @@ const STATUS: Record<RaidError['code'], 403 | 404 | 409 | 422> = {
  */
 export function createFleetApi(service: FleetService) {
   return new Hono<AppEnv>()
-    .get('/targets', async (c) => c.json(await service.targets(c.var.userId)))
+    .get('/targets', validateQuery(TargetsQuery), async (c) => {
+      const { search } = c.req.valid('query')
+      return c.json(await service.targets(c.var.userId, search || undefined))
+    })
 
     .get('/raids', async (c) => c.json(await service.list(c.var.userId)))
 

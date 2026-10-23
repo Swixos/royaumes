@@ -41,6 +41,9 @@ export const LaunchRaidInput = z.object({
   tactic: z.enum(TACTICS),
 })
 
+/** Expected query of the targets: an optional part of a village name to look for. */
+export const TargetsQuery = z.object({ search: z.string().trim().max(30).optional() })
+
 /** Expected body to choose the defensive posture of one's harbor. */
 export const ChoosePostureInput = z.object({ posture: z.enum(TACTICS) })
 

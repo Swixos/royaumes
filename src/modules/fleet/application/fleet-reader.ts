@@ -4,14 +4,15 @@ import type { Tactic } from '../domain/naval'
 /** Read port of the fleet read model, owned by the application layer. */
 export interface FleetReader {
   /**
-   * Lists the targets a player may raid: the nearest villages of the other players, and
-   * the pirate islands.
+   * Lists the targets a player may raid: the nearest villages of the other players, or
+   * those whose name holds the searched text, and the pirate islands.
    *
    * @param viewerId - Identifier of the viewing player.
    * @param now - Current time in milliseconds.
+   * @param search - Part of a village name to look for, whatever the case.
    * @returns The targets, with the log position up to which they are up to date.
    */
-  targets(viewerId: string, now: number): Promise<TargetsList>
+  targets(viewerId: string, now: number, search?: string): Promise<TargetsList>
 
   /**
    * Lists the raids a player launched or suffered.
