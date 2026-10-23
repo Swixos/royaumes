@@ -1,14 +1,16 @@
 'use client'
 import { hc } from 'hono/client'
+import { AnimatePresence, m, useAnimate } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import type { RealmApi } from '@/modules/realm'
-import { RESOURCES, stockAt, type VillageView } from '@/modules/realm/contracts'
+import { RESOURCES, type Resource, stockAt, type VillageView } from '@/modules/realm/contracts'
 import { authClient } from '@/platform/auth/client'
 import { Entity } from './entity'
 import { VILLAGE_CHANGED } from './events'
 import { Icon } from './icons'
+import { GameMotion, RollingNumber, SPRING } from './motion'
 
 /** Navigation links: every module added to the game gets an entry here. */
 export const NAV = [
@@ -64,15 +66,75 @@ function ResourceBar() {
   return (
     <ul className="resources" aria-label="Ressources du village">
       {RESOURCES.map((resource) => (
-        <li key={resource}>
-          <span className="resource-badge">
-            <Entity kind={resource} />
-          </span>
-          <strong>{Math.floor(stock[resource])}</strong>
-          <small>+{view.ratesPerMinute[resource]}/min</small>
-        </li>
+        <ResourceCounter
+          key={resource}
+          resource={resource}
+          amount={Math.floor(stock[resource])}
+          rate={view.ratesPerMinute[resource]}
+        />
       ))}
     </ul>
+  )
+}
+
+/**
+ * Counter of one resource: its number rolls when it jumps, and a gain makes the medallion
+ * bounce while the amount gained floats away, as in a strategy game.
+ *
+ * @param props - Component props.
+ * @param props.resource - Resource shown.
+ * @param props.amount - Current stock.
+ * @param props.rate - Production per minute.
+ * @returns The counter.
+ */
+function ResourceCounter({
+  resource,
+  amount,
+  rate,
+}: {
+  resource: Resource
+  amount: number
+  rate: number
+}) {
+  const [badge, animateBadge] = useAnimate()
+  const [gains, setGains] = useState<{ id: number; gain: number }[]>([])
+  const counter = useRef(0)
+
+  const onJump = useCallback(
+    (gap: number) => {
+      if (gap <= 0) return
+      animateBadge(badge.current, { scale: [1, 1.35, 1], rotate: [0, -10, 0] }, { duration: 0.5 })
+      const id = ++counter.current
+      setGains((current) => [...current, { id, gain: gap }])
+      setTimeout(() => setGains((current) => current.filter((g) => g.id !== id)), 1400)
+    },
+    [animateBadge, badge],
+  )
+
+  return (
+    <li>
+      <span ref={badge} className="resource-badge">
+        <Entity kind={resource} />
+      </span>
+      <strong>
+        <RollingNumber value={amount} onJump={onJump} />
+      </strong>
+      <small>+{rate}/min</small>
+      <AnimatePresence>
+        {gains.map((g) => (
+          <m.span
+            key={g.id}
+            className="resource-gain"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: -22 }}
+            exit={{ opacity: 0, y: -34 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          >
+            +{g.gain}
+          </m.span>
+        ))}
+      </AnimatePresence>
+    </li>
   )
 }
 
@@ -98,52 +160,59 @@ export function AppShell({ userName, children }: { userName: string; children: R
   }
 
   return (
-    <div className="game">
-      <header className="hud">
-        <Link href="/village" className="crest">
-          <span className="crest-badge">
-            <Icon kind="brand" />
-          </span>
-          <span className="crest-name">Royaumes</span>
-        </Link>
-        <ResourceBar />
-        <div className="player">
-          <span className="player-name">
-            <Icon kind="hero" /> {userName}
-          </span>
-          <Link
-            href="/account"
-            className="hud-button"
-            aria-current={pathname === '/account' ? 'page' : undefined}
-          >
-            <Icon kind="account" /> Mes données
-          </Link>
-          <button className="hud-button" type="button" onClick={signOut}>
-            <Icon kind="logout" /> Déconnexion
-          </button>
-        </div>
-      </header>
-      <nav className="menu" aria-label="Navigation principale">
-        {NAV.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="menu-item"
-            aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
-          >
-            <span className="menu-badge">
-              <Icon kind={item.kind} />
+    <GameMotion>
+      <div className="game">
+        <header className="hud">
+          <Link href="/village" className="crest">
+            <span className="crest-badge">
+              <Icon kind="brand" />
             </span>
-            <span>{item.label}</span>
+            <span className="crest-name">Royaumes</span>
           </Link>
-        ))}
-      </nav>
-      <main className="page">{children}</main>
-      <footer className="credits">
-        Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
-        contributeurs, sous licence{' '}
-        <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
-      </footer>
-    </div>
+          <ResourceBar />
+          <div className="player">
+            <span className="player-name">
+              <Icon kind="hero" /> {userName}
+            </span>
+            <Link
+              href="/account"
+              className="hud-button"
+              aria-current={pathname === '/account' ? 'page' : undefined}
+            >
+              <Icon kind="account" /> Mes données
+            </Link>
+            <button className="hud-button" type="button" onClick={signOut}>
+              <Icon kind="logout" /> Déconnexion
+            </button>
+          </div>
+        </header>
+        <nav className="menu" aria-label="Navigation principale">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="menu-item"
+              aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
+            >
+              <m.span
+                className="menu-badge"
+                whileHover={{ y: -4 }}
+                whileTap={{ scale: 0.9, y: 1 }}
+                transition={SPRING}
+              >
+                <Icon kind={item.kind} />
+              </m.span>
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </nav>
+        <main className="page">{children}</main>
+        <footer className="credits">
+          Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
+          contributeurs, sous licence{' '}
+          <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
+        </footer>
+      </div>
+    </GameMotion>
   )
 }
