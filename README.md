@@ -49,6 +49,7 @@ aucune n'est obligatoire. Pour définir vos propres valeurs, copiez ce fichier e
 | `pnpm exec tsx scripts/load-test.ts <étiquette>` | Test de charge, application de production démarrée ; résultats dans `perf/<étiquette>.json` |
 | `pnpm exec tsx scripts/dead-letters.ts` | Liste des messages abandonnés de la boîte d'envoi ; `retry <id>` en relance un |
 | `SERVICE_SECRET=<secret> pnpm exec tsx scripts/village-service.ts` | Démarrage du service Village extrait, sur le port 4000 |
+| `pnpm exec tsx scripts/generate-icons.ts` | Production du jeu d'icônes de l'interface (`src/ui/game-icons.ts`) à partir de Game Icons |
 
 ## Architecture
 
@@ -229,6 +230,24 @@ Les variables `DATABASE_URL` et `DATABASE_URL_UNPOOLED` sont fournies par l'int�
 Neon de Vercel. Les variables `BETTER_AUTH_SECRET` et `CRON_SECRET` sont définies dans les
 réglages du projet Vercel ; elles ne sont jamais versionnées. L'application refuse de démarrer
 sans la première ; sans la seconde, la route des tâches quotidiennes reste fermée.
+
+## Interface
+
+L'interface adopte la direction artistique d'un jeu de stratégie, en aplats de couleur, sans
+dégradé : océan en motif, panneaux de parchemin encadrés de bois, boutons à ombre pleine,
+titres en bannière, polices Lilita One (titres) et Nunito (texte), embarquées par les paquets
+`@fontsource`. Une barre de ressources montre en permanence le stock du village, et un menu
+à tuiles mène aux modules.
+
+L'apparence de chaque entité du jeu (libellé et couleur) est définie dans `src/ui/theme.ts`,
+et son icône dans `src/ui/game-icons.ts`, produit par `scripts/generate-icons.ts` : seules les
+icônes utilisées sont copiées, sous forme de tracés SVG, dans le code envoyé au navigateur.
+
+## Crédits
+
+Les icônes proviennent de [Game Icons](https://game-icons.net), par Lorc, Delapouite et leurs
+contributeurs, sous licence [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Ce
+crédit figure aussi au pied de chaque page du jeu.
 
 ## Documentation
 
