@@ -1,9 +1,12 @@
 'use client'
 import { hc } from 'hono/client'
+import { AnimatePresence, m } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
+import { VILLAGE_CHANGED } from '@/ui/events'
 import { Icon } from '@/ui/icons'
+import { DROP, SPRING } from '@/ui/motion'
 import { look } from '@/ui/theme'
 import type { FleetApi } from './api'
 import {
@@ -305,8 +308,9 @@ function Trireme({
 }
 
 /**
- * Tactic chooser: the three tactics as flat cards, each naming the tactic it beats. It
- * serves both the tactic of a fleet and the posture of a harbor.
+ * Tactic chooser: the three tactics as cards, each naming the tactic it beats; the gold
+ * highlight slides from one card to the other. It serves both the tactic of a fleet and
+ * the posture of a harbor.
  *
  * @param props - Component props.
  * @param props.value - Selected tactic.
@@ -334,6 +338,9 @@ function TacticPicker({
           aria-pressed={value === tactic}
           onClick={() => onChange(tactic)}
         >
+          {value === tactic && (
+            <m.span className={styles.glow} layoutId={`tactic-${caption}`} transition={SPRING} />
+          )}
           <Icon kind={tactic} size={28} />
           <strong>{look(tactic).label}</strong>
           <small>bat {look(BEATS[tactic]).label.toLowerCase()}</small>
@@ -646,8 +653,9 @@ function SeaMap({
 }
 
 /**
- * Full screen battle report, shown when a report reaches the harbor in real time: two
- * flat ships meet, then the verdict and the plunder.
+ * Full screen battle report, shown when a report reaches the harbor in real time: the
+ * report drops into place, the two ships ram each other, the verdict is stamped, then
+ * the plunder comes in piece by piece.
  *
  * @param props - Component props.
  * @param props.report - Data of the `BattleReported` event.
@@ -673,48 +681,99 @@ function BattleOverlay({
     }
   }, [onClose])
   const loot = (report.loot ?? {}) as Amounts
+  const spoils = Object.entries(loot).filter(([, amount]) => (amount ?? 0) > 0)
+  const lootList = (
+    <span className={styles.amounts}>
+      {spoils.map(([resource, amount], index) => (
+        <m.span
+          key={resource}
+          className={styles.lootItem}
+          initial={{ opacity: 0, y: 14, scale: 0.6 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ ...SPRING, delay: 1 + index * 0.15 }}
+        >
+          <Entity kind={resource} /> {amount}
+        </m.span>
+      ))}
+      {spoils.length === 0 && 'rien'}
+    </span>
+  )
   return (
-    <div
+    <m.div
       className={styles.overlay}
       role="dialog"
       aria-modal="true"
       aria-label="Rapport de bataille"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
     >
-      <div className={styles.report} data-win={won}>
+      <m.div
+        className={styles.report}
+        data-win={won}
+        initial={{ y: -160, scale: 0.85, rotate: -3 }}
+        animate={{ y: 0, scale: 1, rotate: 0 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={DROP}
+      >
         <div className={styles.clash} aria-hidden="true">
-          <svg className={styles.clashLeft} viewBox="-40 -40 80 56" aria-hidden="true">
+          <m.svg
+            className={styles.clashLeft}
+            viewBox="-40 -40 80 56"
+            aria-hidden="true"
+            initial={{ x: '-90%' }}
+            animate={{ x: ['-90%', '12%', '0%'] }}
+            transition={{ duration: 0.7, times: [0, 0.75, 1], delay: 0.2 }}
+          >
             <Trireme x={0} y={0} heading={0} enemy={false} scale={1} />
-          </svg>
-          <svg className={styles.clashRight} viewBox="-40 -40 80 56" aria-hidden="true">
+          </m.svg>
+          <m.svg
+            className={styles.clashRight}
+            viewBox="-40 -40 80 56"
+            aria-hidden="true"
+            style={{ scaleX: -1 }}
+            initial={{ x: '90%' }}
+            animate={{ x: ['90%', '-12%', '0%'] }}
+            transition={{ duration: 0.7, times: [0, 0.75, 1], delay: 0.2 }}
+          >
             <Trireme x={0} y={0} heading={0} enemy={true} scale={1} />
-          </svg>
+          </m.svg>
+          <m.span
+            className={styles.shock}
+            initial={{ scale: 0, opacity: 0.9 }}
+            animate={{ scale: 4, opacity: 0 }}
+            transition={{ duration: 0.7, delay: 0.72, ease: 'easeOut' }}
+          />
         </div>
-        <p className={styles.verdict}>{won ? 'Victoire' : 'Défaite'}</p>
+        <m.p
+          className={styles.verdict}
+          initial={{ scale: 2.6, opacity: 0, rotate: -14 }}
+          animate={{ scale: 1, opacity: 1, rotate: -4 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 15, delay: 0.75 }}
+        >
+          {won ? 'Victoire' : 'Défaite'}
+        </m.p>
         <p className={styles.spoils}>
           {attacker
             ? `Votre flotte contre ${String(report.opponentName)} : `
             : `${String(report.opponentName)} a attaqué votre port : `}
           {attacker ? (
             won ? (
-              <>
-                butin <AmountsText amounts={loot} />
-              </>
+              <>butin {lootList}</>
             ) : (
               'la flotte a sombré.'
             )
           ) : won ? (
             "l'assaut est repoussé."
           ) : (
-            <>
-              pillé <AmountsText amounts={loot} />
-            </>
+            <>pillé {lootList}</>
           )}
         </p>
         <button type="button" onClick={onClose}>
           Fermer le rapport
         </button>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   )
 }
 
@@ -771,7 +830,10 @@ export function FleetScreen({ userId }: { userId: string }) {
   }, [refresh])
 
   const status = useChannel(harborChannel(userId), (event: ChannelEvent) => {
-    if (event.type === 'BattleReported') setReport(event.data)
+    if (event.type === 'BattleReported') {
+      setReport(event.data)
+      window.dispatchEvent(new Event(VILLAGE_CHANGED))
+    }
     refresh()
   })
 
@@ -803,7 +865,7 @@ export function FleetScreen({ userId }: { userId: string }) {
       raid.role === 'attacker' && ['provisioning', 'at-sea', 'plundering'].includes(raid.status),
   ).length
 
-  /** Launches a raid against the selected target. */
+  /** Launches a raid against the selected target, and announces the equipment spent. */
   async function launch() {
     if (!selected) return
     setBusy(true)
@@ -831,12 +893,13 @@ export function FleetScreen({ userId }: { userId: string }) {
           ? { text: 'Armement impossible : votre village manque de ressources.', error: true }
           : { text: `La flotte a hissé les voiles vers ${view.target.name}.`, error: false },
       )
+      window.dispatchEvent(new Event(VILLAGE_CHANGED))
     }
     refresh()
   }
 
   /**
-   * Recalls one of the player's fleets.
+   * Recalls one of the player's fleets, and announces the equipment refunded.
    *
    * @param raidId - Raid identifier.
    */
@@ -848,6 +911,7 @@ export function FleetScreen({ userId }: { userId: string }) {
         ? { text: ERRORS[body.error.code as keyof typeof ERRORS] ?? 'Ordre refusé.', error: true }
         : { text: "Demi-tour ! L'équipement rentre au village.", error: false },
     )
+    if (!('error' in body)) window.dispatchEvent(new Event(VILLAGE_CHANGED))
     refresh()
   }
 
@@ -904,19 +968,29 @@ export function FleetScreen({ userId }: { userId: string }) {
         </div>
       </dl>
 
-      {incoming.map((raid) => (
-        <div key={raid.raidId} className={styles.alarm} role="status">
-          <Icon kind="trireme" size={40} />
-          <div>
-            <strong>Flotte ennemie en approche</strong>
-            <span>
-              {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur votre
-              port. Changez de posture tant qu'il est temps.
-            </span>
-          </div>
-          <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
-        </div>
-      ))}
+      <AnimatePresence initial={false}>
+        {incoming.map((raid) => (
+          <m.div
+            key={raid.raidId}
+            className={styles.alarm}
+            role="status"
+            initial={{ opacity: 0, y: -24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1, x: [0, -12, 12, -8, 8, -4, 0] }}
+            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
+            transition={{ ...DROP, x: { duration: 0.6, delay: 0.25 } }}
+          >
+            <Icon kind="trireme" size={40} />
+            <div>
+              <strong>Flotte ennemie en approche</strong>
+              <span>
+                {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur votre
+                port. Changez de posture tant qu'il est temps.
+              </span>
+            </div>
+            <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
+          </m.div>
+        ))}
+      </AnimatePresence>
 
       {targets && !targets.home && (
         <p className="error">
@@ -979,56 +1053,75 @@ export function FleetScreen({ userId }: { userId: string }) {
               <p className="muted">Aucun raid pour l'instant. La mer est calme.</p>
             ) : (
               <ul className={styles.logbook}>
-                {raids.map((raid) => {
-                  const attacker = raid.role === 'attacker'
-                  const tone =
-                    raid.status === 'at-sea' || raid.status === 'provisioning'
-                      ? 'sea'
-                      : raid.victory === null
-                        ? 'none'
-                        : raid.victory === attacker
-                          ? 'win'
-                          : 'loss'
-                  return (
-                    <li key={raid.raidId} className={styles.entry} data-tone={tone}>
-                      <Icon
-                        kind={
-                          raid.targetKind === 'pirates' ? 'pirates' : attacker ? 'fleet' : 'harbor'
-                        }
-                        size={32}
-                      />
-                      <span>
-                        <strong>
-                          {attacker
-                            ? `Raid contre ${raid.targetName}`
-                            : `Raid de ${raid.attackerName}`}
-                        </strong>
-                        <span className={styles.meta}>
-                          {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
-                          {raid.tactic && ` · ${look(raid.tactic).label}`}
-                          {raid.status === 'at-sea' &&
-                            raid.arrivesAt > now &&
-                            ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
-                          {raid.loot && (
-                            <>
-                              {' · '}
-                              {attacker ? 'butin' : 'perte'} <AmountsText amounts={raid.loot} />
-                            </>
-                          )}
+                <AnimatePresence initial={false}>
+                  {raids.map((raid) => {
+                    const attacker = raid.role === 'attacker'
+                    const tone =
+                      raid.status === 'at-sea' || raid.status === 'provisioning'
+                        ? 'sea'
+                        : raid.victory === null
+                          ? 'none'
+                          : raid.victory === attacker
+                            ? 'win'
+                            : 'loss'
+                    return (
+                      <m.li
+                        key={raid.raidId}
+                        className={styles.entry}
+                        data-tone={tone}
+                        layout
+                        initial={{ opacity: 0, x: -40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={SPRING}
+                      >
+                        <Icon
+                          kind={
+                            raid.targetKind === 'pirates'
+                              ? 'pirates'
+                              : attacker
+                                ? 'fleet'
+                                : 'harbor'
+                          }
+                          size={32}
+                        />
+                        <span>
+                          <strong>
+                            {attacker
+                              ? `Raid contre ${raid.targetName}`
+                              : `Raid de ${raid.attackerName}`}
+                          </strong>
+                          <span className={styles.meta}>
+                            {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
+                            {raid.tactic && ` · ${look(raid.tactic).label}`}
+                            {raid.status === 'at-sea' &&
+                              raid.arrivesAt > now &&
+                              ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
+                            {raid.loot && (
+                              <>
+                                {' · '}
+                                {attacker ? 'butin' : 'perte'} <AmountsText amounts={raid.loot} />
+                              </>
+                            )}
+                          </span>
                         </span>
-                      </span>
-                      {attacker && raid.status === 'at-sea' && raid.arrivesAt > Date.now() ? (
-                        <button type="button" className="ghost" onClick={() => recall(raid.raidId)}>
-                          Rappeler
-                        </button>
-                      ) : (
-                        <span className={styles.chip} data-tone={tone}>
-                          {(attacker ? ATTACK_STATUS : DEFENSE_STATUS)[raid.status]}
-                        </span>
-                      )}
-                    </li>
-                  )
-                })}
+                        {attacker && raid.status === 'at-sea' && raid.arrivesAt > Date.now() ? (
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => recall(raid.raidId)}
+                          >
+                            Rappeler
+                          </button>
+                        ) : (
+                          <span className={styles.chip} data-tone={tone}>
+                            {(attacker ? ATTACK_STATUS : DEFENSE_STATUS)[raid.status]}
+                          </span>
+                        )}
+                      </m.li>
+                    )
+                  })}
+                </AnimatePresence>
               </ul>
             )}
           </section>
@@ -1039,7 +1132,13 @@ export function FleetScreen({ userId }: { userId: string }) {
             <h2 id="council">Conseil de guerre</h2>
             {target ? (
               <div className="stack">
-                <div className={styles.target}>
+                <m.div
+                  key={selected ? `${selected.kind}-${selected.id}` : 'none'}
+                  className={styles.target}
+                  initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={SPRING}
+                >
                   <Icon kind={island ? 'pirates' : 'harbor'} size={40} />
                   <div>
                     <strong>{target.name}</strong>
@@ -1053,7 +1152,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                       </span>
                     )}
                   </div>
-                </div>
+                </m.div>
 
                 <fieldset className={styles.sizes}>
                   <legend>Trirèmes</legend>
@@ -1068,7 +1167,14 @@ export function FleetScreen({ userId }: { userId: string }) {
                         aria-pressed={size === ships}
                         onClick={() => setShips(size)}
                       >
-                        {size}
+                        {size === ships && (
+                          <m.span
+                            className={styles.glow}
+                            layoutId="fleet-size"
+                            transition={SPRING}
+                          />
+                        )}
+                        <span>{size}</span>
                       </button>
                     ))}
                   </div>
@@ -1165,7 +1271,9 @@ export function FleetScreen({ userId }: { userId: string }) {
         </div>
       </div>
 
-      {report && <BattleOverlay report={report} onClose={closeReport} />}
+      <AnimatePresence>
+        {report && <BattleOverlay key="report" report={report} onClose={closeReport} />}
+      </AnimatePresence>
     </>
   )
 }

@@ -110,6 +110,7 @@ a { color: var(--brand); font-weight: 700; }
 .resources { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; flex-wrap: wrap; }
 
 .resources li {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -122,6 +123,18 @@ a { color: var(--brand); font-weight: 700; }
 
 .resources strong { font-family: var(--font); font-weight: 800; font-size: 1.15rem; min-width: 2.5ch; color: var(--cream); }
 .resources small { font-weight: 700; color: #a9c97a; font-size: 0.8rem; }
+
+.resource-gain {
+  position: absolute;
+  left: 40px;
+  top: 2px;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1rem;
+  color: #b9e38a;
+  text-shadow: 0 2px 0 var(--frame);
+  pointer-events: none;
+}
 
 .resource-badge {
   width: 32px;
