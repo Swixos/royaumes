@@ -45,19 +45,19 @@ const FLEET_SIZES = Array.from({ length: MAX_SHIPS }, (_, i) => i + 1)
 
 /** Flat colors of the sea map. */
 const SEA = {
-  water: '#2b6f97',
-  shallow: '#3a82ac',
-  grid: '#33789f',
-  sand: '#e8d3a2',
-  grass: '#7baf5c',
-  rock: '#4a4f5a',
-  rockTop: '#6a707c',
-  gold: '#e8a93b',
-  label: '#fbf9f4',
-  ink: '#1b2333',
-  own: '#fbf9f4',
-  enemy: '#c93c32',
-  lane: '#d6e2ee',
+  water: '#2f86a8',
+  shallow: '#56a7c2',
+  grid: '#3a8fb0',
+  sand: '#e6d29a',
+  grass: '#7a9a45',
+  rock: '#5b5650',
+  rockTop: '#7a746b',
+  gold: '#e8cd84',
+  label: '#f3e3bb',
+  ink: '#2a170a',
+  own: '#f3e3bb',
+  enemy: '#a32a1a',
+  lane: '#f3e3bb',
 }
 
 /** Label shown for each state of the real-time connection. */
