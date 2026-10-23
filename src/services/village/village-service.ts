@@ -3,7 +3,7 @@ import { createRealmModule } from '@/modules/realm'
 import { VILLAGE_CHANNEL_PREFIX } from '@/modules/realm/contracts'
 import type { Db } from '@/platform/db/client'
 import { createEventStore } from '@/platform/event-store/event-store'
-import { playerFromHeaders, requireServiceSecret } from '@/platform/http/service-auth'
+import { requireServiceToken, requireTokenPlayer } from '@/platform/http/service-auth'
 import type { AppEnv } from '@/platform/http/types'
 import { createInboxApi, forwardTo } from '@/platform/outbox/inbox-api'
 import { createDispatcher } from '@/platform/outbox/outbox'
@@ -26,7 +26,8 @@ export interface VillageServiceDeps {
 /**
  * Composition root of the extracted village service. It wires the village module,
  * unchanged, with its own platform: event store, outbox and player rights. Every route
- * requires the shared secret, so only the application can call the service.
+ * requires a token signed with the shared secret, so only the application can call the
+ * service.
  *
  * The outbox of the service handles the village messages; all the others, that is the
  * replies addressed to the market, are forwarded to the application. Player rights erase
@@ -53,8 +54,8 @@ export function createVillageServiceApp({ db, secret, appUrl, clock, fetch }: Vi
 
   return (
     new Hono<AppEnv>()
-      .use(requireServiceSecret(secret))
-      .use('/realm/*', playerFromHeaders)
+      .use(requireServiceToken(secret))
+      .use('/realm/*', requireTokenPlayer)
       .route('/realm', realm.api)
       // DETTE TECHNIQUE DT-012 (docs/qualite/dette-technique.md): the service outbox is only
       // dispatched when a message is received, so a reply that could not be sent waits for the

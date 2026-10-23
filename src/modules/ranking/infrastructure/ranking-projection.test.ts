@@ -73,6 +73,17 @@ describe('Projection du classement', () => {
     expect(await entryOf('carol')).toMatchObject({ label: 'Seigneur de Valombre', upgrades: 2 })
   })
 
+  it("ajoute à l'or du joueur celui que ses flottes ont pillé, sans toucher au meilleur butin", async () => {
+    await store.append('dungeon-g1', 0, [created('alice'), ended('won', 25, ['alice'])])
+    await store.append('raid-r1', 0, [
+      { type: 'RaidPlundered', data: { attackerId: 'alice', loot: { wood: 30, gold: 6 } } },
+    ])
+    await store.append('raid-r2', 0, [
+      { type: 'RaidPlundered', data: { attackerId: 'alice', loot: { wood: 10 } } },
+    ])
+    expect(await entryOf('alice')).toMatchObject({ gold: 31, bestLoot: 25, gamesPlayed: 1 })
+  })
+
   it('retient le meilleur butin des expéditions gagnées', async () => {
     await store.append('dungeon-g1', 0, [created('alice'), ended('won', 25, ['alice'])])
     await store.append('dungeon-g2', 0, [created('alice'), ended('won', 40, ['alice'])])

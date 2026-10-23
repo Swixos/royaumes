@@ -15,3 +15,18 @@ export const validateJson = <T extends ZodType>(schema: T) =>
       return c.json({ error: { code: 'INVALID_INPUT' as const, message } }, 400)
     }
   })
+
+/**
+ * Validates the query parameters of a request against a Zod schema, with the same error
+ * format as {@link validateJson}.
+ *
+ * @param schema - Zod schema of the expected parameters.
+ * @returns A Hono validation middleware.
+ */
+export const validateQuery = <T extends ZodType>(schema: T) =>
+  zValidator('query', schema, (result, c) => {
+    if (!result.success) {
+      const message = result.error.issues[0]?.message ?? 'Entrée invalide'
+      return c.json({ error: { code: 'INVALID_INPUT' as const, message } }, 400)
+    }
+  })

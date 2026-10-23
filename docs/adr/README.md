@@ -14,4 +14,10 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0006](0006-cqrs-projections.md) | CQRS : modèles de lecture tenus par des projections rattrapées à la lecture | Accepté |
 | [0007](0007-saga-boite-envoi.md) | Saga orchestrée et boîte d'envoi transactionnelle pour les opérations entre modules | Accepté |
 | [0008](0008-donnees-personnelles.md) | Stockage classique pour la Taverne, et réécriture ciblée du journal pour l'effacement | Accepté |
-| [0009](0009-extraction-village.md) | Extraction du Village en service autonome, préparée mais non déployée | Accepté |
+| [0009](0009-extraction-village.md) | Extraction du Village en service autonome, préparée mais non déployée | Accepté ; authentification remplacée par l'ADR 0014 |
+| [0010](0010-flotte-stockage.md) | Module Flotte : journal d'événements pour les raids et les ports, projection pour les listes | Accepté |
+| [0011](0011-flotte-communication.md) | Communication de la Flotte : messages avec le Village, langage publié du Village et de la Flotte | Accepté |
+| [0012](0012-saga-raid.md) | Saga du raid avec compensation, et arrivée des flottes en échéance sans tâche de fond | Accepté |
+| [0013](0013-batailles-deterministes.md) | Batailles déterministes et capitaines pirates pilotés par une IA sans hasard | Accepté |
+| [0014](0014-jeton-signe-services.md) | Jeton signé, à durée de vie courte, pour les échanges entre l'application et un service | Accepté |
+| [0015](0015-droit-rectification.md) | Droit de rectification du nom, par la réécriture ciblée du journal | Accepté |

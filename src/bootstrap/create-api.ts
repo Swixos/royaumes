@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
+import { createFleetModule } from '@/modules/fleet'
 import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule, createRemoteRealmModule } from '@/modules/realm'
@@ -59,8 +60,8 @@ export interface ApiDeps {
  * Channel access rules declared by the modules are gathered here and passed to
  * the real-time sub-app; with no rule, every channel is refused. The projection
  * runner and the outbox dispatcher are created here from the database, and shared by
- * the modules, which hand their message handlers to the dispatcher. The market module
- * triggers a dispatch after its commands and reads.
+ * the modules, which hand their message handlers to the dispatcher. The market and fleet
+ * modules trigger a dispatch after their commands and reads.
  *
  * Player rights rely on the personal data each module provides; identity comes last,
  * so a player can restart an interrupted erasure as long as their account exists. The
@@ -107,6 +108,13 @@ export function createApi({
     clock,
   })
   const tavern = createTavernModule({ db, clock })
+  const fleet = createFleetModule({
+    store,
+    db,
+    projections,
+    dispatch: () => dispatcher.dispatch(),
+    clock,
+  })
   const privacy = createPrivacyService(
     db,
     [
@@ -115,12 +123,14 @@ export function createApi({
       market.personalData,
       ranking.personalData,
       tavern.personalData,
+      fleet.personalData,
       createIdentityPersonalData(db),
     ],
     clock,
   )
   dispatcher.register(realm.handlers)
   dispatcher.register(market.handlers)
+  dispatcher.register(fleet.handlers)
 
   const policies: ChannelPolicy[] = [
     realm.channelPolicy,
@@ -128,6 +138,7 @@ export function createApi({
     ranking.channelPolicy,
     market.channelPolicy,
     tavern.channelPolicy,
+    fleet.channelPolicy,
   ]
 
   const app = new Hono<AppEnv>().basePath('/api')
@@ -173,6 +184,7 @@ export function createApi({
   app.use('/ranking/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
+  app.use('/fleet/*', requireUser(auth))
   app.use('/account', requireUser(auth))
   app.use('/account/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
@@ -184,6 +196,7 @@ export function createApi({
     .route('/ranking', ranking.api)
     .route('/market', market.api)
     .route('/tavern', tavern.api)
+    .route('/fleet', fleet.api)
     .route('/account', createPrivacyApi(privacy))
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
