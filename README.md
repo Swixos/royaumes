@@ -233,11 +233,13 @@ sans la première ; sans la seconde, la route des tâches quotidiennes reste fer
 
 ## Interface
 
-L'interface adopte la direction artistique d'un jeu de stratégie, en aplats de couleur, sans
-dégradé : océan en motif, panneaux de parchemin encadrés de bois, boutons à ombre pleine,
-titres en bannière, polices Lilita One (titres) et Nunito (texte), embarquées par les paquets
-`@fontsource`. Une barre de ressources montre en permanence le stock du village, et un menu
-à tuiles mène aux modules.
+L'interface adopte la direction artistique d'un jeu de stratégie médiéval, dans l'esprit de
+Grepolis : barres et fenêtres de bois sombre bordées d'un filet or, contenus sur parchemin,
+mer peinte en motif, médaillons cerclés d'or pour le menu et les ressources, titres en
+capitales gravées (Cinzel) et texte en Alegreya, polices embarquées par les paquets
+`@fontsource`. Les matières (veinage du bois, grain du parchemin, vagues) sont des textures
+SVG dessinées dans la feuille de style, sans dégradé. Une barre de ressources montre en
+permanence le stock du village, et un menu de médaillons mène aux modules.
 
 L'apparence de chaque entité du jeu (libellé et couleur) est définie dans `src/ui/theme.ts`,
 et son icône dans `src/ui/game-icons.ts`, produit par `scripts/generate-icons.ts` : seules les
