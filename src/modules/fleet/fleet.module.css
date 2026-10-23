@@ -121,6 +121,7 @@
   width: 6.2%;
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
+  margin: 0;
   border-radius: 50%;
   padding: 0;
   background: var(--parchment);
@@ -137,6 +138,7 @@
 .hotspot:hover:not(:disabled) { background: var(--gold); color: var(--wood-dark); }
 .hotspot:disabled { cursor: default; }
 .hotspot[aria-pressed='true'] { background: var(--gold); color: var(--wood-dark); transform: translate(-50%, -50%) scale(1.15); }
+.hotspot:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.92); box-shadow: 0 0 0 2px var(--frame); }
 
 .legend {
   position: absolute;
