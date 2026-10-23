@@ -2,7 +2,7 @@
 
 - Auteur : Swixos
 - Module : `fleet` (La Flotte)
-- Adresse du déploiement : à renseigner, celle de la rubrique « About » du dépôt
+- Adresse du déploiement : https://royaumes-pi.vercel.app
 - Fiche de cadrage : [fiche-cadrage.md](fiche-cadrage.md)
 
 ## Exigences minimales
@@ -57,7 +57,7 @@ Correspondance entre les règles de la fiche et les tests du domaine (E8) :
 ## Écarts avec la fiche de cadrage
 
 Aucun écart de périmètre : les douze règles et les sept routes annoncées sont réalisées. Deux
-précisions ont été apportées à la fiche avant sa validation :
+précisions ont été apportées à la fiche pendant la réalisation :
 
 - la règle 12 compte les attaques d'une île, et non ses pillages : un raid annulé ou rappelé
   ne compte pas, mais une défaite compte ;
