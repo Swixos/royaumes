@@ -73,7 +73,7 @@ export default function LoginPage() {
           preserveAspectRatio="xMidYMax slice"
           aria-hidden="true"
         >
-          <rect width="800" height="900" fill="#8fd0ef" />
+          <rect width="800" height="900" fill="#a9d6e6" />
           <circle cx="640" cy="170" r="70" fill="#ffd25c" />
           <g fill="#ffffff">
             <ellipse cx="180" cy="300" rx="90" ry="26" />
@@ -83,24 +83,24 @@ export default function LoginPage() {
           </g>
           <path
             d="M0 560 L120 450 L220 520 L330 420 L460 530 L560 460 L680 540 L800 470 V600 H0 Z"
-            fill="#6aa5c4"
+            fill="#7fabb9"
           />
-          <rect y="580" width="800" height="320" fill="#2f7fc1" />
+          <rect y="580" width="800" height="320" fill="#2f86a8" />
           <path
             d="M0 610 h800 v14 h-800z M0 700 h800 v10 h-800z M0 800 h800 v12 h-800z"
-            fill="#3a8fd0"
+            fill="#56a7c2"
           />
-          <path d="M260 700 C300 610 520 600 590 690 C600 730 270 740 260 700 Z" fill="#e8d3a2" />
-          <path d="M300 680 C340 630 500 625 550 675 C520 690 330 695 300 680 Z" fill="#7baf5c" />
-          <Icon kind="village" size={170} x={340} y={480} color="#6b3f23" />
+          <path d="M260 700 C300 610 520 600 590 690 C600 730 270 740 260 700 Z" fill="#e6d29a" />
+          <path d="M300 680 C340 630 500 625 550 675 C520 690 330 695 300 680 Z" fill="#7a9a45" />
+          <Icon kind="village" size={170} x={340} y={480} color="#5b3a22" />
           <Icon kind="brand" size={90} x={500} y={560} color="#8f2a20" />
-          <Icon kind="fleet" size={150} x={70} y={640} color="#3b2416" />
-          <Icon kind="trireme" size={130} x={590} y={720} color="#3b2416" />
+          <Icon kind="fleet" size={150} x={70} y={640} color="#2a170a" />
+          <Icon kind="trireme" size={130} x={590} y={720} color="#2a170a" />
           <Icon kind="pirates" size={70} x={690} y={560} color="#2a1a10" />
           <path
             d="M60 860 q30-14 60 0 t60 0 t60 0 M420 840 q30-14 60 0 t60 0"
             fill="none"
-            stroke="#9fd0f0"
+            stroke="#9fd2e3"
             strokeWidth="6"
             strokeLinecap="round"
           />

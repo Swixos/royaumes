@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import '@fontsource/lilita-one/400.css'
-import '@fontsource/nunito/400.css'
-import '@fontsource/nunito/700.css'
-import '@fontsource/nunito/800.css'
+import '@fontsource/alegreya/400.css'
+import '@fontsource/alegreya/400-italic.css'
+import '@fontsource/alegreya/700.css'
+import '@fontsource/alegreya/800.css'
+import '@fontsource/cinzel/700.css'
+import '@fontsource/cinzel/900.css'
 import './globals.css'
 
 /** Default metadata of every page. */

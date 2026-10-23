@@ -6,24 +6,28 @@
 }
 
 .figures > div {
-  background: var(--parchment);
-  border: 3px solid var(--wood-dark);
+  background: var(--parchment) var(--tex-paper);
+  border: 3px solid var(--frame);
   border-radius: var(--radius);
-  box-shadow: 0 6px 0 var(--sea-dark);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 5px 0 var(--sea-dark);
   padding: 12px 16px;
 }
 
 .figures dt {
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: var(--wood);
+  font-family: var(--display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .figures dd {
   margin: 2px 0 0;
   font-family: var(--display);
-  font-size: 1.7rem;
-  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  font-size: 1.45rem;
+  font-variant-numeric: lining-nums tabular-nums;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -49,14 +53,14 @@
 
 @keyframes alert { 50% { transform: translateY(-2px); } }
 
-.alarm strong { display: block; font-family: var(--display); font-weight: 400; font-size: 1.35rem; text-shadow: 0 2px 0 #8f2a20; }
+.alarm strong { display: block; font-family: var(--display); font-weight: 700; font-size: 1.35rem; text-shadow: 0 2px 0 #8f2a20; }
 .alarm .icon { background: var(--parchment); color: var(--wood-dark); border: 2px solid var(--wood-dark); border-radius: 12px; padding: 5px; }
 
 .alarmClock {
   font-family: var(--display);
   font-size: 1.8rem;
   border: 2px solid var(--wood-dark);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   background: #ffffff;
   color: var(--warn);
   border-radius: var(--radius-sm);
@@ -84,9 +88,9 @@
   aspect-ratio: 16 / 10;
   border-radius: var(--radius);
   overflow: hidden;
-  background: #2b6f97;
-  border: 4px solid var(--wood-dark);
-  box-shadow: 0 6px 0 var(--sea-dark);
+  background: #2f86a8;
+  border: 3px solid var(--frame);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 0 transparent, 0 5px 0 var(--sea-dark);
 }
 
 .map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -94,11 +98,12 @@
 .compass { font-size: 18px; font-weight: 800; fill: #fbf9f4; font-family: var(--font); }
 
 .islandLabel {
-  font-family: var(--display);
+  font-family: var(--font);
+  font-weight: 800;
   font-size: 21px;
   fill: #fbf9f4;
   paint-order: stroke;
-  stroke: #2b6f97;
+  stroke: #1f5e78;
   stroke-width: 6px;
   stroke-linejoin: round;
   pointer-events: none;
@@ -108,7 +113,7 @@
   font-family: var(--display);
   font-size: 15px;
   fill: #ffffff;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .hotspot {
@@ -168,7 +173,7 @@
 }
 
 .target > .icon { padding: 6px; border-radius: 12px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
-.target strong { display: block; font-family: var(--display); font-weight: 400; font-size: 1.35rem; }
+.target strong { display: block; font-family: var(--display); font-weight: 700; font-size: 1.35rem; }
 .target > div > span { display: block; font-size: 0.875rem; }
 
 .sizes { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -181,7 +186,7 @@
   color: var(--wood-dark);
   box-shadow: 0 3px 0 var(--wood-dark);
   text-shadow: none;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 
 .size[data-on='true'] { background: var(--brand-soft); color: var(--brand-strong); }
@@ -192,7 +197,7 @@
 .ledger dt { font-size: 0.8rem; font-weight: 800; color: var(--wood); }
 .ledger dd { margin: 2px 0 0; font-weight: 800; }
 
-.amounts { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-variant-numeric: tabular-nums; }
+.amounts { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-variant-numeric: lining-nums tabular-nums; }
 
 .tactics {
   display: grid;
@@ -215,12 +220,12 @@
 }
 
 .tactic .icon { width: 34px; height: 34px; }
-.tactic strong { font-weight: 400; font-size: 1rem; }
+.tactic strong { font-weight: 700; font-size: 1rem; }
 .tactic small { font-family: var(--font); font-weight: 700; font-size: 0.72rem; color: var(--muted); }
-.tactic[aria-pressed='true'] { background: var(--gold); }
+.tactic[aria-pressed='true'] { background: var(--gold); color: var(--frame); }
 .tactic[aria-pressed='true'] small { color: var(--wood-dark); }
 
-.forecast { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.forecast { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: lining-nums tabular-nums; }
 .forecast th { text-align: left; font-size: 0.75rem; font-weight: 800; color: var(--wood); padding: 4px 6px; }
 .forecast td { padding: 6px; border-top: 2px dashed var(--line); white-space: nowrap; font-weight: 700; }
 .forecast td:nth-child(2) { width: 45%; }
@@ -260,7 +265,7 @@
 .entry[data-tone='sea'] { border-left-color: var(--brand); }
 .entry > .icon { padding: 4px; border-radius: 10px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
 .entry strong { display: block; font-weight: 800; }
-.meta { display: block; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta { display: block; font-size: 0.82rem; color: var(--muted); font-variant-numeric: lining-nums tabular-nums; }
 
 .chip {
   font-size: 0.8rem;
@@ -284,7 +289,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(22 74 106 / 0.94);
+  background: rgb(23 79 102 / 0.95);
 }
 
 .report {
@@ -299,7 +304,7 @@
   border: 4px solid var(--wood-dark);
   border-top-width: 14px;
   border-top-color: var(--warn);
-  box-shadow: 0 8px 0 var(--wood-dark);
+  box-shadow: inset 0 0 0 2px var(--gold), 0 8px 0 var(--wood-dark);
 }
 
 .report[data-win='true'] { border-top-color: var(--gold-strong); }
