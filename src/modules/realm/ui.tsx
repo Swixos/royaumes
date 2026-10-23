@@ -3,6 +3,7 @@ import { hc } from 'hono/client'
 import { useCallback, useEffect, useState } from 'react'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
+import { VILLAGE_CHANGED } from '@/ui/events'
 import type { RealmApi } from './api'
 import {
   BUILDINGS,
@@ -98,7 +99,8 @@ export function VillageScreen({ userId }: { userId: string }) {
     handle(await res.json())
   }
   /**
-   * Applies an API response: shows the error, or stores the new view.
+   * Applies an API response: shows the error, or stores the new view and announces the
+   * change to the resource bar.
    *
    * @param body - Response body.
    */
@@ -108,6 +110,7 @@ export function VillageScreen({ userId }: { userId: string }) {
     } else {
       setError(null)
       setView(body.view)
+      window.dispatchEvent(new Event(VILLAGE_CHANGED))
     }
   }
 

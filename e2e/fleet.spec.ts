@@ -21,7 +21,7 @@ async function newPlayer(browser: Browser, name: string): Promise<Page> {
   await page.waitForURL('**/village')
   await page.fill('#name', `Port ${name} ${RUN}`)
   await page.getByText('Fonder').click()
-  await expect(page.getByLabel('Ressources')).toBeVisible()
+  await expect(page.getByLabel('Ressources', { exact: true })).toBeVisible()
   return page
 }
 
@@ -91,12 +91,12 @@ test('choisit la posture du port, et prévoit la bataille contre une île pirate
 
   const harbor = page.locator('section', { has: page.getByRole('heading', { name: /Votre port/ }) })
   await harbor.getByRole('button', { name: /Éperonnage/ }).click()
-  await expect(page.getByText('Posture🔱 Éperonnage')).toBeVisible()
+  await expect(page.locator('dd').filter({ hasText: 'Éperonnage' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click()
   await expect(page.getByText('Défense 25 · traversée 3 min')).toBeVisible()
   await page.getByRole('button', { name: '1 trirème', exact: true }).click()
-  await expect(page.getByText('Coût : 15')).toBeVisible()
+  await expect(page.locator('dd').filter({ hasText: /Bois\s*15/ })).toBeVisible()
 })
 
 test("corrige le nom du joueur, repris par la navigation et par les raids qu'il lance", async ({
@@ -107,7 +107,7 @@ test("corrige le nom du joueur, repris par la navigation et par les raids qu'il 
   await page.getByRole('link', { name: 'Mes données' }).click()
   await page.fill('#new-name', `Corsaire ${RUN}`)
   await page.getByRole('button', { name: 'Corriger' }).click()
-  await expect(page.getByRole('navigation').getByText(`Corsaire ${RUN}`)).toBeVisible({
+  await expect(page.getByRole('banner').getByText(`Corsaire ${RUN}`)).toBeVisible({
     timeout: 15_000,
   })
 
