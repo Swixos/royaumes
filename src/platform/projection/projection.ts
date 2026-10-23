@@ -1,4 +1,4 @@
-import { asc, eq, gt, max } from 'drizzle-orm'
+import { asc, eq, gt, max, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import type { StoredEvent } from '../event-store/event-store'
 import { events } from '../event-store/schema'
@@ -71,7 +71,7 @@ const toStored = (row: typeof events.$inferSelect): StoredEvent => ({
  *
  * @param db - Database holding the log and the checkpoints.
  * @param options - Grace delay for missing positions, batch size and clock.
- * @returns The `catchUp`, `rebuild` and `positionOf` functions.
+ * @returns The `catchUp`, `rebuild`, `positionOf` and `savePosition` functions.
  */
 export function createProjectionRunner(
   db: Db,
@@ -226,7 +226,28 @@ export function createProjectionRunner(
     return row?.position ?? 0
   }
 
-  return { catchUp, rebuild, positionOf }
+  /**
+   * Records a checkpoint for a consumer that does not read the local log, such as the
+   * relay of an extracted service's stream. The position never moves backwards.
+   *
+   * @param name - Name of the consumer.
+   * @param position - Position reached.
+   * @returns Resolves once the checkpoint is recorded.
+   */
+  async function savePosition(name: string, position: number) {
+    await db
+      .insert(projections)
+      .values({ name, position })
+      .onConflictDoUpdate({
+        target: projections.name,
+        set: {
+          position: sql`greatest(${projections.position}, ${position})`,
+          updatedAt: new Date(),
+        },
+      })
+  }
+
+  return { catchUp, rebuild, positionOf, savePosition }
 }
 
 /** Type of the projection runner, inferred from its factory. */
