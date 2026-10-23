@@ -5,7 +5,7 @@ réalisés par Royaumes. Il est tenu à jour à chaque évolution du jeu qui ajo
 supprime une donnée personnelle, dans le même commit que cette évolution.
 
 - Responsable du traitement : Swixos, joignable par son profil GitHub (https://github.com/Swixos).
-- Date de dernière mise à jour : 2026-10-21.
+- Date de dernière mise à jour : 2026-10-23.
 
 ## Sous-traitants
 
@@ -24,6 +24,7 @@ supprime une donnée personnelle, dans le même commit que cette évolution.
 | T4 | Messagerie de la Taverne | Permettre aux joueurs de discuter | Contenu des messages, auteur, date | Joueurs | Exécution du contrat | Trente jours, ou jusqu'à la suppression du compte | `tavern.messages` |
 | T5 | Présence dans la Taverne | Indiquer les joueurs présents | Identifiant, nom, date du dernier signal | Joueurs | Exécution du contrat | Deux minutes après le dernier signal | `tavern.presence` |
 | T6 | Registre des effacements | Démontrer la réalisation des effacements | Date de l'effacement, nombre d'événements réécrits ; aucune donnée sur le joueur | Aucune personne identifiable | Obligation légale (responsabilité, article 5) | Illimitée | `platform.erasures` |
+| T8 | Raids de la Flotte | Faire fonctionner les raids navals : rapports de bataille, alertes des ports, cibles, mémoire des capitaines pirates | Identifiants et noms de l'attaquant et du défenseur, nom du village visé, nombre de trirèmes, tactique, posture défensive, butin, dates | Joueurs | Exécution du contrat | Jusqu'à la suppression du compte ; ensuite, noms remplacés et village retiré des cibles (ADR 0011). Les avis d'un port sont conservés sans limite de durée (dette DT-016) | `platform.events` (flux `raid-*` et `harbor-*`), `fleet.raids`, `fleet.harbors` ; `platform.outbox` ne contient que des identifiants |
 | T7 | Journaux techniques | Diagnostiquer les erreurs, assurer la sécurité | Adresse IP, adresses des requêtes, messages d'erreur | Joueurs, visiteurs | Intérêt légitime (sécurité, maintenance) | Une heure sur l'offre Hobby de Vercel (un jour sur l'offre Pro) | Vercel |
 
 ## Droits des personnes
@@ -32,4 +33,4 @@ supprime une donnée personnelle, dans le même commit que cette évolution.
 | --- | --- |
 | Accès et portabilité (articles 15 et 20) | Page « Mes données » : export JSON de toutes les données du joueur |
 | Effacement (article 17) | Page « Mes données » : suppression du compte, effective dans tous les modules |
-| Rectification (article 16) | Non mis en œuvre : le nom d'un joueur ne peut pas encore être modifié |
+| Rectification (article 16) | Page « Mes données » : correction du nom du joueur, remplacé dans son compte, dans le journal et dans les tables de tous les modules (ADR 0015) |

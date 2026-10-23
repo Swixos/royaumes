@@ -32,3 +32,13 @@ Actions décidées :
   longtemps, ou s'il ajoute un service de journalisation externe ;
 - confirmer l'application de l'accord de traitement des données de Vercel à l'offre Hobby ;
 - mettre en œuvre le droit de rectification, aujourd'hui absent (registre des traitements).
+
+## Mise à jour du 2026-10-23 : module Flotte et droit de rectification
+
+| N° | Exigence | Vérification | Constat | Statut |
+| --- | --- | --- | --- | --- |
+| R11 | Les données de la Flotte figurent au registre, à l'export et à l'effacement | Traitement T8 ; tests « exporte les raids du joueur, et retire son village des cibles à l'effacement » et « efface le nom de l'attaquant des ports qui ont vu sa flotte » | Le traitement T8 est ajouté. L'export comprend une section `fleet` (raids lancés, raids subis, avis du port) ; l'effacement remplace les noms dans les flux `raid-*` et `harbor-*` et dans `fleet.raids`, et retire le village des cibles. La boîte d'envoi ne reçoit de la Flotte que des identifiants. | Conforme |
+| R12 | Un joueur peut rectifier son nom, partout où il est recopié | Tests « remplace le nom du joueur dans son compte, le journal et les tables de tous les modules », « n'enregistre rien au registre des effacements, et peut être relancée sans effet » | Le nom est remplacé dans `identity.user`, dans les événements du Donjon, du Marché et de la Flotte, et dans les tables du Donjon, du Marché, de la Taverne, du Classement et de la Flotte ; le nom du village n'est pas modifié. | Conforme (DT-013 remboursée) |
+
+Synthèse de la mise à jour : deux exigences conformes. L'action « mettre en œuvre le droit de
+rectification » est réalisée.
