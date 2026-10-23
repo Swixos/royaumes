@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation'
 import { type FormEvent, useState } from 'react'
 import { HealthStatus } from '@/modules/system/ui'
 import { authClient } from '@/platform/auth/client'
-import { Entity } from '@/ui/entity'
+import { Icon } from '@/ui/icons'
 
 /**
  * Messages shown for the errors returned by Better Auth. The original English
@@ -65,50 +65,121 @@ export default function LoginPage() {
   }
 
   return (
-    <>
-      <h1>
-        <Entity kind="village" /> Royaumes
-      </h1>
-      <p className="muted">{mode === 'signIn' ? 'Connexion' : 'Création de compte'}</p>
-      <div className="panel">
-        <form onSubmit={submit}>
-          {mode === 'signUp' && (
-            <input name="name" placeholder="Pseudo" required minLength={2} maxLength={30} />
-          )}
-          <input
-            name="email"
-            type="email"
-            placeholder="Adresse électronique"
-            required
-            autoComplete="email"
+    <main className="login">
+      <section className="login-scene" aria-label="Royaumes">
+        <svg
+          className="scene"
+          viewBox="0 0 800 900"
+          preserveAspectRatio="xMidYMax slice"
+          aria-hidden="true"
+        >
+          <rect width="800" height="900" fill="#a9d6e6" />
+          <circle cx="640" cy="170" r="70" fill="#ffd25c" />
+          <g fill="#ffffff">
+            <ellipse cx="180" cy="300" rx="90" ry="26" />
+            <ellipse cx="240" cy="282" rx="60" ry="30" />
+            <ellipse cx="560" cy="330" rx="80" ry="22" />
+            <ellipse cx="610" cy="314" rx="50" ry="26" />
+          </g>
+          <path
+            d="M0 560 L120 450 L220 520 L330 420 L460 530 L560 460 L680 540 L800 470 V600 H0 Z"
+            fill="#7fabb9"
           />
-          <input
-            name="password"
-            type="password"
-            placeholder="Mot de passe (8 caractères minimum)"
-            required
-            minLength={8}
-            autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+          <rect y="580" width="800" height="320" fill="#2f86a8" />
+          <path
+            d="M0 610 h800 v14 h-800z M0 700 h800 v10 h-800z M0 800 h800 v12 h-800z"
+            fill="#56a7c2"
           />
-          <button type="submit" disabled={pending}>
-            {mode === 'signIn' ? 'Se connecter' : 'Créer mon compte'}
-          </button>
-          {error && <p className="error">{error}</p>}
-        </form>
-        <p>
-          <button
-            className="link"
-            type="button"
-            onClick={() => {
-              setMode(mode === 'signIn' ? 'signUp' : 'signIn')
-              setError(null)
-            }}
-          >
-            {mode === 'signIn' ? 'Pas de compte ? En créer un' : 'Déjà un compte ? Se connecter'}
-          </button>
-        </p>
+          <path d="M260 700 C300 610 520 600 590 690 C600 730 270 740 260 700 Z" fill="#e6d29a" />
+          <path d="M300 680 C340 630 500 625 550 675 C520 690 330 695 300 680 Z" fill="#7a9a45" />
+          <Icon kind="village" size={170} x={340} y={480} color="#5b3a22" />
+          <Icon kind="brand" size={90} x={500} y={560} color="#8f2a20" />
+          <Icon kind="fleet" size={150} x={70} y={640} color="#2a170a" />
+          <Icon kind="trireme" size={130} x={590} y={720} color="#2a170a" />
+          <Icon kind="pirates" size={70} x={690} y={560} color="#2a1a10" />
+          <path
+            d="M60 860 q30-14 60 0 t60 0 t60 0 M420 840 q30-14 60 0 t60 0"
+            fill="none"
+            stroke="#9fd2e3"
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+        </svg>
+        <div className="login-title">
+          <span className="crest">
+            <span className="crest-badge">
+              <Icon kind="brand" />
+            </span>
+            <span className="crest-name">Royaumes</span>
+          </span>
+          <h1>Bâtissez un village. Armez une flotte. Gouvernez les mers.</h1>
+          <p>
+            Produisez, échangez, explorez le donjon et lancez vos trirèmes contre les ports voisins
+            et les îles pirates.
+          </p>
+        </div>
+      </section>
+
+      <div className="login-side">
+        <section
+          className="panel login-card"
+          aria-label={mode === 'signIn' ? 'Connexion' : 'Création de compte'}
+        >
+          <h2>{mode === 'signIn' ? 'Connexion' : 'Création de compte'}</h2>
+          <form className="stack" onSubmit={submit}>
+            {mode === 'signUp' && (
+              <label className="field">
+                <span>Pseudo</span>
+                <input
+                  name="name"
+                  placeholder="Votre nom de seigneur"
+                  required
+                  minLength={2}
+                  maxLength={30}
+                />
+              </label>
+            )}
+            <label className="field">
+              <span>Adresse électronique</span>
+              <input
+                name="email"
+                type="email"
+                placeholder="vous@exemple.fr"
+                required
+                autoComplete="email"
+              />
+            </label>
+            <label className="field">
+              <span>Mot de passe</span>
+              <input
+                name="password"
+                type="password"
+                placeholder="8 caractères minimum"
+                required
+                minLength={8}
+                autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}
+              />
+            </label>
+            <button type="submit" className="primary" disabled={pending}>
+              {mode === 'signIn' ? 'Entrer dans le royaume' : 'Fonder mon royaume'}
+            </button>
+            {error && <p className="error">{error}</p>}
+          </form>
+          <p>
+            <button
+              className="link"
+              type="button"
+              onClick={() => {
+                setMode(mode === 'signIn' ? 'signUp' : 'signIn')
+                setError(null)
+              }}
+            >
+              {mode === 'signIn' ? 'Pas de compte ? En créer un' : 'Déjà un compte ? Se connecter'}
+            </button>
+          </p>
+          <HealthStatus />
+        </section>
       </div>
-      <HealthStatus />
-    </>
+    </main>
   )
 }

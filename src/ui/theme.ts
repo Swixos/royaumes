@@ -1,45 +1,46 @@
 /**
- * Theme layer: the look of every game entity is defined here and nowhere else.
- * Components never hard-code a glyph, they ask for an entity look by its
- * identifier, so changing the art direction only changes this file.
+ * Theme layer: the look of every game entity is defined here and in the icon set
+ * (`game-icons.ts`), nowhere else. Components never hard-code a drawing or a color, they
+ * ask for an entity by its identifier, so changing the art direction only changes these
+ * two files.
  *
  * @packageDocumentation
  */
 
 /** Look of a game entity. */
 export interface Look {
-  /** Displayed glyph. */
-  glyph: string
   /** French label, read by screen readers and shown on hover. */
   label: string
+  /** Color of its icon. */
+  color: string
 }
 
-/** Look of each known entity, by identifier. */
+/** Look of each known entity, by identifier. Its drawing has the same identifier. */
 export const theme: Record<string, Look> = {
-  village: { glyph: '🏰', label: 'Village' },
-  wood: { glyph: '🪵', label: 'Bois' },
-  stone: { glyph: '🪨', label: 'Pierre' },
-  gold: { glyph: '🪙', label: 'Or' },
-  sawmill: { glyph: '🪚', label: 'Scierie' },
-  quarry: { glyph: '⛏️', label: 'Carrière' },
-  mine: { glyph: '⚒️', label: 'Mine' },
-  dungeon: { glyph: '⚔️', label: 'Donjon' },
-  hero: { glyph: '🛡️', label: 'Héros' },
-  companion: { glyph: '🤖', label: 'Compagnon' },
-  goblin: { glyph: '👺', label: 'Gobelin' },
-  skeleton: { glyph: '💀', label: 'Squelette' },
-  troll: { glyph: '👹', label: 'Troll' },
-  door: { glyph: '🚪', label: 'Porte' },
-  ranking: { glyph: '🏆', label: 'Classement' },
-  market: { glyph: '⚖️', label: 'Marché' },
-  tavern: { glyph: '🍺', label: 'Taverne' },
-  fleet: { glyph: '⛵', label: 'Flotte' },
-  trireme: { glyph: '⛵', label: 'Trirème' },
-  pirates: { glyph: '🏴‍☠️', label: 'Pirates' },
-  harbor: { glyph: '⚓', label: 'Port' },
-  ram: { glyph: '🔱', label: 'Éperonnage' },
-  board: { glyph: '🪝', label: 'Abordage' },
-  blockade: { glyph: '⛓️', label: 'Blocus' },
+  village: { label: 'Village', color: '#8f2a20' },
+  wood: { label: 'Bois', color: '#8a5a2b' },
+  stone: { label: 'Pierre', color: '#6f6a62' },
+  gold: { label: 'Or', color: '#c98a0b' },
+  sawmill: { label: 'Scierie', color: '#6f6a62' },
+  quarry: { label: 'Carrière', color: '#5d4a3a' },
+  mine: { label: 'Mine', color: '#4a3a2a' },
+  dungeon: { label: 'Donjon', color: '#4a3a2a' },
+  hero: { label: 'Héros', color: '#1f5f92' },
+  companion: { label: 'Compagnon', color: '#2f7f7a' },
+  goblin: { label: 'Gobelin', color: '#3f7a33' },
+  skeleton: { label: 'Squelette', color: '#5a5148' },
+  troll: { label: 'Troll', color: '#6a4a7e' },
+  door: { label: 'Porte', color: '#6b3f23' },
+  ranking: { label: 'Classement', color: '#c98a0b' },
+  market: { label: 'Marché', color: '#1f5f92' },
+  tavern: { label: 'Taverne', color: '#b9761a' },
+  fleet: { label: 'Flotte', color: '#1f5f92' },
+  trireme: { label: 'Trirème', color: '#6b3f23' },
+  pirates: { label: 'Pirates', color: '#2a1a10' },
+  harbor: { label: 'Port', color: '#1f5f92' },
+  ram: { label: 'Éperonnage', color: '#b2382c' },
+  board: { label: 'Abordage', color: '#4a5560' },
+  blockade: { label: 'Blocus', color: '#4a5560' },
 }
 
 /**
@@ -48,4 +49,4 @@ export const theme: Record<string, Look> = {
  * @param kind - Entity identifier.
  * @returns Its look, or a neutral look if the entity is unknown.
  */
-export const look = (kind: string): Look => theme[kind] ?? { glyph: '?', label: kind }
+export const look = (kind: string): Look => theme[kind] ?? { label: kind, color: 'currentColor' }

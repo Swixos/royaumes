@@ -1,27 +1,89 @@
 'use client'
+import { hc } from 'hono/client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
+import type { RealmApi } from '@/modules/realm'
+import { RESOURCES, stockAt, type VillageView } from '@/modules/realm/contracts'
 import { authClient } from '@/platform/auth/client'
 import { Entity } from './entity'
+import { VILLAGE_CHANGED } from './events'
+import { Icon } from './icons'
 
 /** Navigation links: every module added to the game gets an entry here. */
 export const NAV = [
   { href: '/village', kind: 'village', label: 'Village' },
   { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
-  { href: '/ranking', kind: 'ranking', label: 'Classement' },
+  { href: '/fleet', kind: 'fleet', label: 'Flotte' },
   { href: '/market', kind: 'market', label: 'Marché' },
   { href: '/tavern', kind: 'tavern', label: 'Taverne' },
-  { href: '/fleet', kind: 'fleet', label: 'Flotte' },
+  { href: '/ranking', kind: 'ranking', label: 'Classement' },
 ]
 
+/** Typed HTTP client of the village, read by the resource bar. */
+const realm = hc<RealmApi>('/api/realm')
+
+/** Interval between two reads of the village by the resource bar, in milliseconds. */
+const RELOAD_MS = 15_000
+
 /**
- * Game area shell: navigation, player name and sign-out.
+ * Resource bar of the top of the screen, as in a strategy game: the stock of the player's
+ * village, counted every second from its production, and read again from the server
+ * every fifteen seconds, when the window comes back to the front, and as soon as a screen
+ * announces a change of the village.
+ *
+ * @returns The resource counters, or nothing before the village is founded.
+ */
+function ResourceBar() {
+  const [view, setView] = useState<VillageView | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    let alive = true
+    /** Reads the village again. */
+    const load = async () => {
+      const res = await realm.village.$get()
+      if (res.ok && alive) setView((await res.json()).view)
+    }
+    load()
+    const reload = setInterval(load, RELOAD_MS)
+    const tick = setInterval(() => setNow(Date.now()), 1000)
+    window.addEventListener('focus', load)
+    window.addEventListener(VILLAGE_CHANGED, load)
+    return () => {
+      alive = false
+      clearInterval(reload)
+      clearInterval(tick)
+      window.removeEventListener('focus', load)
+      window.removeEventListener(VILLAGE_CHANGED, load)
+    }
+  }, [])
+
+  if (!view) return null
+  const stock = stockAt(view, now)
+  return (
+    <ul className="resources" aria-label="Ressources du village">
+      {RESOURCES.map((resource) => (
+        <li key={resource}>
+          <span className="resource-badge">
+            <Entity kind={resource} />
+          </span>
+          <strong>{Math.floor(stock[resource])}</strong>
+          <small>+{view.ratesPerMinute[resource]}/min</small>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * Game area shell: the top bar (coat of arms, resources, player), the game menu, then the
+ * page.
  *
  * @param props - Component props.
  * @param props.userName - Name of the signed-in player.
  * @param props.children - Page content.
- * @returns The navigation bar followed by the page.
+ * @returns The game screen.
  */
 export function AppShell({ userName, children }: { userName: string; children: ReactNode }) {
   const pathname = usePathname()
@@ -36,28 +98,52 @@ export function AppShell({ userName, children }: { userName: string; children: R
   }
 
   return (
-    <>
-      <nav className="nav" aria-label="Navigation principale">
+    <div className="game">
+      <header className="hud">
+        <Link href="/village" className="crest">
+          <span className="crest-badge">
+            <Icon kind="brand" />
+          </span>
+          <span className="crest-name">Royaumes</span>
+        </Link>
+        <ResourceBar />
+        <div className="player">
+          <span className="player-name">
+            <Icon kind="hero" /> {userName}
+          </span>
+          <Link
+            href="/account"
+            className="hud-button"
+            aria-current={pathname === '/account' ? 'page' : undefined}
+          >
+            <Icon kind="account" /> Mes données
+          </Link>
+          <button className="hud-button" type="button" onClick={signOut}>
+            <Icon kind="logout" /> Déconnexion
+          </button>
+        </div>
+      </header>
+      <nav className="menu" aria-label="Navigation principale">
         {NAV.map((item) => (
           <Link
             key={item.href}
             href={item.href}
+            className="menu-item"
             aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
           >
-            <Entity kind={item.kind} /> {item.label}
+            <span className="menu-badge">
+              <Icon kind={item.kind} />
+            </span>
+            <span>{item.label}</span>
           </Link>
         ))}
-        <span className="muted" style={{ marginLeft: 'auto' }}>
-          {userName}
-        </span>
-        <Link href="/account" aria-current={pathname === '/account' ? 'page' : undefined}>
-          Mes données
-        </Link>
-        <button className="link" type="button" onClick={signOut}>
-          Déconnexion
-        </button>
       </nav>
-      {children}
-    </>
+      <main className="page">{children}</main>
+      <footer className="credits">
+        Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
+        contributeurs, sous licence{' '}
+        <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
+      </footer>
+    </div>
   )
 }
