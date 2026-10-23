@@ -53,9 +53,9 @@ module.exports = {
     {
       name: 'client-without-server-code',
       comment:
-        "Le code client (ui.tsx, src/ui) n'importe jamais de code serveur ; seuls les types sont autorisés.",
+        "Le code client (ui.tsx, scene/, src/ui) n'importe jamais de code serveur ; seuls les types sont autorisés.",
       severity: 'error',
-      from: { path: '(^src/modules/[^/]+/ui\\.tsx$)|(^src/ui/)' },
+      from: { path: '(^src/modules/[^/]+/(ui\\.tsx$|scene/))|(^src/ui/)' },
       to: {
         path: '^src/(platform/|bootstrap/|modules/[^/]+/(api\\.ts|index\\.ts|application/|infrastructure/))',
         pathNot: ['^src/platform/auth/client\\.ts$', '^src/platform/realtime/use-channel\\.ts$'],

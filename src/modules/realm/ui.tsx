@@ -1,20 +1,23 @@
 'use client'
 import { hc } from 'hono/client'
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
+import { look } from '@/ui/theme'
 import type { RealmApi } from './api'
 import {
   BUILDINGS,
   type Building,
+  CATALOG,
   type DomainError,
-  RESOURCES,
+  MAX_LEVEL,
   type Stock,
   stockAt,
   type VillageView,
   villageChannel,
 } from './contracts'
+import { VillageMap } from './scene/village-map'
 
 /** Typed HTTP client inferred from the realm Hono sub-app. */
 const client = hc<RealmApi>('/api/realm')
@@ -42,6 +45,13 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
   return !!cost && Object.entries(cost).every(([r, n]) => stock[r as keyof Stock] >= (n ?? 0))
 }
 
+/** What each building does, told on its card. */
+const STORIES: Record<Building, string> = {
+  sawmill: "Les bûcherons abattent la forêt de l'ouest et débitent les troncs.",
+  quarry: 'Les tailleurs découpent la falaise en blocs prêts à bâtir.',
+  mine: "Les mineurs creusent la montagne de l'est pour en tirer de l'or.",
+}
+
 /** Label shown for each state of the real-time connection. */
 const STATUS_LABELS = {
   connecting: 'Connexion...',
@@ -62,6 +72,7 @@ export function VillageScreen({ userId }: { userId: string }) {
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Building>('sawmill')
 
   /** Reloads the village view from the API. */
   const refresh = useCallback(async () => {
@@ -152,38 +163,154 @@ export function VillageScreen({ userId }: { userId: string }) {
   return (
     <>
       {title}
-      <section className="panel stock" aria-label="Ressources">
-        {RESOURCES.map((r) => (
-          <div key={r}>
-            <Entity kind={r} /> {Math.floor(stock[r])}
-            <small>+{view.ratesPerMinute[r]} / min</small>
-          </div>
-        ))}
-      </section>
+      <VillageStage view={view} selected={selected} onSelect={setSelected}>
+        <BuildingCard
+          building={selected}
+          view={view}
+          affordable={canAfford(stock, view.nextCosts[selected])}
+          onUpgrade={() => upgrade(selected)}
+          error={error}
+        />
+      </VillageStage>
       <section className="panel buildings" aria-label="Bâtiments">
         {BUILDINGS.map((b) => {
           const cost = view.nextCosts[b]
           return (
-            <div key={b} className="building">
+            <button
+              key={b}
+              type="button"
+              className="building"
+              aria-pressed={selected === b}
+              onClick={() => setSelected(b)}
+            >
               <span>
                 <Entity kind={b} showLabel /> <span className="muted">niveau {view.levels[b]}</span>
               </span>
               <span className="row">
-                {cost &&
+                {cost ? (
                   Object.entries(cost).map(([r, n]) => (
-                    <span key={r} className="muted">
+                    <span key={r} className="muted" data-short={stock[r as keyof Stock] < (n ?? 0)}>
                       <Entity kind={r} /> {n}
                     </span>
-                  ))}
-                <button type="button" disabled={!canAfford(stock, cost)} onClick={() => upgrade(b)}>
-                  {view.levels[b] === 0 ? 'Construire' : 'Améliorer'}
-                </button>
+                  ))
+                ) : (
+                  <span className="muted">Niveau maximum</span>
+                )}
               </span>
-            </div>
+            </button>
           )
         })}
-        {error && <p className="error">{error}</p>}
       </section>
     </>
+  )
+}
+
+/**
+ * Village scene, with the card of the selected building laid over it.
+ *
+ * @param props - Component props.
+ * @param props.view - Current village view.
+ * @param props.selected - Selected building.
+ * @param props.onSelect - Called when the player picks a building in the scene.
+ * @param props.children - Card laid over the scene.
+ * @returns The scene and its card.
+ */
+function VillageStage({
+  view,
+  selected,
+  onSelect,
+  children,
+}: {
+  view: VillageView
+  selected: Building
+  onSelect: (building: Building) => void
+  children: ReactNode
+}) {
+  const state = useMemo(
+    () => ({ name: view.name, levels: view.levels, rates: view.ratesPerMinute }),
+    [view.name, view.levels, view.ratesPerMinute],
+  )
+  return (
+    <section className="village-stage" aria-label="Vue du village">
+      <VillageMap state={state} selected={selected} onSelect={onSelect} />
+      {children}
+    </section>
+  )
+}
+
+/**
+ * Card of a building: its level, what it produces now and at the next level, and the
+ * cost of the next level with the button to pay it.
+ *
+ * @param props - Component props.
+ * @param props.building - Building shown.
+ * @param props.view - Current village view.
+ * @param props.affordable - True if the stock covers the next level.
+ * @param props.onUpgrade - Called when the player builds or upgrades it.
+ * @param props.error - Error of the last command, if any.
+ * @returns The card.
+ */
+function BuildingCard({
+  building,
+  view,
+  affordable,
+  onUpgrade,
+  error,
+}: {
+  building: Building
+  view: VillageView
+  affordable: boolean
+  onUpgrade: () => void
+  error: string | null
+}) {
+  const level = view.levels[building]
+  const cost = view.nextCosts[building]
+  const { produces, perMinute } = CATALOG[building]
+  return (
+    <article className="building-card" aria-live="polite">
+      <header>
+        <Entity kind={building} />
+        <div>
+          <h2>{look(building).label}</h2>
+          <span className="level">
+            Niveau {level} / {MAX_LEVEL}
+          </span>
+        </div>
+      </header>
+      <p>{STORIES[building]}</p>
+      <dl>
+        <div>
+          <dt>Production</dt>
+          <dd>
+            <Entity kind={produces} /> {perMinute * level} / min
+          </dd>
+        </div>
+        {cost && (
+          <div>
+            <dt>Niveau suivant</dt>
+            <dd>
+              <Entity kind={produces} /> {perMinute * (level + 1)} / min
+            </dd>
+          </div>
+        )}
+      </dl>
+      {cost ? (
+        <div className="building-cost">
+          <span className="amounts">
+            {Object.entries(cost).map(([r, n]) => (
+              <span key={r}>
+                <Entity kind={r} /> {n}
+              </span>
+            ))}
+          </span>
+          <button type="button" className="primary" disabled={!affordable} onClick={onUpgrade}>
+            {level === 0 ? 'Construire' : 'Améliorer'}
+          </button>
+        </div>
+      ) : (
+        <p className="level">Ce bâtiment a atteint son niveau maximum.</p>
+      )}
+      {error && <p className="error">{error}</p>}
+    </article>
   )
 }
