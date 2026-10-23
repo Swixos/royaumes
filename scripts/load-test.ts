@@ -6,8 +6,9 @@
  *
  * The script runs in four steps:
  * 1. it prepares a data set through the API, as a player would: each player founds a
- *    village, opens an expedition, publishes an offer and writes a message, so the
- *    measures run on non-empty tables and log;
+ *    village, opens an expedition, publishes an offer, writes a message and launches two
+ *    raids, one against the village of another player and one against a pirate island, so
+ *    the measures run on non-empty tables and log;
  * 2. it measures, for each scenario, the throughput and the latency percentiles. The
  *    scenarios are reads, the requests each player triggers the most, since every screen
  *    reads its view again on each real-time event. All measures use the first player's
@@ -83,6 +84,18 @@ for (let n = 0; n < PLAYERS; n++) {
   await call('/api/dungeon/games', 'POST', cookie, { difficulty: 'easy' })
   await call('/api/market/offers', 'POST', cookie, { give: { wood: 10 }, want: { stone: 5 } })
   await call('/api/tavern/messages', 'POST', cookie, { body: `Bonjour de ${n}` })
+  const targets = (await (await call('/api/fleet/targets', 'GET', cookie)).json()) as {
+    villages: { playerId: string }[]
+  }
+  const raid = { ships: 1, tactic: 'ram' }
+  if (targets.villages[0]) {
+    const target = { kind: 'village', playerId: targets.villages[0].playerId }
+    await call('/api/fleet/raids', 'POST', cookie, { ...raid, target })
+  }
+  await call('/api/fleet/raids', 'POST', cookie, {
+    ...raid,
+    target: { kind: 'pirates', islandId: 'misty-reef' },
+  })
 }
 
 const scenarios = [
@@ -91,6 +104,9 @@ const scenarios = [
   { name: 'Classement', path: '/api/ranking/players' },
   { name: 'Marché', path: '/api/market/offers' },
   { name: 'Taverne', path: '/api/tavern/messages' },
+  { name: 'Flotte - cibles', path: '/api/fleet/targets' },
+  { name: 'Flotte - raids', path: '/api/fleet/raids' },
+  { name: 'Flotte - port', path: '/api/fleet/harbor' },
 ]
 
 const results = []
