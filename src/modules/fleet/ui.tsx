@@ -1,18 +1,21 @@
 'use client'
 import { hc } from 'hono/client'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
+import { Icon } from '@/ui/icons'
 import { look } from '@/ui/theme'
 import type { FleetApi } from './api'
 import {
   type Amounts,
+  BEATS,
   equipmentCost,
   fight,
   type HarborView,
   harborChannel,
   hash,
   holdOf,
+  MAX_RAIDS_AT_SEA,
   MAX_SHIPS,
   type MapPoint,
   mapPositionOf,
@@ -35,12 +38,27 @@ const MAP_W = 1000
 /** Height of the sea map, in SVG units. */
 const MAP_H = 625
 
-/** Heights of the horizontal lines of the map grid. */
-const GRID_ROWS = Array.from({ length: 9 }, (_, i) => (i + 1) * 62.5)
-/** Positions of the vertical lines of the map grid. */
-const GRID_COLUMNS = Array.from({ length: 15 }, (_, i) => (i + 1) * 62.5)
+/** Positions of the lines of the map grid, every 125 units. */
+const GRID = { rows: [125, 250, 375, 500], columns: [125, 250, 375, 500, 625, 750, 875] }
 /** Possible fleet sizes, from one trireme to the largest fleet. */
 const FLEET_SIZES = Array.from({ length: MAX_SHIPS }, (_, i) => i + 1)
+
+/** Flat colors of the sea map. */
+const SEA = {
+  water: '#2b6f97',
+  shallow: '#3a82ac',
+  grid: '#33789f',
+  sand: '#e8d3a2',
+  grass: '#7baf5c',
+  rock: '#4a4f5a',
+  rockTop: '#6a707c',
+  gold: '#e8a93b',
+  label: '#fbf9f4',
+  ink: '#1b2333',
+  own: '#fbf9f4',
+  enemy: '#c93c32',
+  lane: '#d6e2ee',
+}
 
 /** Label shown for each state of the real-time connection. */
 const STATUS_LABELS = {
@@ -197,20 +215,19 @@ function along({ from, bend, to }: Lane, t: number) {
  * Shows resource amounts, such as "30 bois, 15 pierre".
  *
  * @param props - Amounts to show.
- * @returns The amounts with their icons, or a dash when empty.
+ * @returns The amounts with their icons, or "rien" when empty.
  */
 function AmountsText({ amounts }: { amounts: Amounts }) {
   const entries = Object.entries(amounts).filter(([, amount]) => (amount ?? 0) > 0)
   if (entries.length === 0) return <>rien</>
   return (
-    <>
-      {entries.map(([resource, amount], index) => (
+    <span className={styles.amounts}>
+      {entries.map(([resource, amount]) => (
         <span key={resource}>
-          {index > 0 && ', '}
-          {amount} <Entity kind={resource} />
+          <Entity kind={resource} /> {amount}
         </span>
       ))}
-    </>
+    </span>
   )
 }
 
@@ -240,13 +257,15 @@ function useNow(active: boolean) {
 }
 
 /**
- * Trireme drawn on the map, heading along its lane.
+ * Flat trireme drawn on the map, heading along its lane: a hull, a mast, a square sail
+ * and its oars, in solid colors.
  *
  * @param props - Component props.
  * @param props.x - Horizontal position.
  * @param props.y - Vertical position.
  * @param props.heading - Heading in degrees.
  * @param props.enemy - Whether the fleet threatens the player.
+ * @param props.scale - Size factor.
  * @returns The ship.
  */
 function Trireme({
@@ -254,51 +273,48 @@ function Trireme({
   y,
   heading,
   enemy,
+  scale = 1.4,
 }: {
   x: number
   y: number
   heading: number
   enemy: boolean
+  scale?: number
 }) {
   const flip = Math.abs(heading) > 90 ? ' scale(1,-1)' : ''
-  const hull = enemy ? '#ff5a6a' : '#f2c14e'
+  const hull = enemy ? SEA.enemy : SEA.ink
   return (
-    <g
-      className={styles.ship}
-      data-enemy={enemy}
-      transform={`translate(${x} ${y}) rotate(${heading})${flip} scale(1.5)`}
-    >
-      <path
-        d="M-22 -2 Q0 10 22 -2 L28 -7 L-24 -5 Z"
-        fill={hull}
-        stroke="#1b1203"
-        strokeWidth="1.2"
-      />
+    <g transform={`translate(${x} ${y}) rotate(${heading})${flip} scale(${scale})`}>
       {[-14, -7, 0, 7, 14].map((ox) => (
-        <line key={ox} x1={ox} y1={3} x2={ox - 4} y2={10} stroke={hull} strokeWidth="1.4" />
+        <rect
+          key={ox}
+          x={ox - 1}
+          y={2}
+          width={2}
+          height={8}
+          fill={hull}
+          transform={`rotate(20 ${ox} 2)`}
+        />
       ))}
-      <line x1={-2} y1={-6} x2={-2} y2={-30} stroke="#e8dcc0" strokeWidth="1.6" />
-      <path
-        d="M-1 -29 Q14 -19 -1 -9 Z"
-        fill={enemy ? '#2a0710' : '#f3e6c8'}
-        stroke={hull}
-        strokeWidth="1"
-      />
+      <path d="M-22 -4 H22 L28 -9 L24 4 H-18 Z" fill={hull} />
+      <rect x={-2} y={-30} width={2.4} height={27} fill={SEA.ink} />
+      <rect x={-12} y={-27} width={22} height={17} fill={enemy ? SEA.ink : SEA.own} />
+      <rect x={-12} y={-21} width={22} height={4} fill={enemy ? SEA.enemy : SEA.gold} />
     </g>
   )
 }
 
 /**
- * Tactic triangle: the three tactics, each arrow pointing from a tactic to the one it
- * beats. It serves both the choice of the fleet tactic and of the harbor posture.
+ * Tactic chooser: the three tactics as flat cards, each naming the tactic it beats. It
+ * serves both the tactic of a fleet and the posture of a harbor.
  *
  * @param props - Component props.
  * @param props.value - Selected tactic.
  * @param props.onChange - Called with the chosen tactic.
- * @param props.caption - Text shown at the center of the triangle.
- * @returns The tactic triangle.
+ * @param props.caption - Name of the choice, read by screen readers.
+ * @returns The tactic chooser.
  */
-function TacticWheel({
+function TacticPicker({
   value,
   onChange,
   caption,
@@ -307,99 +323,20 @@ function TacticWheel({
   onChange: (tactic: Tactic) => void
   caption: string
 }) {
-  const id = useId().replace(/:/g, '')
-  const nodes: Record<Tactic, { x: number; y: number }> = {
-    board: { x: 150, y: 52 },
-    ram: { x: 252, y: 212 },
-    blockade: { x: 48, y: 212 },
-  }
-  const arrows: [Tactic, Tactic][] = [
-    ['board', 'ram'],
-    ['ram', 'blockade'],
-    ['blockade', 'board'],
-  ]
-  /**
-   * Shortens a segment so it starts and ends at the edge of the nodes.
-   *
-   * @param a - Start node.
-   * @param b - End node.
-   * @returns The SVG coordinates of the arrow.
-   */
-  const shorten = (a: { x: number; y: number }, b: { x: number; y: number }) => {
-    const len = Math.hypot(b.x - a.x, b.y - a.y)
-    const k = 44 / len
-    return {
-      x1: a.x + (b.x - a.x) * k,
-      y1: a.y + (b.y - a.y) * k,
-      x2: b.x - (b.x - a.x) * k,
-      y2: b.y - (b.y - a.y) * k,
-    }
-  }
   return (
-    <fieldset className={styles.wheel}>
+    <fieldset className={styles.tactics}>
       <legend className="sr-only">{caption}</legend>
-      <svg viewBox="0 0 300 268" aria-hidden="true">
-        <defs>
-          <marker
-            id={`${id}-head`}
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="7"
-            markerHeight="7"
-            orient="auto-start-reverse"
-          >
-            <path d="M0 0 L10 5 L0 10 Z" fill="#f2c14e" />
-          </marker>
-          <filter id={`${id}-glow`}>
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        {arrows.map(([from, to]) => (
-          <line
-            key={from}
-            className={styles.arrow}
-            markerEnd={`url(#${id}-head)`}
-            {...shorten(nodes[from], nodes[to])}
-          />
-        ))}
-        <text className={styles.wheelCaption} x="150" y="160" textAnchor="middle">
-          {caption}
-        </text>
-        <text className={styles.wheelCaption} x="150" y="178" textAnchor="middle">
-          la flèche bat
-        </text>
-        {TACTICS.map((tactic) => (
-          <circle
-            key={tactic}
-            className={styles.nodeRing}
-            data-on={value === tactic}
-            cx={nodes[tactic].x}
-            cy={nodes[tactic].y}
-            r="36"
-            filter={value === tactic ? `url(#${id}-glow)` : undefined}
-          />
-        ))}
-      </svg>
       {TACTICS.map((tactic) => (
         <button
           key={tactic}
           type="button"
+          className={styles.tactic}
           aria-pressed={value === tactic}
-          className={styles.node}
-          data-on={value === tactic}
-          style={{
-            left: `${(nodes[tactic].x / 300) * 100}%`,
-            top: `${(nodes[tactic].y / 268) * 100}%`,
-          }}
           onClick={() => onChange(tactic)}
         >
-          <span className={styles.nodeGlyph}>{look(tactic).glyph}</span>
-          <span className={styles.nodeLabel}>{look(tactic).label}</span>
+          <Icon kind={tactic} size={28} />
+          <strong>{look(tactic).label}</strong>
+          <small>bat {look(BEATS[tactic]).label.toLowerCase()}</small>
         </button>
       ))}
     </fieldset>
@@ -468,7 +405,8 @@ function relax(islands: MapIsland[]): MapIsland[] {
 }
 
 /**
- * Sea map: islands, sea lanes and fleets moving in real time.
+ * Sea map: flat islands, sea lanes and fleets moving in real time. The islands are
+ * buttons laid over the drawing, so they can be reached with the keyboard.
  *
  * @param props - Component props.
  * @param props.userId - Signed-in player.
@@ -476,7 +414,7 @@ function relax(islands: MapIsland[]): MapIsland[] {
  * @param props.raids - Raids of the player.
  * @param props.selected - Selected target.
  * @param props.onSelect - Called with the target clicked.
- * @returns The animated sea map.
+ * @returns The sea map.
  */
 function SeaMap({
   userId,
@@ -525,6 +463,18 @@ function SeaMap({
   const where = new Map(islands.map((island) => [island.shapeId, island.point]))
 
   /**
+   * Tells whether an island is the selected target.
+   *
+   * @param island - Island of the map.
+   * @returns True if it is selected.
+   */
+  const isSelected = (island: MapIsland) =>
+    island.selection !== null &&
+    selected !== null &&
+    island.selection.kind === selected.kind &&
+    island.selection.id === selected.id
+
+  /**
    * Finds where a raid sails from and to.
    *
    * @param raid - Raid at sea.
@@ -541,60 +491,19 @@ function SeaMap({
   return (
     <div className={styles.sea}>
       <svg className={styles.map} viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true">
-        <defs>
-          <radialGradient id="sand" cx="40%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#f6e2a8" />
-            <stop offset="45%" stopColor="#7fbf6a" />
-            <stop offset="100%" stopColor="#2f6b45" />
-          </radialGradient>
-          <radialGradient id="cursed" cx="40%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#4a3a3a" />
-            <stop offset="60%" stopColor="#2a1618" />
-            <stop offset="100%" stopColor="#120708" />
-          </radialGradient>
-          <radialGradient id="crown" cx="40%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#fff2c4" />
-            <stop offset="50%" stopColor="#d9a441" />
-            <stop offset="100%" stopColor="#6b4a12" />
-          </radialGradient>
-          <linearGradient id="wake" x1="0" x2="1">
-            <stop offset="0%" stopColor="#9fe7ff" stopOpacity="0" />
-            <stop offset="100%" stopColor="#9fe7ff" stopOpacity="0.9" />
-          </linearGradient>
-          <linearGradient id="wakeEnemy" x1="0" x2="1">
-            <stop offset="0%" stopColor="#ff3b4e" stopOpacity="0" />
-            <stop offset="100%" stopColor="#ff3b4e" stopOpacity="0.95" />
-          </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {GRID_ROWS.map((y) => (
-          <line key={`h${y}`} className={styles.gridLine} x1={0} x2={MAP_W} y1={y} y2={y} />
+        <rect width={MAP_W} height={MAP_H} fill={SEA.water} />
+        {GRID.rows.map((y) => (
+          <rect key={`h${y}`} x={0} y={y} width={MAP_W} height={1.5} fill={SEA.grid} />
         ))}
-        {GRID_COLUMNS.map((x) => (
-          <line key={`v${x}`} className={styles.gridLine} y1={0} y2={MAP_H} x1={x} x2={x} />
+        {GRID.columns.map((x) => (
+          <rect key={`v${x}`} x={x} y={0} width={1.5} height={MAP_H} fill={SEA.grid} />
         ))}
 
-        <g className={styles.compass}>
-          <circle cx="90" cy="535" r="52" fill="none" stroke="#f2c14e" strokeOpacity="0.5" />
-          <circle
-            cx="90"
-            cy="535"
-            r="40"
-            fill="none"
-            stroke="#f2c14e"
-            strokeOpacity="0.3"
-            strokeDasharray="2 6"
-          />
-          <path d="M90 478 L98 535 L90 592 L82 535 Z" fill="#f2c14e" fillOpacity="0.7" />
-          <path d="M33 535 L90 527 L147 535 L90 543 Z" fill="#9fe7ff" fillOpacity="0.5" />
-          <text x="90" y="472" textAnchor="middle" fill="#f2c14e" fontSize="14">
+        <g transform="translate(70 560)">
+          <circle r={34} fill={SEA.shallow} />
+          <path d="M0 -30 L7 0 L0 30 L-7 0 Z" fill={SEA.label} />
+          <path d="M0 -30 L7 0 L-7 0 Z" fill={SEA.enemy} />
+          <text y={-38} textAnchor="middle" className={styles.compass}>
             N
           </text>
         </g>
@@ -602,38 +511,35 @@ function SeaMap({
         {islands.map((island) => {
           const { x, y } = toSvg(island.point)
           const radius = island.kind === 'pirates' ? 44 : 36
-          const isSelected =
-            island.selection !== null &&
-            selected !== null &&
-            island.selection.kind === selected.kind &&
-            island.selection.id === selected.id
-          const fill =
-            island.kind === 'home'
-              ? 'url(#crown)'
-              : island.kind === 'pirates'
-                ? 'url(#cursed)'
-                : 'url(#sand)'
+          const top = island.kind === 'pirates' ? SEA.rockTop : SEA.grass
+          const base = island.kind === 'pirates' ? SEA.rock : SEA.sand
           return (
-            <g
-              key={`${island.kind}-${island.shapeId}`}
-              className={styles.island}
-              data-selected={isSelected}
-            >
-              <path className={styles.shore} d={islandPath(island.shapeId, x, y, radius + 10)} />
-              <path
-                d={islandPath(island.shapeId, x, y, radius)}
-                fill={fill}
-                stroke="#0b2236"
-                strokeWidth="2"
-              />
-              {island.kind === 'pirates' && (
-                <circle className={styles.pirateAura} cx={x} cy={y} r={radius + 6} />
-              )}
+            <g key={`${island.kind}-${island.shapeId}`}>
+              <path d={islandPath(island.shapeId, x, y + 4, radius + 14)} fill={SEA.shallow} />
+              <path d={islandPath(island.shapeId, x, y, radius)} fill={base} />
+              <path d={islandPath(island.shapeId, x, y - 4, radius * 0.72)} fill={top} />
               {island.kind === 'home' && (
-                <circle className={styles.homeHalo} cx={x} cy={y} r={radius + 16} />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={radius + 20}
+                  fill="none"
+                  stroke={SEA.gold}
+                  strokeWidth={4}
+                />
               )}
-              {isSelected && <circle className={styles.reticle} cx={x} cy={y} r={radius + 24} />}
-              <text className={styles.islandLabel} x={x} y={y + radius + 28} textAnchor="middle">
+              {isSelected(island) && (
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={radius + 22}
+                  fill="none"
+                  stroke={SEA.label}
+                  strokeWidth={4}
+                  strokeDasharray="14 10"
+                />
+              )}
+              <text className={styles.islandLabel} x={x} y={y + radius + 30} textAnchor="middle">
                 {island.name}
               </text>
             </g>
@@ -650,27 +556,57 @@ function SeaMap({
               : 0
           const ship = along(lane, t)
           const d = `M${lane.from.x} ${lane.from.y} Q${lane.bend.x} ${lane.bend.y} ${lane.to.x} ${lane.to.y}`
+          const color = enemy ? SEA.enemy : SEA.lane
+          const label =
+            raid.status === 'at-sea'
+              ? `${raid.ships} navire${raid.ships > 1 ? 's' : ''} · ${clock(raid.arrivesAt - now)}`
+              : 'Armement'
           return (
             <g key={raid.raidId}>
-              <path className={styles.lane} data-enemy={enemy} d={d} />
               <path
-                className={styles.wake}
-                data-enemy={enemy}
                 d={d}
+                fill="none"
+                stroke={color}
+                strokeWidth={3}
+                strokeDasharray="2 12"
+                strokeLinecap="round"
+              />
+              <path
+                d={d}
+                fill="none"
+                stroke={color}
+                strokeWidth={5}
+                strokeLinecap="round"
                 pathLength={1}
                 strokeDasharray={`${t} 1`}
               />
-              {enemy && <circle className={styles.sonar} cx={ship.x} cy={ship.y} r={22} />}
+              <circle
+                cx={lane.to.x}
+                cy={lane.to.y}
+                r={60}
+                fill="none"
+                stroke={color}
+                strokeWidth={3}
+              />
               <Trireme x={ship.x} y={ship.y} heading={ship.heading} enemy={enemy} />
-              <text className={styles.eta} x={ship.x} y={ship.y - 38} textAnchor="middle">
-                {raid.status === 'at-sea'
-                  ? `${raid.ships} × ${look('trireme').glyph} ${clock(raid.arrivesAt - now)}`
-                  : 'Armement...'}
-              </text>
+              <g transform={`translate(${ship.x} ${ship.y - 62})`}>
+                <rect
+                  x={-58}
+                  y={-15}
+                  width={116}
+                  height={26}
+                  rx={13}
+                  fill={enemy ? SEA.enemy : SEA.ink}
+                />
+                <text className={styles.eta} y={4} textAnchor="middle">
+                  {label}
+                </text>
+              </g>
             </g>
           )
         })}
       </svg>
+
       {islands.map((island) => (
         <button
           key={`${island.kind}-${island.shapeId}`}
@@ -679,40 +615,44 @@ function SeaMap({
           data-kind={island.kind}
           style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
           disabled={!island.selection}
-          aria-pressed={
-            island.selection !== null &&
-            selected !== null &&
-            island.selection.kind === selected.kind &&
-            island.selection.id === selected.id
-          }
+          aria-pressed={isSelected(island)}
           aria-label={
             island.kind === 'home' ? `Votre village : ${island.name}` : `Cibler ${island.name}`
           }
           onClick={() => island.selection && onSelect(island.selection)}
         >
-          {
-            look(
-              island.kind === 'home' ? 'village' : island.kind === 'pirates' ? 'pirates' : 'harbor',
-            ).glyph
-          }
+          <Icon
+            kind={
+              island.kind === 'home' ? 'village' : island.kind === 'pirates' ? 'pirates' : 'harbor'
+            }
+            size="68%"
+          />
         </button>
       ))}
-      <div className={styles.legend}>
-        <span>{look('village').glyph} votre village</span>
-        <span>{look('harbor').glyph} autres joueurs</span>
-        <span>{look('pirates').glyph} pirates</span>
-      </div>
+
+      <ul className={styles.legend} aria-hidden="true">
+        <li>
+          <Icon kind="village" /> Votre village
+        </li>
+        <li>
+          <Icon kind="harbor" /> Autres joueurs
+        </li>
+        <li>
+          <Icon kind="pirates" /> Pirates
+        </li>
+      </ul>
     </div>
   )
 }
 
 /**
- * Full screen battle report, shown when a report reaches the harbor in real time.
+ * Full screen battle report, shown when a report reaches the harbor in real time: two
+ * flat ships meet, then the verdict and the plunder.
  *
  * @param props - Component props.
  * @param props.report - Data of the `BattleReported` event.
  * @param props.onClose - Called to close the report.
- * @returns The battle overlay.
+ * @returns The battle report.
  */
 function BattleOverlay({
   report,
@@ -740,34 +680,16 @@ function BattleOverlay({
       aria-modal="true"
       aria-label="Rapport de bataille"
     >
-      <button
-        type="button"
-        className={styles.overlayClose}
-        onClick={onClose}
-        aria-label="Fermer le rapport"
-      />
-      <div className={styles.overlayContent}>
-        <div className={styles.clash}>
-          <svg
-            className={`${styles.clashShip} ${styles.clashLeft}`}
-            viewBox="-40 -48 80 70"
-            aria-hidden="true"
-          >
-            <Trireme x={0} y={0} heading={0} enemy={false} />
+      <div className={styles.report} data-win={won}>
+        <div className={styles.clash} aria-hidden="true">
+          <svg className={styles.clashLeft} viewBox="-40 -40 80 56" aria-hidden="true">
+            <Trireme x={0} y={0} heading={0} enemy={false} scale={1} />
           </svg>
-          <svg
-            className={`${styles.clashShip} ${styles.clashRight}`}
-            viewBox="-40 -48 80 70"
-            aria-hidden="true"
-          >
-            <Trireme x={0} y={0} heading={0} enemy={true} />
+          <svg className={styles.clashRight} viewBox="-40 -40 80 56" aria-hidden="true">
+            <Trireme x={0} y={0} heading={0} enemy={true} scale={1} />
           </svg>
-          <span className={styles.shock} />
-          <span className={styles.shock} />
-          <div className={styles.verdictBig} data-win={won}>
-            {won ? 'Victoire' : 'Défaite'}
-          </div>
         </div>
+        <p className={styles.verdict}>{won ? 'Victoire' : 'Défaite'}</p>
         <p className={styles.spoils}>
           {attacker
             ? `Votre flotte contre ${String(report.opponentName)} : `
@@ -788,15 +710,17 @@ function BattleOverlay({
             </>
           )}
         </p>
-        <p className={styles.hint}>Cliquez pour fermer</p>
+        <button type="button" onClick={onClose}>
+          Fermer le rapport
+        </button>
       </div>
     </div>
   )
 }
 
 /**
- * Fleet screen: the sea map, the war council that launches raids, the harbor posture,
- * the enemy fleet alarm and the logbook of raids.
+ * Fleet screen: key figures, the enemy fleet alarm, the sea map, the war council that
+ * launches raids, the harbor posture and the logbook of raids.
  *
  * @param props - Component props.
  * @param props.userId - Signed-in player, naming the harbor channel.
@@ -862,7 +786,7 @@ export function FleetScreen({ userId }: { userId: string }) {
     return () => clearTimeout(timer)
   }, [nextArrival, refresh])
 
-  const now = useNow(raids.some((raid) => raid.role === 'defender' && raid.status === 'at-sea'))
+  const now = useNow(nextArrival !== null)
   const incoming = raids.filter((raid) => raid.role === 'defender' && raid.status === 'at-sea')
 
   const village =
@@ -941,79 +865,70 @@ export function FleetScreen({ userId }: { userId: string }) {
   const hold = holdOf(ships)
 
   return (
-    <div className={styles.screen}>
-      <div className={styles.backdrop} aria-hidden="true" />
-      <header className={styles.hero}>
-        <svg className={styles.heroArt} viewBox="0 0 400 220" aria-hidden="true">
-          <g className={styles.bob}>
-            <path
-              d="M70 140 Q200 190 330 140 L350 125 L60 128 Z"
-              fill="#f2c14e"
-              stroke="#1b1203"
-              strokeWidth="3"
-            />
-            <path d="M200 128 L200 20" stroke="#f3e6c8" strokeWidth="5" />
-            <path d="M206 26 Q290 70 206 120 Z" fill="#f3e6c8" stroke="#f2c14e" strokeWidth="2" />
-            <path
-              d="M194 40 Q130 80 194 118 Z"
-              fill="#e8dcc0"
-              stroke="#f2c14e"
-              strokeWidth="2"
-              opacity="0.85"
-            />
-            <path d="M352 124 L392 116" stroke="#f2c14e" strokeWidth="6" strokeLinecap="round" />
-          </g>
-          <path className={styles.swell} d="M-40 170 Q20 150 80 170 T200 170 T320 170 T440 170" />
-          <path className={styles.swell} d="M-40 192 Q20 172 80 192 T200 192 T320 192 T440 192" />
-        </svg>
-        <h1 className={styles.title}>
+    <>
+      <header className="row">
+        <h1>
           <Entity kind="fleet" /> La Flotte
         </h1>
-        <p className={styles.subtitle}>
-          Armez vos trirèmes, lisez la posture de l'adversaire, et frappez là où il ne vous attend
-          pas. Les îles pirates se souviennent de vos assauts.
-        </p>
-        <div className={styles.stats}>
-          <span className={styles.stat}>
-            Défense du port<strong>{targets?.home?.defense ?? '-'}</strong>
-          </span>
-          <span className={styles.stat}>
-            Flottes en mer<strong>{out} / 2</strong>
-          </span>
-          <span className={styles.stat}>
-            Posture
-            <strong>
-              {harbor ? `${look(harbor.holding).glyph} ${look(harbor.holding).label}` : '-'}
-            </strong>
-          </span>
-          <span className={`${styles.stat} ${styles.live}`} data-status={status}>
-            {STATUS_LABELS[status]}
-          </span>
-        </div>
+        <span className="status" data-status={status}>
+          {STATUS_LABELS[status]}
+        </span>
       </header>
+
+      <dl className={styles.figures}>
+        <div>
+          <dt>Défense du port</dt>
+          <dd>{targets?.home?.defense ?? '-'}</dd>
+        </div>
+        <div>
+          <dt>Flottes en mer</dt>
+          <dd>
+            {out} / {MAX_RAIDS_AT_SEA}
+          </dd>
+        </div>
+        <div>
+          <dt>Posture</dt>
+          <dd>
+            {harbor ? (
+              <>
+                <Icon kind={harbor.holding} /> {look(harbor.holding).label}
+              </>
+            ) : (
+              '-'
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Prochaine arrivée</dt>
+          <dd>{nextArrival === null ? '-' : clock(nextArrival - now)}</dd>
+        </div>
+      </dl>
 
       {incoming.map((raid) => (
         <div key={raid.raidId} className={styles.alarm} role="status">
-          <strong>Flotte ennemie en approche</strong>
-          <span className={styles.alarmLine}>
-            {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur votre
-            port. Impact dans {clock(raid.arrivesAt - now)}. Changez de posture tant qu'il est
-            temps.
-          </span>
+          <Icon kind="trireme" size={40} />
+          <div>
+            <strong>Flotte ennemie en approche</strong>
+            <span>
+              {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur votre
+              port. Changez de posture tant qu'il est temps.
+            </span>
+          </div>
+          <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
         </div>
       ))}
 
-      {!targets?.home && targets && (
-        <p className={styles.message} data-error="true">
+      {targets && !targets.home && (
+        <p className="error">
           Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
         </p>
       )}
 
       <div className={styles.layout}>
-        <div className={styles.main}>
+        <div className={styles.column}>
           <form
             className={styles.search}
-            aria-label="Rechercher un port"
+            aria-label="Recherche de port"
             onSubmit={(event) => {
               event.preventDefault()
               const term = draft.trim()
@@ -1028,14 +943,14 @@ export function FleetScreen({ userId }: { userId: string }) {
               id="harbor-search"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Rechercher un port par son nom..."
+              placeholder="Rechercher un port par son nom"
               maxLength={30}
             />
             <button type="submit">Scruter l'horizon</button>
             {search && (
               <button
                 type="button"
-                className={styles.recall}
+                className="ghost"
                 onClick={() => {
                   setDraft('')
                   setSearch('')
@@ -1045,6 +960,7 @@ export function FleetScreen({ userId }: { userId: string }) {
               </button>
             )}
           </form>
+
           {targets ? (
             <SeaMap
               userId={userId}
@@ -1057,12 +973,10 @@ export function FleetScreen({ userId }: { userId: string }) {
             <div className={styles.sea} aria-busy="true" />
           )}
 
-          <section className={styles.panel} aria-labelledby="logbook">
+          <section className="panel" aria-labelledby="logbook">
             <h2 id="logbook">Journal de bord</h2>
             {raids.length === 0 ? (
-              <p className={styles.muted}>
-                Aucun raid pour l'instant. La mer est calme... pour combien de temps ?
-              </p>
+              <p className="muted">Aucun raid pour l'instant. La mer est calme.</p>
             ) : (
               <ul className={styles.logbook}>
                 {raids.map((raid) => {
@@ -1077,24 +991,21 @@ export function FleetScreen({ userId }: { userId: string }) {
                           : 'loss'
                   return (
                     <li key={raid.raidId} className={styles.entry} data-tone={tone}>
-                      <span className={styles.entryGlyph}>
-                        {raid.targetKind === 'pirates'
-                          ? look('pirates').glyph
-                          : attacker
-                            ? look('fleet').glyph
-                            : look('harbor').glyph}
-                      </span>
+                      <Icon
+                        kind={
+                          raid.targetKind === 'pirates' ? 'pirates' : attacker ? 'fleet' : 'harbor'
+                        }
+                        size={32}
+                      />
                       <span>
-                        <span className={styles.entryTitle}>
+                        <strong>
                           {attacker
                             ? `Raid contre ${raid.targetName}`
                             : `Raid de ${raid.attackerName}`}
-                        </span>
-                        <br />
-                        <span className={styles.entryMeta}>
-                          {raid.ships} × {look('trireme').glyph}
-                          {raid.tactic &&
-                            ` · ${look(raid.tactic).glyph} ${look(raid.tactic).label}`}
+                        </strong>
+                        <span className={styles.meta}>
+                          {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
+                          {raid.tactic && ` · ${look(raid.tactic).label}`}
                           {raid.status === 'at-sea' &&
                             raid.arrivesAt > now &&
                             ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
@@ -1107,15 +1018,11 @@ export function FleetScreen({ userId }: { userId: string }) {
                         </span>
                       </span>
                       {attacker && raid.status === 'at-sea' && raid.arrivesAt > Date.now() ? (
-                        <button
-                          type="button"
-                          className={styles.recall}
-                          onClick={() => recall(raid.raidId)}
-                        >
+                        <button type="button" className="ghost" onClick={() => recall(raid.raidId)}>
                           Rappeler
                         </button>
                       ) : (
-                        <span className={styles.chip}>
+                        <span className={styles.chip} data-tone={tone}>
                           {(attacker ? ATTACK_STATUS : DEFENSE_STATUS)[raid.status]}
                         </span>
                       )}
@@ -1127,110 +1034,130 @@ export function FleetScreen({ userId }: { userId: string }) {
           </section>
         </div>
 
-        <div className={styles.side}>
-          <section className={styles.panel} aria-labelledby="council">
+        <div className={styles.column}>
+          <section className="panel" aria-labelledby="council">
             <h2 id="council">Conseil de guerre</h2>
             {target ? (
-              <>
-                <div className={styles.targetCard}>
-                  <span className={styles.targetName}>
-                    {island ? look('pirates').glyph : look('harbor').glyph} {target.name}
-                  </span>
-                  <span className={styles.muted}>
-                    Défense {target.defense} · traversée {target.travelMinutes} min
-                  </span>
-                  {island && (
-                    <span className={styles.muted}>
-                      Trésor : <AmountsText amounts={island.treasure} />
-                      {island.raidedToday && " · déjà attaquée aujourd'hui"}
+              <div className="stack">
+                <div className={styles.target}>
+                  <Icon kind={island ? 'pirates' : 'harbor'} size={40} />
+                  <div>
+                    <strong>{target.name}</strong>
+                    <span className="muted">
+                      Défense {target.defense} · traversée {target.travelMinutes} min
                     </span>
-                  )}
+                    {island && (
+                      <span className="muted">
+                        Trésor : <AmountsText amounts={island.treasure} />
+                        {island.raidedToday && " · déjà attaquée aujourd'hui"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <fieldset className={styles.fleetRow}>
-                  <legend className="sr-only">Nombre de trirèmes</legend>
-                  {FLEET_SIZES.map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      className={styles.hull}
-                      data-on={size <= ships}
-                      aria-label={`${size} trirème${size > 1 ? 's' : ''}`}
-                      aria-pressed={size === ships}
-                      onClick={() => setShips(size)}
-                    >
-                      {look('trireme').glyph}
-                    </button>
-                  ))}
+                <fieldset className={styles.sizes}>
+                  <legend>Trirèmes</legend>
+                  <div>
+                    {FLEET_SIZES.map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        className={styles.size}
+                        data-on={size <= ships}
+                        aria-label={`${size} trirème${size > 1 ? 's' : ''}`}
+                        aria-pressed={size === ships}
+                        onClick={() => setShips(size)}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
                 </fieldset>
-                <div className={styles.ledger}>
-                  <span>
-                    Coût : <AmountsText amounts={cost} />
-                  </span>
-                  <span>
-                    Cales : <AmountsText amounts={hold} />
-                  </span>
-                </div>
 
-                <TacticWheel value={tactic} onChange={setTactic} caption="Votre tactique" />
+                <dl className={styles.ledger}>
+                  <div>
+                    <dt>Coût</dt>
+                    <dd>
+                      <AmountsText amounts={cost} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Cales</dt>
+                    <dd>
+                      <AmountsText amounts={hold} />
+                    </dd>
+                  </div>
+                </dl>
 
-                <div className={styles.forecast}>
-                  {TACTICS.map((posture) => {
-                    const battle = fight(ships, tactic, posture, target.defense)
-                    const scale = Math.max(battle.attack, battle.defense) * 1.15
-                    return (
-                      <div key={posture} className={styles.odds}>
-                        <span>
-                          {look(posture).glyph} {look(posture).label}
-                        </span>
-                        <span className={styles.bar} data-win={battle.victory}>
-                          <span style={{ width: `${(battle.attack / scale) * 100}%` }} />
-                          <i style={{ left: `${(battle.defense / scale) * 100}%` }} />
-                        </span>
-                        <span className={styles.verdict} data-win={battle.victory}>
-                          {battle.attack} {battle.victory ? 'gagne' : 'perd'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                  <span className={styles.muted}>
-                    {island
-                      ? 'Le capitaine pirate pare la tactique que vous employez le plus contre lui.'
-                      : 'Selon la posture que tiendra le défenseur à votre arrivée.'}
-                  </span>
-                </div>
+                <TacticPicker value={tactic} onChange={setTactic} caption="Votre tactique" />
+
+                <table className={styles.forecast}>
+                  <caption className="sr-only">Prévision de bataille</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Si le défenseur tient</th>
+                      <th scope="col">Attaque contre défense</th>
+                      <th scope="col">Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {TACTICS.map((posture) => {
+                      const battle = fight(ships, tactic, posture, target.defense)
+                      const scale = Math.max(battle.attack, battle.defense) * 1.15
+                      return (
+                        <tr key={posture}>
+                          <td>
+                            <Icon kind={posture} /> {look(posture).label}
+                          </td>
+                          <td>
+                            <span className={styles.bar} data-win={battle.victory}>
+                              <span style={{ width: `${(battle.attack / scale) * 100}%` }} />
+                              <i style={{ left: `${(battle.defense / scale) * 100}%` }} />
+                            </span>
+                          </td>
+                          <td className={styles.verdictCell} data-win={battle.victory}>
+                            {battle.attack} {battle.victory ? 'gagne' : 'perd'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <p className="muted">
+                  {island
+                    ? 'Le capitaine pirate pare la tactique que vous employez le plus contre lui.'
+                    : 'Selon la posture que tiendra le défenseur à votre arrivée.'}
+                </p>
 
                 <button
                   type="button"
-                  className={styles.launch}
+                  className="primary"
                   disabled={busy || !targets?.home}
                   onClick={launch}
                 >
                   Hisser les voiles
                 </button>
-              </>
+              </div>
             ) : (
-              <p className={styles.muted}>Choisissez une île sur la carte pour préparer un raid.</p>
+              <p className="muted">Choisissez une île sur la carte pour préparer un raid.</p>
             )}
             {message && (
-              <p className={styles.message} data-error={message.error} aria-live="polite">
+              <p className={message.error ? 'error' : 'ok'} aria-live="polite">
                 {message.text}
               </p>
             )}
           </section>
 
-          <section className={styles.panel} aria-labelledby="harbor">
-            <h2 id="harbor">
-              <Entity kind="harbor" /> Votre port
-            </h2>
+          <section className="panel" aria-labelledby="harbor">
+            <h2 id="harbor">Votre port</h2>
             {harbor && (
-              <TacticWheel
+              <TacticPicker
                 value={harbor.holding}
                 onChange={choosePosture}
                 caption="Posture du port"
               />
             )}
-            <p className={styles.muted}>
+            <p className="muted">
               Un village sans posture choisie défend en blocus. Chaque amélioration de bâtiment
               ajoute 5 à sa défense.
             </p>
@@ -1239,6 +1166,6 @@ export function FleetScreen({ userId }: { userId: string }) {
       </div>
 
       {report && <BattleOverlay report={report} onClose={closeReport} />}
-    </div>
+    </>
   )
 }

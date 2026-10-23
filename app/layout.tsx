@@ -1,5 +1,9 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import '@fontsource/lilita-one/400.css'
+import '@fontsource/nunito/400.css'
+import '@fontsource/nunito/700.css'
+import '@fontsource/nunito/800.css'
 import './globals.css'
 
 /** Default metadata of every page. */
@@ -16,15 +20,13 @@ export const metadata: Metadata = {
  * typecheck fail on a fresh clone.
  *
  * @param props - Layout props.
- * @param props.children - Page content rendered inside `<main>`.
+ * @param props.children - Page content, which provides its own `<main>`.
  * @returns The `<html>` document of the application.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
-      <body>
-        <main>{children}</main>
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

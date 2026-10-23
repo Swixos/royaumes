@@ -116,7 +116,12 @@ export function AccountScreen() {
             onChange={(e) => setConfirmation(e.target.value)}
             autoComplete="off"
           />
-          <button type="button" disabled={busy || confirmation !== CONFIRMATION} onClick={erase}>
+          <button
+            type="button"
+            className="danger"
+            disabled={busy || confirmation !== CONFIRMATION}
+            onClick={erase}
+          >
             Supprimer mon compte
           </button>
         </div>
