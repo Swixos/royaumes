@@ -40,6 +40,7 @@ aucune n'est obligatoire. Pour définir vos propres valeurs, copiez ce fichier e
 | `pnpm typecheck` | Vérification des types (TypeScript) |
 | `pnpm test` | Exécution des tests (Vitest) |
 | `pnpm test:coverage` | Exécution des tests et mesure de la couverture (rapport dans `coverage/`) |
+| `pnpm test:e2e` | Tests de bout en bout de l'interface (Playwright), sur une construction de production démarrée sur le port 3100 |
 | `pnpm verify` | Ensemble des contrôles, à exécuter avant toute publication |
 | `pnpm db:generate --name <nom>` | Production d'une migration après la modification d'un fichier `schema.ts` |
 | `pnpm exec tsx scripts/simulate-dungeon.ts` | Mesure de l'équilibre du Donjon par la simulation d'expéditions |
@@ -81,6 +82,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
+| `fleet` | Flotte : raids navals contre les villages des autres joueurs et contre des îles pirates pilotées par l'ordinateur, saga avec le Village, posture défensive et alertes en temps réel | `/api/fleet` |
 
 ## Temps réel
 
@@ -93,6 +95,11 @@ La plupart des canaux correspondent à un flux du journal d'événements. Les ca
 et `market` sont des canaux globaux : ils suivent, dans tout le journal, les événements qui
 modifient le classement ou la liste des offres, et ne transmettent que ceux qui sont
 enregistrés après leur ouverture.
+
+Le canal `harbor-<joueur>` est le port de la Flotte : il correspond au flux du port, et n'est
+accessible qu'à son propriétaire. Il annonce les flottes ennemies en approche, celles qui font
+demi-tour et les rapports de bataille ; la tactique d'une flotte n'y figure jamais avant la
+bataille.
 
 Le canal `tavern` ne lit pas le journal, mais la table des messages de la Taverne : il
 transmet chaque nouveau message, avec son contenu, à tous les joueurs connectés.
@@ -116,6 +123,32 @@ est garantie au moins une fois : les gestionnaires de messages sont idempotents.
 échoue dix fois est abandonné : la tâche quotidienne le signale, et le script
 `scripts/dead-letters.ts` permet de l'examiner, puis de le relancer une fois sa cause corrigée.
 
+## La Flotte
+
+Inspirée des raids navals de Grepolis, la Flotte est le module de l'évaluation finale
+([fiche de cadrage](docs/evaluation/fiche-cadrage.md), [rendu](docs/evaluation/rendu.md)).
+Un joueur arme de 1 à 10 trirèmes avec les ressources de son village, choisit une tactique
+(éperonnage, abordage ou blocus, qui se battent en triangle) et lance un raid contre le village
+d'un autre joueur ou contre une île pirate. La flotte traverse la mer pendant 2 à 6 minutes ; le
+défenseur est alerté en temps réel, et peut changer de posture. À l'arrivée, la bataille se
+résout sans hasard ; une flotte victorieuse pille ce que ses cales emportent, et une flotte
+rappelée avant l'arrivée rend son équipement. Les capitaines pirates parent la tactique que
+l'attaquant emploie le plus contre eux.
+
+| Route | Rôle |
+| --- | --- |
+| `GET /api/fleet/targets?search=` | Cibles : villages les plus proches, ou dont le nom contient la recherche, et îles pirates |
+| `GET /api/fleet/raids` | Raids lancés et subis par le joueur |
+| `POST /api/fleet/raids` | Lancement d'un raid |
+| `GET /api/fleet/raids/:id` | Vue d'un raid, pour son attaquant ou son défenseur |
+| `POST /api/fleet/raids/:id/recall` | Rappel de la flotte par son attaquant |
+| `GET /api/fleet/harbor` | Posture et avis du port du joueur |
+| `PUT /api/fleet/harbor/posture` | Choix de la posture défensive du port |
+
+L'arrivée d'une flotte est une échéance sans tâche de fond : elle est résolue par un message
+différé de la boîte d'envoi, ou par la première lecture de la Flotte après l'heure d'arrivée
+(ADR 0012).
+
 ## Service Village extrait
 
 Le module Village peut s'exécuter dans un service autonome, avec sa propre base (ADR 0009).
@@ -137,9 +170,15 @@ Le jeu traite des données personnelles, recensées dans le
 page « Mes données » :
 
 - télécharger l'ensemble de ses données au format JSON (`GET /api/account/export`) ;
+- corriger son nom (`PUT /api/account/name`) : le nouveau nom remplace l'ancien dans son
+  compte, dans le journal d'événements et dans les tables de tous les modules (ADR 0015) ;
 - supprimer son compte (`DELETE /api/account`) : ses données sont supprimées des tables de
   tous les modules, et son nom est remplacé par une mention neutre dans le journal
   d'événements (ADR 0008). Chaque effacement est consigné dans `platform.erasures`.
+
+La Flotte conserve les noms de l'attaquant et du défenseur dans les événements de chaque raid
+et dans les avis des ports, le nom du village visé, la tactique, la posture défensive et le
+butin. Ses messages de la boîte d'envoi ne portent que des identifiants.
 
 Les messages de la Taverne sont conservés trente jours, et la présence d'un joueur deux
 minutes après son dernier signal. Ces durées sont appliquées à chaque lecture, et chaque jour
@@ -153,7 +192,8 @@ démarrage. Pour repartir d'une base vide, arrêtez le serveur et supprimez le r
 
 Les tests utilisent une base PGlite en mémoire, recréée pour chaque fichier de test.
 
-Le classement et la liste des expéditions ouvertes sont des modèles de lecture, tenus à jour
+Le classement, la liste des expéditions ouvertes, celle des offres et les cibles et raids de
+la Flotte sont des modèles de lecture, tenus à jour
 par des projections à partir du journal d'événements (ADR 0006). Chaque projection est
 rattrapée à la consultation, et reconstruite automatiquement lorsque sa version change :
 une modification qui change le contenu de ses tables doit donc augmenter sa version.
@@ -167,7 +207,17 @@ Le script `scripts/load-test.ts` mesure le débit et les latences des principale
 sous une charge de vingt connexions simultanées, et confronte les résultats au budget de
 performance de `perf/budget.json` : 99 % des lectures servies en moins de 500 ms, sans
 erreur. Il est exécuté sur la construction de production, base recréée, avec
-`AUTH_RATE_LIMIT=off`, avant chaque publication qui touche aux performances.
+`AUTH_RATE_LIMIT=off`, avant chaque publication qui touche aux performances. Il couvre les
+trois lectures de la Flotte (cibles, raids, port) ; la dernière mesure est
+`perf/flotte.json`.
+
+## Tests de bout en bout
+
+Les tests du répertoire `e2e/` pilotent l'interface dans un navigateur (Playwright) : un raid
+entre deux joueurs, avec l'alerte en temps réel du défenseur et le rappel de la flotte ; le
+choix de la posture et la prévision d'une bataille contre une île pirate ; la rectification
+du nom d'un joueur. `pnpm test:e2e` construit l'application, la démarre sur le port 3100 avec
+la base locale, puis exécute les tests.
 
 ## Déploiement
 
@@ -188,9 +238,12 @@ sans la première ; sans la seconde, la route des tâches quotidiennes reste fer
 - [Revue de sécurité de l'authentification](docs/qualite/revue-securite-authentification.md)
 - [Revue de sécurité du Donjon](docs/qualite/revue-securite-donjon.md)
 - [Revue de sécurité du Marché](docs/qualite/revue-securite-marche.md)
+- [Revue de sécurité de la Flotte](docs/qualite/revue-securite-flotte.md)
 - [Registre des traitements](docs/rgpd/registre-traitements.md)
 - [Revue de conformité au RGPD](docs/rgpd/revue-conformite.md)
 - [Bilan technique](docs/bilan-technique.md)
+- [Fiche de cadrage de l'évaluation](docs/evaluation/fiche-cadrage.md)
+- [Rendu de l'évaluation](docs/evaluation/rendu.md)
 
 ## Conventions
 
@@ -220,6 +273,14 @@ quotidienne.
 L'effacement d'un compte parcourt tout le journal d'événements : sa durée croît avec la taille
 du journal. L'identifiant d'un joueur effacé reste dans le journal, sous une forme
 pseudonymisée : plus aucune table ne le relie à une personne (ADR 0008).
+
+Les règles de la Flotte qui portent sur plusieurs raids, deux flottes en mer au plus et une
+attaque par île et par jour, sont vérifiées sur le modèle de lecture : deux lancements au même
+instant peuvent les franchir (DT-014). Les cibles sont choisies parmi tous les villages du jeu,
+lus à chaque consultation (DT-015). Les avis d'un port sont conservés sans limite de durée
+(DT-016). Une bataille dont aucun joueur ne lit la Flotte n'a lieu qu'à la distribution
+suivante de la boîte d'envoi, au plus tard lors de la tâche quotidienne. Les tests de bout en
+bout ne font pas partie de `pnpm verify`, et utilisent la base locale de développement.
 
 Le service Village extrait n'est pas prêt pour la production : ses migrations, la pagination
 de son flux publié et la distribution de sa boîte d'envoi restent à traiter. Ces limites, et
