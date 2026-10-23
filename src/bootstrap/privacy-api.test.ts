@@ -192,3 +192,89 @@ describe('Droits des joueurs - durée de conservation', () => {
     expect(reports.outbox.ok).toBe(true)
   })
 })
+
+describe('Droits des joueurs - rectification du nom', () => {
+  /**
+   * Rectifies the name of a player.
+   *
+   * @param api - Test application.
+   * @param name - Name sent.
+   * @param player - Player sending the request; Alice by default, none if null.
+   * @returns The response.
+   */
+  const rectify = (api: TestApi, name: unknown, player: string | null = 'alice') =>
+    api.api.request('/api/account/name', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...(player ? { 'x-test-user': player } : {}) },
+      body: JSON.stringify({ name }),
+    })
+
+  it('refuse une requête anonyme (401), et un nom invalide ou réservé (400)', async () => {
+    const api = await createTestApi()
+    expect((await rectify(api, 'Aliénor', null)).status).toBe(401)
+    expect((await rectify(api, 'A')).status).toBe(400)
+    expect((await rectify(api, 'x'.repeat(41))).status).toBe(400)
+    expect((await rectify(api, 'Joueur effacé')).status).toBe(400)
+  })
+
+  it('remplace le nom du joueur dans son compte, le journal et les tables de tous les modules', async () => {
+    const { api, gameId } = await aliceHasPlayed()
+    await api.db.execute(
+      sql`INSERT INTO identity.user (id, name, email) VALUES ('alice', 'alice', 'alice@example.com')`,
+    )
+    await api.post(
+      '/api/fleet/raids',
+      { target: { kind: 'village', playerId: 'bob' }, ships: 1, tactic: 'ram' },
+      'alice',
+    )
+
+    const res = await rectify(api, '  Aliénor  ')
+    expect(await res.json()).toEqual({ name: 'Aliénor', eventsRewritten: 4 })
+
+    const [account] = await query<{ name: string }>(api, sql`SELECT name FROM identity.user`)
+    expect(account.name).toBe('Aliénor')
+    expect(await eventData(api, `dungeon-${gameId}`, 'GameCreated')).toMatchObject({
+      hostId: 'alice',
+      hostName: 'Aliénor',
+    })
+    expect(await eventData(api, `dungeon-${gameId}`, 'PlayerJoined')).toMatchObject({ name: 'bob' })
+    expect(await eventData(api, 'village-alice', 'VillageFounded')).toMatchObject({
+      name: 'Valombre',
+    })
+
+    const games = await (await api.get('/api/dungeon/games', 'carol')).json()
+    expect(games.games).toMatchObject([{ gameId, hostName: 'Aliénor' }])
+    const offers = await (await api.get('/api/market/offers', 'carol')).json()
+    expect(offers.offers).toMatchObject([{ sellerName: 'Aliénor' }])
+    const messages = await (await api.get('/api/tavern/messages', 'bob')).json()
+    expect(messages.messages.map((m: { authorName: string }) => m.authorName)).toEqual([
+      'Aliénor',
+      'bob',
+    ])
+    expect((await rankingOf(api, 'alice'))?.label).toBe('Aliénor')
+    const harbor = await (await api.get('/api/fleet/harbor', 'bob')).json()
+    expect(harbor.log[0].data.attackerName).toBe('Aliénor')
+    const raids = await (await api.get('/api/fleet/raids', 'alice')).json()
+    expect(raids.raids[0].attackerName).toBe('Aliénor')
+  })
+
+  it("n'enregistre rien au registre des effacements, et peut être relancée sans effet", async () => {
+    const { api } = await aliceHasPlayed()
+    await rectify(api, 'Aliénor')
+    expect(await (await rectify(api, 'Aliénor')).json()).toEqual({
+      name: 'Aliénor',
+      eventsRewritten: 0,
+    })
+    expect(await query(api, sql`SELECT * FROM platform.erasures`)).toEqual([])
+  })
+
+  it('donne le même classement après une reconstruction de la projection', async () => {
+    const { api } = await aliceHasPlayed()
+    await rankingOf(api, 'alice')
+    await rectify(api, 'Aliénor')
+    const corrected = await rankingOf(api, 'alice')
+
+    await createProjectionRunner(api.db).rebuild(rankingProjection)
+    expect(await rankingOf(api, 'alice')).toEqual(corrected)
+  })
+})

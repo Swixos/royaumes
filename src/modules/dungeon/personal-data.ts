@@ -13,6 +13,44 @@ import { openGames } from './infrastructure/schema'
  */
 const gameIdOf = (event: StoredEvent) => event.stream.slice(GAME_CHANNEL_PREFIX.length)
 
+/**
+ * Rewrites a dungeon event with a new name of the player: their name as host of an
+ * expedition, or as a player who joined one. It serves both erasure, with the neutral
+ * name, and rectification.
+ *
+ * @param event - Candidate event.
+ * @param playerId - Identifier of the player.
+ * @param name - Name to write.
+ * @returns The rewritten data, or null if the event holds no copy of the player's name.
+ */
+function renameInGame(event: StoredEvent, playerId: string, name: string) {
+  if (!event.stream.startsWith(GAME_CHANNEL_PREFIX)) return null
+  if (event.type === 'GameCreated' && event.data.hostId === playerId) {
+    return event.data.hostName === name ? null : { ...event.data, hostName: name }
+  }
+  if (event.type === 'PlayerJoined' && event.data.playerId === playerId) {
+    return event.data.name === name ? null : { ...event.data, name }
+  }
+  return null
+}
+
+/**
+ * Updates the host name of the open expeditions hosted by the player, found among the
+ * rewritten events.
+ *
+ * @param db - Database holding the open expeditions.
+ * @param rewritten - Rewritten events.
+ * @param name - Name to write.
+ * @returns Resolves once the table is updated.
+ */
+async function renameHost(db: Db, rewritten: StoredEvent[], name: string) {
+  const hosted = rewritten
+    .filter((event) => event.type === 'GameCreated' && event.stream.startsWith(GAME_CHANNEL_PREFIX))
+    .map(gameIdOf)
+  if (hosted.length === 0) return
+  await db.update(openGames).set({ hostName: name }).where(inArray(openGames.gameId, hosted))
+}
+
 /** Participation of a player in an expedition, as shown in the export. */
 interface Participation {
   /** Expedition identifier. */
@@ -30,7 +68,8 @@ interface Participation {
  * into the events of each expedition they opened or joined. The export shows the player's
  * participations rather than the events themselves, which hold the expedition seed and the
  * names of the other players. On erasure, the open games list, which holds the host name,
- * gets the name replaced for the expeditions whose `GameCreated` event was just rewritten.
+ * gets the name replaced for the expeditions whose `GameCreated` event was just rewritten;
+ * a rectification of the name updates the same rows with the new name.
  *
  * @param store - Platform event store.
  * @param db - Database holding the open games table.
@@ -61,28 +100,16 @@ export function createDungeonPersonalData(store: EventStore, db: Db): PersonalDa
       return { expeditions: [...games.values()] }
     },
 
-    redact(event, playerId) {
-      if (!event.stream.startsWith(GAME_CHANNEL_PREFIX)) return null
-      if (event.type === 'GameCreated' && event.data.hostId === playerId) {
-        return event.data.hostName === ERASED_NAME ? null : { ...event.data, hostName: ERASED_NAME }
-      }
-      if (event.type === 'PlayerJoined' && event.data.playerId === playerId) {
-        return event.data.name === ERASED_NAME ? null : { ...event.data, name: ERASED_NAME }
-      }
-      return null
-    },
+    rename: renameInGame,
+
+    redact: (event, playerId) => renameInGame(event, playerId, ERASED_NAME),
 
     async erase(_playerId, rewritten) {
-      const hosted = rewritten
-        .filter(
-          (event) => event.type === 'GameCreated' && event.stream.startsWith(GAME_CHANNEL_PREFIX),
-        )
-        .map(gameIdOf)
-      if (hosted.length === 0) return
-      await db
-        .update(openGames)
-        .set({ hostName: ERASED_NAME })
-        .where(inArray(openGames.gameId, hosted))
+      await renameHost(db, rewritten, ERASED_NAME)
+    },
+
+    async rectify(_playerId, name, rewritten) {
+      await renameHost(db, rewritten, name)
     },
   }
 }
