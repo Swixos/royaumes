@@ -9,7 +9,7 @@ import {
   type RaidCommand,
   type RaidState,
 } from './raid'
-import { requestsFor } from './saga'
+import { noticeOf, requestsFor } from './saga'
 import { toView } from './view'
 
 const T0 = Date.UTC(2026, 0, 1)
@@ -146,19 +146,18 @@ describe("Flotte - lancement d'un raid", () => {
     expect(state).toMatchObject({ status: 'at-sea', arrivesAt })
     expect(requests).toEqual([
       { kind: 'arrive', raidId: 'r1', at: arrivesAt },
-      {
-        kind: 'notice',
-        playerId: 'bob',
-        notice: {
-          kind: 'sighted',
-          raidId: 'r1',
-          attackerId: 'alice',
-          attackerName: 'Alice',
-          ships: 3,
-          arrivesAt,
-        },
-      },
+      { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'sighted' },
     ])
+    expect(noticeOf(state, 'sighted', 'bob')).toEqual({
+      kind: 'sighted',
+      raidId: 'r1',
+      attackerId: 'alice',
+      attackerName: 'Alice',
+      ships: 3,
+      arrivesAt,
+    })
+    expect(noticeOf(state, 'sighted', 'alice')).toBeNull()
+    expect(noticeOf(state, 'report', 'bob')).toBeNull()
   })
 
   it('ignore une réponse en double ou inattendue', () => {
@@ -184,7 +183,7 @@ describe('Flotte - rappel de la flotte (compensation)', () => {
         playerId: 'alice',
         resources: { wood: 45, stone: 15 },
       },
-      { kind: 'notice', playerId: 'bob', notice: { kind: 'turned-back', raidId: 'r1' } },
+      { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'turned-back' },
     ])
   })
 
@@ -216,33 +215,28 @@ describe('Flotte - bataille et pillage', () => {
     expect(state.battle).toEqual({ attack: 15, defense: 25, posture: 'blockade', victory: false })
     expect(state.status).toBe('sunk')
     expect(requests).toEqual([
-      {
-        kind: 'notice',
-        playerId: 'alice',
-        notice: {
-          kind: 'report',
-          raidId: 'r1',
-          role: 'attacker',
-          won: false,
-          opponentId: 'bob',
-          opponentName: 'Port de Bob',
-          loot: {},
-        },
-      },
-      {
-        kind: 'notice',
-        playerId: 'bob',
-        notice: {
-          kind: 'report',
-          raidId: 'r1',
-          role: 'defender',
-          won: true,
-          opponentId: 'alice',
-          opponentName: 'Alice',
-          loot: {},
-        },
-      },
+      { kind: 'notice', playerId: 'alice', raidId: 'r1', notice: 'report' },
+      { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'report' },
     ])
+    expect(noticeOf(state, 'report', 'alice')).toEqual({
+      kind: 'report',
+      raidId: 'r1',
+      role: 'attacker',
+      won: false,
+      opponentId: 'bob',
+      opponentName: 'Port de Bob',
+      loot: {},
+    })
+    expect(noticeOf(state, 'report', 'bob')).toEqual({
+      kind: 'report',
+      raidId: 'r1',
+      role: 'defender',
+      won: true,
+      opponentId: 'alice',
+      opponentName: 'Alice',
+      loot: {},
+    })
+    expect(noticeOf(state, 'report', 'carol')).toBeNull()
   })
 
   it('règle 10 : un village sans posture choisie défend en blocus', () => {

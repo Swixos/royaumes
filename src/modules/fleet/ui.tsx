@@ -1,6 +1,6 @@
 'use client'
 import { hc } from 'hono/client'
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { look } from '@/ui/theme'
@@ -813,23 +813,34 @@ export function FleetScreen({ userId }: { userId: string }) {
   const [report, setReport] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
   const closeReport = useCallback(() => setReport(null), [])
+  const [draft, setDraft] = useState('')
+  const [search, setSearch] = useState('')
+  const latest = useRef(0)
 
   /**
    * Reloads the targets, the raids and the harbor; on the server, reading settles the
-   * fleets past their arrival and dispatches the outbox.
+   * fleets past their arrival and dispatches the outbox. Only the latest reload is shown:
+   * a slower, older one never overwrites the result of a search.
    *
    * @returns Resolves once the three reads are received.
    */
   const refresh = useCallback(async () => {
+    const call = ++latest.current
     const [t, r, h] = await Promise.all([
-      client.targets.$get(),
+      client.targets.$get({ query: search ? { search } : {} }),
       client.raids.$get(),
       client.harbor.$get(),
     ])
-    if (t.ok) setTargets(await t.json())
-    if (r.ok) setRaids((await r.json()).raids)
-    if (h.ok) setHarbor(await h.json())
-  }, [])
+    const [targetsBody, raidsBody, harborBody] = await Promise.all([
+      t.ok ? t.json() : null,
+      r.ok ? r.json() : null,
+      h.ok ? h.json() : null,
+    ])
+    if (call !== latest.current) return
+    if (targetsBody) setTargets(targetsBody)
+    if (raidsBody) setRaids(raidsBody.raids)
+    if (harborBody) setHarbor(harborBody)
+  }, [search])
 
   useEffect(() => {
     refresh()
@@ -1000,6 +1011,40 @@ export function FleetScreen({ userId }: { userId: string }) {
 
       <div className={styles.layout}>
         <div className={styles.main}>
+          <form
+            className={styles.search}
+            aria-label="Rechercher un port"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const term = draft.trim()
+              if (term === search) refresh()
+              else setSearch(term)
+            }}
+          >
+            <label htmlFor="harbor-search" className="sr-only">
+              Rechercher un port
+            </label>
+            <input
+              id="harbor-search"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Rechercher un port par son nom..."
+              maxLength={30}
+            />
+            <button type="submit">Scruter l'horizon</button>
+            {search && (
+              <button
+                type="button"
+                className={styles.recall}
+                onClick={() => {
+                  setDraft('')
+                  setSearch('')
+                }}
+              >
+                Ports voisins
+              </button>
+            )}
+          </form>
           {targets ? (
             <SeaMap
               userId={userId}

@@ -46,7 +46,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
   }
 
   return {
-    async targets(viewerId, now) {
+    async targets(viewerId, now, search) {
       const position = await fresh()
       // DETTE TECHNIQUE DT-015 (docs/qualite/dette-technique.md): every village is read to keep
       // the nearest ones, since the crossing time is computed, not stored.
@@ -74,6 +74,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           : null,
         villages: rows
           .filter((row) => row.playerId !== viewerId)
+          .filter((row) => !search || row.villageName.toLowerCase().includes(search.toLowerCase()))
           .map((row) => ({
             playerId: row.playerId,
             name: row.villageName,

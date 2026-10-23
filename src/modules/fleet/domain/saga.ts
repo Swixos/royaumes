@@ -17,8 +17,12 @@ export type SagaRequest =
   | { kind: 'deposit'; transferId: string; playerId: string; resources: Amounts }
   /** Reminder addressed to the raid itself at the arrival of its fleet. */
   | { kind: 'arrive'; raidId: string; at: number }
-  /** Notice addressed to a player's harbor. */
-  | { kind: 'notice'; playerId: string; notice: HarborNotice }
+  /**
+   * Notice addressed to a player's harbor. It only names the raid and the kind of notice:
+   * the names of the players are read from the raid when the notice is recorded, so the
+   * outbox, which keeps the messages, holds no name.
+   */
+  | { kind: 'notice'; playerId: string; raidId: string; notice: HarborNotice['kind'] }
 
 /**
  * Lists the requests triggered by an event:
@@ -39,6 +43,28 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
   const id = (step: string) => transferIdOf(state.raidId, step)
   const defender = state.target.kind === 'village' ? state.target.playerId : null
   const raidId = state.raidId
+  /**
+   * Builds a notice request.
+   *
+   * @param playerId - Owner of the harbor.
+   * @param notice - Kind of notice.
+   * @returns The request.
+   */
+  const notice = (playerId: string, notice: HarborNotice['kind']): SagaRequest => ({
+    kind: 'notice',
+    playerId,
+    raidId,
+    notice,
+  })
+  /**
+   * Builds the battle reports addressed to the attacker and, for a village, its owner.
+   *
+   * @returns The notice requests.
+   */
+  const reports = () => [
+    notice(state.attackerId, 'report'),
+    ...(defender ? [notice(defender, 'report')] : []),
+  ]
 
   switch (event.type) {
     case 'RaidLaunched':
@@ -51,59 +77,36 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
         },
       ]
 
-    case 'FleetSailed': {
-      const requests: SagaRequest[] = [{ kind: 'arrive', raidId, at: state.arrivesAt }]
-      if (defender) {
-        requests.push({
-          kind: 'notice',
-          playerId: defender,
-          notice: {
-            kind: 'sighted',
-            raidId,
-            attackerId: state.attackerId,
-            attackerName: state.attackerName,
-            ships: state.ships,
-            arrivesAt: state.arrivesAt,
-          },
-        })
-      }
-      return requests
-    }
+    case 'FleetSailed':
+      return [
+        { kind: 'arrive', raidId, at: state.arrivesAt },
+        ...(defender ? [notice(defender, 'sighted')] : []),
+      ]
 
     case 'FleetRecalled':
-    case 'RaidAborted': {
-      const requests: SagaRequest[] = [
+    case 'RaidAborted':
+      return [
         {
           kind: 'deposit',
           transferId: id('refund'),
           playerId: state.attackerId,
           resources: state.cost,
         },
+        ...(defender && event.type === 'FleetRecalled' ? [notice(defender, 'turned-back')] : []),
       ]
-      if (defender && event.type === 'FleetRecalled') {
-        requests.push({
-          kind: 'notice',
-          playerId: defender,
-          notice: { kind: 'turned-back', raidId },
-        })
-      }
-      return requests
-    }
 
     case 'BattleFought':
-      if (event.data.victory) {
-        return defender
-          ? [
-              {
-                kind: 'withdraw',
-                transferId: id('plunder-1'),
-                playerId: defender,
-                resources: state.plunderAsked,
-              },
-            ]
-          : []
-      }
-      return reports(state, {})
+      if (!event.data.victory) return reports()
+      return defender
+        ? [
+            {
+              kind: 'withdraw',
+              transferId: id('plunder-1'),
+              playerId: defender,
+              resources: state.plunderAsked,
+            },
+          ]
+        : []
 
     case 'PlunderReduced':
       return [
@@ -120,7 +123,7 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
       const delivery: SagaRequest[] = isEmpty(loot)
         ? []
         : [{ kind: 'deposit', transferId: id('loot'), playerId: state.attackerId, resources: loot }]
-      return [...delivery, ...reports(state, loot)]
+      return [...delivery, ...reports()]
     }
 
     case 'RaidCancelled':
@@ -129,45 +132,64 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
 }
 
 /**
- * Builds the battle reports addressed to the attacker and, for a village, its owner.
+ * Builds the notice a harbor records for a raid, from the state of the raid when the
+ * notice is handled. The defender never learns the tactic of the fleet from a notice.
  *
- * @param state - Raid after its battle.
- * @param loot - Plunder taken; empty after a defeat.
- * @returns The notice requests.
+ * @param state - Current raid state.
+ * @param kind - Kind of notice.
+ * @param playerId - Owner of the harbor.
+ * @returns The notice, or null if the raid does not concern the player, or has not
+ *   reached the stage the notice reports.
  */
-function reports(state: RaidState, loot: Amounts): SagaRequest[] {
-  const won = state.battle?.victory ?? false
+export function noticeOf(
+  state: RaidState,
+  kind: HarborNotice['kind'],
+  playerId: string,
+): HarborNotice | null {
+  if (!state.exists) return null
   const raidId = state.raidId
-  const targetId = state.target.kind === 'village' ? state.target.playerId : state.target.islandId
-  const requests: SagaRequest[] = [
-    {
-      kind: 'notice',
-      playerId: state.attackerId,
-      notice: {
-        kind: 'report',
-        raidId,
-        role: 'attacker',
-        won,
-        opponentId: targetId,
-        opponentName: state.target.name,
-        loot,
-      },
-    },
-  ]
-  if (state.target.kind === 'village') {
-    requests.push({
-      kind: 'notice',
-      playerId: state.target.playerId,
-      notice: {
-        kind: 'report',
-        raidId,
-        role: 'defender',
-        won: !won,
-        opponentId: state.attackerId,
-        opponentName: state.attackerName,
-        loot,
-      },
-    })
+  const defender = state.target.kind === 'village' && state.target.playerId === playerId
+  const attacker = state.attackerId === playerId
+  if (!attacker && !defender) return null
+
+  switch (kind) {
+    case 'sighted':
+      return defender
+        ? {
+            kind,
+            raidId,
+            attackerId: state.attackerId,
+            attackerName: state.attackerName,
+            ships: state.ships,
+            arrivesAt: state.arrivesAt,
+          }
+        : null
+    case 'turned-back':
+      return defender ? { kind, raidId } : null
+    case 'report': {
+      if (!state.battle) return null
+      const won = state.battle.victory
+      const targetId =
+        state.target.kind === 'village' ? state.target.playerId : state.target.islandId
+      return attacker
+        ? {
+            kind,
+            raidId,
+            role: 'attacker',
+            won,
+            opponentId: targetId,
+            opponentName: state.target.name,
+            loot: state.loot ?? {},
+          }
+        : {
+            kind,
+            raidId,
+            role: 'defender',
+            won: !won,
+            opponentId: state.attackerId,
+            opponentName: state.attackerName,
+            loot: state.loot ?? {},
+          }
+    }
   }
-  return requests
 }

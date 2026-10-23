@@ -43,6 +43,8 @@ export function createEventStoreRaidRepository(store: EventStore): RaidRepositor
 export function createEventStoreHarborRepository(store: EventStore): HarborRepository {
   return {
     async load(playerId) {
+      // DETTE TECHNIQUE DT-016 (docs/qualite/dette-technique.md): the notices of a harbor are
+      // kept forever, and the whole stream is read to rebuild it.
       const stored = await store.read(harborChannel(playerId))
       const events = stored.map((e) => ({ type: e.type, data: e.data }) as HarborEvent)
       return {

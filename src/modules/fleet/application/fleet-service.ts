@@ -13,7 +13,7 @@ import {
   type RaidEvent,
   type RaidState,
 } from '../domain/raid'
-import { requestsFor, type SagaRequest } from '../domain/saga'
+import { noticeOf, requestsFor, type SagaRequest } from '../domain/saga'
 import { type RaidView, toView } from '../domain/view'
 import type { FleetReader } from './fleet-reader'
 import type { HarborRepository, RaidRepository } from './raid-repository'
@@ -83,7 +83,7 @@ function toMessage(request: SagaRequest, now: number): NewMessage {
     case 'notice':
       return {
         topic: FLEET_TOPICS.notice,
-        payload: { playerId: request.playerId, notice: request.notice },
+        payload: { playerId: request.playerId, raidId: request.raidId, notice: request.notice },
       }
   }
 }
@@ -225,8 +225,8 @@ export function createFleetService(
   async function launch(player: Player, target: TargetChoice, ships: number, tactic: Tactic) {
     const raidId = newId()
     const result = await execute(raidId, player.id, async () => {
-      // DETTE TECHNIQUE DT-014 (docs/qualite/dette-technique.md): rule 3 is checked on the
-      // read model, so two launches at the same instant may both see a single fleet out.
+      // DETTE TECHNIQUE DT-014 (docs/qualite/dette-technique.md): rules 3 and 12 are checked
+      // on the read model, so two launches at the same instant may both pass them.
       const raidsOut = await reader.raidsOut(player.id)
       if (target.kind === 'pirates') {
         return {
@@ -301,11 +301,12 @@ export function createFleetService(
    * Lists the targets of a player.
    *
    * @param viewerId - Identifier of the viewing player.
+   * @param search - Part of a village name to look for; the nearest villages without it.
    * @returns The targets, with their log position.
    */
-  async function targets(viewerId: string) {
+  async function targets(viewerId: string, search?: string) {
     await settle(viewerId)
-    return reader.targets(viewerId, clock())
+    return reader.targets(viewerId, clock(), search)
   }
 
   /**
@@ -373,14 +374,22 @@ export function createFleetService(
   }
 
   /**
-   * Records a notice in a player's harbor, triggered by a message.
+   * Records a notice in a player's harbor, triggered by a message. The notice is built
+   * from the raid as it stands, so the names it shows are those of the log, rewritten if
+   * a player was erased in the meantime.
    *
    * @param playerId - Owner of the harbor.
-   * @param notice - Notice of a raid.
+   * @param raidId - Raid the notice is about.
+   * @param kind - Kind of notice.
    * @returns Resolves once the notice is recorded; a duplicate records nothing.
+   * @throws Error if the raid cannot produce this notice for the player.
    */
-  const notify = (playerId: string, notice: HarborNotice) =>
-    onHarbor(playerId, { type: 'RecordNotice', notice })
+  async function notify(playerId: string, raidId: string, kind: HarborNotice['kind']) {
+    const { state } = await raidsRepo.load(raidId)
+    const notice = noticeOf(state, kind, playerId)
+    if (!notice) throw new Error(`Raid ${raidId} : avis ${kind} impossible pour ${playerId}`)
+    await onHarbor(playerId, { type: 'RecordNotice', notice })
+  }
 
   return { launch, recall, getView, list, targets, harbor, choosePosture, step, arrive, notify }
 }

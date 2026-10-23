@@ -2,7 +2,6 @@ import { z } from 'zod'
 import type { MessageHandler } from '@/platform/outbox/outbox'
 import type { FleetService } from './application/fleet-service'
 import { FLEET_TOPICS } from './contracts'
-import type { HarborNotice } from './domain/harbor'
 import { raidIdOf } from './domain/raid'
 
 /** Reply of the village module to a resource transfer (its `TransferResult` type, checked here). */
@@ -15,32 +14,11 @@ const TransferResultMessage = z.object({
 /** Delayed reminder of a raid. */
 const ArriveMessage = z.object({ raidId: z.string().min(1) })
 
-/** Resource amounts carried by a battle report. */
-const Loot = z.object({ wood: z.number(), stone: z.number(), gold: z.number() }).partial()
-
-/** Notice addressed to a harbor. */
+/** Notice addressed to a harbor: only identifiers, the names are read from the raid. */
 const NoticeMessage = z.object({
   playerId: z.string().min(1),
-  notice: z.discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('sighted'),
-      raidId: z.string().min(1),
-      attackerId: z.string().min(1),
-      attackerName: z.string(),
-      ships: z.number().int(),
-      arrivesAt: z.number(),
-    }),
-    z.object({ kind: z.literal('turned-back'), raidId: z.string().min(1) }),
-    z.object({
-      kind: z.literal('report'),
-      raidId: z.string().min(1),
-      role: z.enum(['attacker', 'defender']),
-      won: z.boolean(),
-      opponentId: z.string().min(1),
-      opponentName: z.string(),
-      loot: Loot,
-    }),
-  ]),
+  raidId: z.string().min(1),
+  notice: z.enum(['sighted', 'turned-back', 'report']),
 })
 
 /**
@@ -70,8 +48,8 @@ export function createFleetHandlers(service: FleetService): Record<string, Messa
     },
 
     [FLEET_TOPICS.notice]: async (message) => {
-      const { playerId, notice } = NoticeMessage.parse(message.payload)
-      await service.notify(playerId, notice as HarborNotice)
+      const { playerId, raidId, notice } = NoticeMessage.parse(message.payload)
+      await service.notify(playerId, raidId, notice)
     },
   }
 }
