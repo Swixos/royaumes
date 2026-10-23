@@ -62,7 +62,7 @@ test('lance un raid, alerte le défenseur en temps réel, puis rappelle la flott
   await openFleet(bob)
 
   await searchHarbor(alice, `Port Gardien ${RUN}`)
-  await alice.getByRole('button', { name: `Cibler Port Gardien ${RUN}` }).click()
+  await alice.getByRole('button', { name: `Cibler Port Gardien ${RUN}` }).click({ delay: 150 })
   await expect(alice.getByText('Conseil de guerre')).toBeVisible()
   await alice.getByRole('button', { name: '2 trirèmes' }).click()
   await alice
@@ -93,7 +93,7 @@ test('choisit la posture du port, et prévoit la bataille contre une île pirate
   await harbor.getByRole('button', { name: /Éperonnage/ }).click()
   await expect(page.locator('dd').filter({ hasText: 'Éperonnage' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click()
+  await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click({ delay: 150 })
   await expect(page.getByText('Défense 25 · traversée 3 min')).toBeVisible()
   await page.getByRole('button', { name: '1 trirème', exact: true }).click()
   await expect(page.locator('dd').filter({ hasText: /Bois\s*15/ })).toBeVisible()
@@ -114,7 +114,7 @@ test("corrige le nom du joueur, repris par la navigation et par les raids qu'il 
   await openFleet(page)
   await openFleet(other)
   await searchHarbor(page, `Port Cible ${RUN}`)
-  await page.getByRole('button', { name: `Cibler Port Cible ${RUN}` }).click()
+  await page.getByRole('button', { name: `Cibler Port Cible ${RUN}` }).click({ delay: 150 })
   await page.getByRole('button', { name: 'Hisser les voiles' }).click()
   await expect(other.getByText(new RegExp(`Corsaire ${RUN} lance 3 trirèmes`))).toBeVisible({
     timeout: 15_000,
