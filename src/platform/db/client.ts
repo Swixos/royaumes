@@ -30,15 +30,17 @@ const MIGRATIONS = path.join(process.cwd(), 'drizzle')
  *
  * - With `DATABASE_URL` (production): hosted PostgreSQL through the pg driver.
  *   Migrations are applied at deploy time, not at startup.
- * - Without it (development): PGlite, storing its data in `.data/pglite` and
- *   applying migrations at startup.
+ * - Without it (development): PGlite, storing its data in `.data/<name>` and
+ *   applying migrations at startup. The name tells apart the databases of several
+ *   processes: the application (`pglite`) and the extracted village service.
  *
  * @param url - PostgreSQL connection string; `DATABASE_URL` by default.
+ * @param name - Name of the local PGlite directory; `pglite` by default.
  * @returns The connection and a promise resolved when the schema is ready.
  * @throws If running on Vercel without `DATABASE_URL`, since PGlite would write
  *   to an ephemeral disk and silently lose data.
  */
-export function createDatabase(url = process.env.DATABASE_URL): Database {
+export function createDatabase(url = process.env.DATABASE_URL, name = 'pglite'): Database {
   if (url) {
     const pool = new Pool({ connectionString: url, max: Number(process.env.DB_POOL_MAX ?? 5) })
     return { db: drizzlePg(pool) as unknown as Db, ready: Promise.resolve() }
@@ -50,7 +52,7 @@ export function createDatabase(url = process.env.DATABASE_URL): Database {
     )
   }
 
-  const dataDir = path.join(process.cwd(), '.data', 'pglite')
+  const dataDir = path.join(process.cwd(), '.data', name)
   mkdirSync(dataDir, { recursive: true })
   const db = drizzlePglite(new PGlite(dataDir))
   return {
@@ -59,23 +61,30 @@ export function createDatabase(url = process.env.DATABASE_URL): Database {
   }
 }
 
-/** Test database shared by every test of the same file. */
-let testDb: Promise<Db> | undefined
+/** Test databases shared by every test of the same file, by name. */
+const testDbs = new Map<string, Promise<Db>>()
 
 /**
- * In-memory PostgreSQL database for tests. A single instance is created per
- * test file, since starting PGlite takes about a second, then every project
- * table is truncated and its identity counters reset before each test.
+ * In-memory PostgreSQL database for tests. A single instance is created per test file
+ * and per name, since starting PGlite takes about a second, then every project table is
+ * truncated and its identity counters reset before each test. A test simulating two
+ * processes, the application and an extracted service, uses two names, so two databases.
  *
+ * @param name - Name of the test database; `default` by default.
  * @returns An empty, migrated test database.
  */
-export async function createTestDatabase(): Promise<Db> {
-  testDb ??= (async () => {
-    const db = drizzlePglite(new PGlite())
-    await migratePglite(db, { migrationsFolder: MIGRATIONS })
-    return db as unknown as Db
-  })()
-  const db = await testDb
+export async function createTestDatabase(name = 'default'): Promise<Db> {
+  if (!testDbs.has(name)) {
+    testDbs.set(
+      name,
+      (async () => {
+        const db = drizzlePglite(new PGlite())
+        await migratePglite(db, { migrationsFolder: MIGRATIONS })
+        return db as unknown as Db
+      })(),
+    )
+  }
+  const db = (await testDbs.get(name)) as Db
 
   await db.execute(
     sql.raw(`DO $$ DECLARE r record; BEGIN

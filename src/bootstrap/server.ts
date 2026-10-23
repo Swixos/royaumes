@@ -30,6 +30,10 @@ const globalForServer = globalThis as unknown as { royaumes?: Server }
  * Real-time streams last 240 s by default, under the 300 s Vercel limit;
  * `STREAM_MAX_SECONDS` shortens them to observe reconnection in development.
  *
+ * The extracted village service is only used when its address (`REALM_SERVICE_URL`) and
+ * the shared secret (`SERVICE_SECRET`) are both set. On Vercel they are not, so the
+ * village runs in the process.
+ *
  * @returns The single server instance.
  */
 export function getServer(): Server {
@@ -38,6 +42,9 @@ export function getServer(): Server {
     const store = createEventStore(db)
     const auth = createBetterAuth(db)
     const maxStreamMs = Number(process.env.STREAM_MAX_SECONDS ?? 240) * 1000
+    const url = process.env.REALM_SERVICE_URL
+    const secret = process.env.SERVICE_SECRET
+    const realmService = url && secret ? { url, secret } : undefined
     globalForServer.royaumes = {
       api: createApi({
         auth,
@@ -46,6 +53,7 @@ export function getServer(): Server {
         ready,
         realtime: { maxStreamMs },
         cronSecret: process.env.CRON_SECRET,
+        realmService,
       }),
       auth,
       ready,

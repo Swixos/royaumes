@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { createDungeonModule } from '@/modules/dungeon'
 import { createMarketModule } from '@/modules/market'
 import { createRankingModule } from '@/modules/ranking'
-import { createRealmModule } from '@/modules/realm'
+import { createRealmModule, createRemoteRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import { createTavernModule } from '@/modules/tavern'
 import { createIdentityPersonalData } from '@/platform/auth/personal-data'
@@ -12,6 +12,7 @@ import type { Db } from '@/platform/db/client'
 import type { EventStore } from '@/platform/event-store/event-store'
 import { requireUser } from '@/platform/http/require-user'
 import type { AppEnv } from '@/platform/http/types'
+import { createInboxApi } from '@/platform/outbox/inbox-api'
 import { createDispatcher, type DispatcherOptions } from '@/platform/outbox/outbox'
 import { createPrivacyService } from '@/platform/privacy/privacy'
 import { createPrivacyApi } from '@/platform/privacy/privacy-api'
@@ -37,6 +38,12 @@ export interface ApiDeps {
   cronSecret?: string
   /** Outbox dispatcher settings; its clock is shifted in tests. */
   outbox?: DispatcherOptions
+  /**
+   * Extracted village service. Without it, the village runs in the process, as on
+   * Vercel; with it, every village function is requested from the service at this
+   * address, authenticated by the shared secret.
+   */
+  realmService?: { url: string; secret: string; fetch?: typeof fetch }
 }
 
 /**
@@ -62,8 +69,14 @@ export interface ApiDeps {
  * secret, not a player session. Abandoned outbox messages produce a warning in the logs:
  * they call for a review with the `scripts/dead-letters.ts` script.
  *
+ * The village runs in the process, or in an extracted service: either way, the rest of
+ * the application gets a module of the same shape. When it is extracted, a daily task
+ * relays the stream it publishes, and the application mounts an inbox for its messages
+ * on `/api/internal`, reserved to the service through the shared secret.
+ *
  * @param deps - Authentication, database, event store, database readiness, optional clock,
- *   real-time settings, scheduled task secret and outbox settings.
+ *   real-time settings, scheduled task secret, outbox settings
+ *   and optional extracted village service.
  * @returns The main Hono application, with every route under `/api`.
  */
 export function createApi({
@@ -75,11 +88,15 @@ export function createApi({
   realtime,
   cronSecret,
   outbox,
+  realmService,
 }: ApiDeps) {
   const projections = createProjectionRunner(db)
   const dispatcher = createDispatcher(db, outbox)
   const system = createSystemModule()
-  const realm = createRealmModule({ store, clock })
+  const remoteRealm = realmService
+    ? createRemoteRealmModule({ ...realmService, store, projections })
+    : null
+  const realm = remoteRealm ?? createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
   const market = createMarketModule({
@@ -142,12 +159,14 @@ export function createApi({
           return result
         },
         tavern: tavern.dailyTask,
+        ...(remoteRealm ? { realm: remoteRealm.dailyTask } : {}),
         // DETTE TECHNIQUE DT-008 (docs/qualite/dette-technique.md): no task deletes expired
         // sessions, so their IP addresses and user agents are kept with no limit.
       },
       cronSecret,
     ),
   )
+  if (realmService) app.route('/internal', createInboxApi(dispatcher, realmService.secret))
 
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))
