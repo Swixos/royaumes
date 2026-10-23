@@ -3,7 +3,7 @@
 - Auteur : Swixos
 - Date : 23 octobre 2026
 - Nom technique du module : `fleet`
-- Validée par l'enseignant le :
+- Validée par l'enseignant le : sans objet, validation non demandée pour cette évaluation
 
 ## L'idée
 
