@@ -17,7 +17,7 @@ export interface RankingEntry {
   gamesPlayed: number
   /** Number of won expeditions. */
   gamesWon: number
-  /** Gold brought back from won expeditions. */
+  /** Gold brought back from won expeditions, and plundered by the player's fleets. */
   gold: number
   /** Number of building upgrades of the village. */
   upgrades: number
