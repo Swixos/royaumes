@@ -1,4 +1,4 @@
-import { asc, eq, gt } from 'drizzle-orm'
+import { asc, eq, gt, max } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import type { StoredEvent } from '../event-store/event-store'
 import { events } from '../event-store/schema'
@@ -150,9 +150,31 @@ export function createProjectionRunner(
   }
 
   /**
+   * Tells whether the projection is up to date: its tables were built by the version of
+   * the code, and its checkpoint reached the last position of the log. Two plain reads,
+   * with no transaction, no lock and no write.
+   *
+   * @param projection - Projection to check.
+   * @returns True if there is nothing to catch up.
+   */
+  async function isUpToDate(projection: Projection): Promise<boolean> {
+    const [checkpoint] = await db
+      .select({ position: projections.position, version: projections.version })
+      .from(projections)
+      .where(eq(projections.name, projection.name))
+    if (!checkpoint || checkpoint.version !== projection.version) return false
+    const [last] = await db.select({ position: max(events.position) }).from(events)
+    return checkpoint.position >= Number(last?.position ?? 0)
+  }
+
+  /**
    * Applies to the projection the events recorded since its checkpoint. Everything
    * happens in a single transaction: the tables and the checkpoint are updated together,
    * or not at all.
+   *
+   * An up-to-date projection takes a fast path: it has nothing to apply, which is by far
+   * the most frequent case since the log changes much less often than it is read, so it
+   * skips the transaction, the checkpoint lock and the write of its update time.
    *
    * If the projection changed since its tables were built, they are emptied and the log
    * is read again from the start. If the tables were built by a newer version, this code
@@ -163,6 +185,7 @@ export function createProjectionRunner(
    * @returns The number of events applied.
    */
   async function catchUp(projection: Projection): Promise<number> {
+    if (await isUpToDate(projection)) return 0
     return db.transaction(async (tx) => {
       const checkpoint = await lock(tx, projection)
 
