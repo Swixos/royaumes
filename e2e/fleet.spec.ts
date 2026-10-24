@@ -21,7 +21,7 @@ async function newPlayer(browser: Browser, name: string): Promise<Page> {
   await page.waitForURL('**/village')
   await page.fill('#name', `Port ${name} ${RUN}`)
   await page.getByText('Fonder').click()
-  await expect(page.getByLabel('Ressources', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Bâtiments' })).toBeVisible()
   return page
 }
 
