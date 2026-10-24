@@ -241,6 +241,15 @@ capitales gravées (Cinzel) et texte en Alegreya, polices embarquées par les pa
 SVG dessinées dans la feuille de style, sans dégradé. Une barre de ressources montre en
 permanence le stock du village, et un menu de médaillons mène aux modules.
 
+Le village est une scène 2D animée, rendue par PixiJS (ADR 0016) : l'île, l'hôtel de ville,
+la scierie au bord de la forêt, la carrière taillée dans la falaise et la mine creusée dans la
+montagne. Chaque bâtiment change d'allure tous les trois niveaux, l'hôtel de ville se dote de
+tours puis de remparts à mesure que le village grandit, et la scène s'anime : fumées,
+villageois sur les routes, ressources produites, vagues et oiseaux. Un clic sur un bâtiment
+ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. Les
+animations de l'interface (rapport de bataille, compteurs, sélecteurs) utilisent la
+bibliothèque Motion, et toutes respectent le réglage système de réduction des animations.
+
 L'apparence de chaque entité du jeu (libellé et couleur) est définie dans `src/ui/theme.ts`,
 et son icône dans `src/ui/game-icons.ts`, produit par `scripts/generate-icons.ts` : seules les
 icônes utilisées sont copiées, sous forme de tracés SVG, dans le code envoyé au navigateur.

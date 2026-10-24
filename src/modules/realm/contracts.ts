@@ -8,8 +8,8 @@
 import { z } from 'zod'
 import { BUILDINGS, type Stock } from './domain/catalog'
 
-export type { Building, Resource, Stock } from './domain/catalog'
-export { BUILDINGS, MAX_LEVEL, RESOURCES } from './domain/catalog'
+export type { Building, Levels, Resource, Stock } from './domain/catalog'
+export { BUILDINGS, CATALOG, MAX_LEVEL, RESOURCES } from './domain/catalog'
 export type { DomainError, VillageView } from './domain/village'
 export { stockAt } from './domain/village'
 
