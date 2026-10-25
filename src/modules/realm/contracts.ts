@@ -17,6 +17,7 @@ export {
   PRODUCTION,
   REQUIREMENTS,
   RESOURCES,
+  STARTING_LEVELS,
   warehouseCapacity,
 } from './domain/catalog'
 export type { Construction, DomainError, VillageView } from './domain/village'

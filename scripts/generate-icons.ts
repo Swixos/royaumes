@@ -60,6 +60,12 @@ const ICONS: Record<string, string> = {
   rank: 'rank-3',
   loot: 'swap-bag',
   history: 'quill-ink',
+  advisor: 'woman-elf-face',
+  quest: 'scroll-quill',
+  chest: 'open-treasure-chest',
+  done: 'check-mark',
+  locked: 'padlock',
+  sparkle: 'sparkles',
 }
 
 const require = createRequire(import.meta.url)
