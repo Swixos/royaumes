@@ -1,7 +1,7 @@
 import { headers } from 'next/headers'
 import { currentUser } from '@/bootstrap/server'
 import { FleetScreen } from '@/modules/fleet/ui'
-import { GameWindow } from '@/ui/game-window'
+import { GameScreen } from '@/ui/game-window'
 
 /**
  * Fleet page. It passes the signed-in player identifier to the component, which uses it
@@ -13,8 +13,8 @@ import { GameWindow } from '@/ui/game-window'
 export default async function FleetPage() {
   const user = await currentUser(await headers())
   return (
-    <GameWindow label="La Flotte">
+    <GameScreen label="La Flotte">
       <FleetScreen userId={user?.id ?? ''} />
-    </GameWindow>
+    </GameScreen>
   )
 }

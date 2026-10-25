@@ -169,7 +169,12 @@ export async function createVillageScene(
   initial: VillageSceneState,
   handlers: VillageSceneHandlers,
 ): Promise<LiveScene<VillageSceneState>> {
-  const { app, world, calm, pause, destroy } = await createStage(host, WORLD_WIDTH, WORLD_HEIGHT)
+  const { app, world, camera, calm, pause, destroy } = await createStage(
+    host,
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    TOWN_HALL,
+  )
   const random = seeded(11)
   let state = initial
   let selected = initial.selected
@@ -323,7 +328,9 @@ export async function createVillageScene(
       tokenClock: random() * 3,
     }
     for (const target of [holder, plaque]) {
-      target.on('pointertap', () => handlers.onSelect(building))
+      target.on('pointertap', () => {
+        if (!camera.dragged()) handlers.onSelect(building)
+      })
       target.on('pointerover', () => {
         hovered = building
         paintSite(site)
@@ -709,6 +716,8 @@ export async function createVillageScene(
       }
     },
     pause,
+    zoom: camera.zoomBy,
+    recenter: camera.reset,
     destroy,
   }
 }
