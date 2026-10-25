@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { currentUser } from '@/bootstrap/server'
 import { DungeonGame } from '@/modules/dungeon/ui'
+import { GameWindow } from '@/ui/game-window'
 
 /**
  * Expedition page. Its address holds the expedition identifier, so sharing it
@@ -13,5 +14,9 @@ import { DungeonGame } from '@/modules/dungeon/ui'
 export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await currentUser(await headers())
-  return <DungeonGame gameId={id} userId={user?.id ?? ''} />
+  return (
+    <GameWindow label="Expédition">
+      <DungeonGame gameId={id} userId={user?.id ?? ''} />
+    </GameWindow>
+  )
 }

@@ -1,10 +1,13 @@
 'use client'
 import { hc } from 'hono/client'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fleetLimits, villageDefense } from '@/modules/fleet/contracts'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
+import { GameWindow, HOME } from '@/ui/game-window'
+import { Icon } from '@/ui/icons'
 import { look } from '@/ui/theme'
 import { useCenteredScroll } from '@/ui/use-centered-scroll'
 import type { RealmApi } from './api'
@@ -152,9 +155,11 @@ const STATUS_LABELS = {
 } as const
 
 /**
- * Village screen: founding form, ticking stock and buildings, kept up to date in
- * real time. Every event of the village, including from another tab or device,
- * triggers a reload of the view ("notify, then reread").
+ * Village screen, drawn under every window of the game: the scene fills the screen, with
+ * the name of the village, the construction queue and the bar of the buildings laid over
+ * it; picking a building opens its window. Before founding, the screen asks for a name.
+ * The view is kept up to date in real time: every event of the village, including from
+ * another tab or device, triggers a reload ("notify, then reread").
  *
  * @param props - Component props.
  * @param props.userId - Signed-in player, naming the village channel.
@@ -164,7 +169,8 @@ export function VillageScreen({ userId }: { userId: string }) {
   const [view, setView] = useState<VillageView | null | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<Building>('senate')
+  const [selected, setSelected] = useState<Building | null>(null)
+  const windowOpen = usePathname() !== HOME
 
   /** Reloads the village view from the API. */
   const refresh = useCallback(async () => {
@@ -231,7 +237,7 @@ export function VillageScreen({ userId }: { userId: string }) {
   }
 
   const title = (
-    <div className="row" style={{ justifyContent: 'space-between' }}>
+    <div className="world-title">
       <h1>
         <Entity kind="village" /> {view?.name ?? 'Royaumes'}
       </h1>
@@ -241,13 +247,13 @@ export function VillageScreen({ userId }: { userId: string }) {
     </div>
   )
 
-  if (view === undefined) return title
+  if (view === undefined) return <div className="village-world">{title}</div>
 
   if (view === null) {
     return (
-      <>
+      <div className="village-world">
         {title}
-        <div className="panel">
+        <div className="panel world-found">
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -260,53 +266,72 @@ export function VillageScreen({ userId }: { userId: string }) {
             {error && <p className="error">{error}</p>}
           </form>
         </div>
-      </>
+      </div>
     )
   }
 
   const stock = stockAt(view, now)
   return (
-    <>
+    <div className="village-world">
+      <VillageScene view={view} selected={selected} paused={windowOpen} onSelect={setSelected} />
       {title}
-      <VillageBoard view={view} now={now} selected={selected} onSelect={setSelected}>
-        <BuildingCard
-          building={selected}
-          view={view}
-          affordable={canAfford(stock, view.nextCosts[selected])}
-          onUpgrade={() => upgrade(selected)}
-          error={error}
-        />
-      </VillageBoard>
-    </>
+      <Works view={view} now={now} onSelect={setSelected} />
+      <section className="village-bar" aria-label="Bâtiments">
+        {BUILDINGS.map((building) => (
+          <button
+            key={building}
+            type="button"
+            aria-pressed={selected === building}
+            onClick={() => setSelected(building)}
+          >
+            <Entity kind={building} />
+            <span className="village-bar-name">{look(building).label}</span>
+            <span className="village-bar-level">{view.levels[building]}</span>
+            {view.queue.some((item) => item.building === building) && (
+              <span className="village-bar-works" title="En chantier">
+                <Entity kind="build" />
+              </span>
+            )}
+          </button>
+        ))}
+      </section>
+      {selected && (
+        <GameWindow label={look(selected).label} size="narrow" onClose={() => setSelected(null)}>
+          <BuildingCard
+            building={selected}
+            view={view}
+            stock={stock}
+            onUpgrade={upgrade}
+            onSelect={setSelected}
+            error={error}
+          />
+        </GameWindow>
+      )}
+    </div>
   )
 }
 
 /**
- * Board of the village, gathering everything on one screen: the scene with the
- * construction queue laid over it, the bar of the buildings under it, and the card of the
- * selected building beside it. On a phone the parts stack, and the scene keeps its size and
- * slides under the finger, starting on the senate.
+ * Scene of the village, filling the screen. On a phone it keeps its proportions and
+ * slides under the finger, starting on the senate. It pauses while a window covers it.
  *
  * @param props - Component props.
  * @param props.view - Current village view.
- * @param props.now - Current time in milliseconds.
- * @param props.selected - Selected building.
- * @param props.onSelect - Called with the building the player picks.
- * @param props.children - Card of the selected building.
- * @returns The board.
+ * @param props.selected - Selected building, or null.
+ * @param props.paused - True while a window covers the village.
+ * @param props.onSelect - Called with the building the player picks in the scene.
+ * @returns The scene.
  */
-function VillageBoard({
+function VillageScene({
   view,
-  now,
   selected,
+  paused,
   onSelect,
-  children,
 }: {
   view: VillageView
-  now: number
-  selected: Building
+  selected: Building | null
+  paused: boolean
   onSelect: (building: Building) => void
-  children: ReactNode
 }) {
   const scroller = useRef<HTMLDivElement>(null)
   useCenteredScroll(scroller, 0.5)
@@ -321,34 +346,9 @@ function VillageBoard({
     [view.name, view.levels, view.ratesPerMinute, view.queue, selected],
   )
   return (
-    <div className="village-board">
-      <section className="village-view" aria-label="Vue du village">
-        <div ref={scroller} className="scene-scroll">
-          <VillageMap state={state} handlers={{ onSelect }} />
-        </div>
-        <Works view={view} now={now} onSelect={onSelect} />
-      </section>
-      <section className="village-bar" aria-label="Bâtiments">
-        {BUILDINGS.map((building) => (
-          <button
-            key={building}
-            type="button"
-            aria-pressed={selected === building}
-            onClick={() => onSelect(building)}
-          >
-            <Entity kind={building} />
-            <span className="village-bar-name">{look(building).label}</span>
-            <span className="village-bar-level">{view.levels[building]}</span>
-            {view.queue.some((item) => item.building === building) && (
-              <span className="village-bar-works" title="En chantier">
-                <Entity kind="build" />
-              </span>
-            )}
-          </button>
-        ))}
-      </section>
-      {children}
-    </div>
+    <section ref={scroller} className="scene-scroll world-scene" aria-label="Vue du village">
+      <VillageMap state={state} handlers={{ onSelect }} paused={paused} />
+    </section>
   )
 }
 
@@ -407,24 +407,28 @@ function Works({
  * @param props - Component props.
  * @param props.building - Building shown.
  * @param props.view - Current village view.
- * @param props.affordable - True if the stock covers the next level.
- * @param props.onUpgrade - Called when the player builds or upgrades it.
+ * @param props.stock - Current stock.
+ * @param props.onUpgrade - Called with the building the player builds or upgrades.
+ * @param props.onSelect - Called with another building to show, from the senate.
  * @param props.error - Error of the last command, if any.
  * @returns The card.
  */
 function BuildingCard({
   building,
   view,
-  affordable,
+  stock,
   onUpgrade,
+  onSelect,
   error,
 }: {
   building: Building
   view: VillageView
-  affordable: boolean
-  onUpgrade: () => void
+  stock: Stock
+  onUpgrade: (building: Building) => void
+  onSelect: (building: Building) => void
   error: string | null
 }) {
+  const affordable = canAfford(stock, view.nextCosts[building])
   const level = view.levels[building]
   const planned = view.queue.reduce(
     (top, item) => (item.building === building ? Math.max(top, item.toLevel) : top),
@@ -493,7 +497,7 @@ function BuildingCard({
             type="button"
             className="primary"
             disabled={!affordable || blocked || full}
-            onClick={onUpgrade}
+            onClick={() => onUpgrade(building)}
           >
             {full ? 'File pleine' : planned === 0 ? 'Construire' : 'Améliorer'}
           </button>
@@ -502,6 +506,71 @@ function BuildingCard({
         <p className="level">Ce bâtiment a atteint son niveau maximum.</p>
       )}
       {error && <p className="error">{error}</p>}
+      {building === 'senate' && (
+        <Constructions view={view} stock={stock} onUpgrade={onUpgrade} onSelect={onSelect} />
+      )}
     </article>
+  )
+}
+
+/**
+ * Construction plan of the senate, as in a strategy game: every building of the village
+ * with its level and the cost of its next level, ordered from one place.
+ *
+ * @param props - Component props.
+ * @param props.view - Current village view.
+ * @param props.stock - Current stock.
+ * @param props.onUpgrade - Called with the building the player builds or upgrades.
+ * @param props.onSelect - Called with a building to show its card.
+ * @returns The construction plan.
+ */
+function Constructions({
+  view,
+  stock,
+  onUpgrade,
+  onSelect,
+}: {
+  view: VillageView
+  stock: Stock
+  onUpgrade: (building: Building) => void
+  onSelect: (building: Building) => void
+}) {
+  const full = view.queue.length >= view.queueSlots
+  return (
+    <section className="constructions" aria-label="Plan de construction">
+      <h3>Plan de construction</h3>
+      <ul>
+        {BUILDINGS.map((building) => {
+          const cost = view.nextCosts[building]
+          const blocked = Object.keys(view.requirements[building]).length > 0
+          return (
+            <li key={building}>
+              <button type="button" className="link" onClick={() => onSelect(building)}>
+                <Entity kind={building} showLabel />
+              </button>
+              <span className="muted">niv. {view.levels[building]}</span>
+              <span className="amounts">
+                {cost
+                  ? Object.entries(cost).map(([r, n]) => (
+                      <span key={r} data-short={stock[r as keyof Stock] < (n ?? 0)}>
+                        <Entity kind={r} /> {n}
+                      </span>
+                    ))
+                  : 'max'}
+              </span>
+              <button
+                type="button"
+                className="primary"
+                aria-label={`Améliorer : ${look(building).label}`}
+                disabled={!cost || blocked || full || !canAfford(stock, cost)}
+                onClick={() => onUpgrade(building)}
+              >
+                <Icon kind="build" />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

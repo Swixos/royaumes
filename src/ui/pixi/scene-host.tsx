@@ -9,6 +9,12 @@ export interface LiveScene<S> {
    * @param state - New state.
    */
   update(state: S): void
+  /**
+   * Stops or restarts the animation of the scene.
+   *
+   * @param paused - True to stop the animation.
+   */
+  pause(paused: boolean): void
   /** Stops the scene and frees its resources. */
   destroy(): void
 }
@@ -36,6 +42,7 @@ export type SceneLoader<S, H> = (host: HTMLElement, state: S, handlers: H) => Pr
  * @param props.handlers - Handlers the scene calls back.
  * @param props.label - Description of the picture, for screen readers.
  * @param props.className - Class of the element, which sets its size.
+ * @param props.paused - True to stop the animation while the scene is hidden.
  * @returns The element holding the canvas.
  */
 export function SceneHost<S, H extends object>({
@@ -44,17 +51,19 @@ export function SceneHost<S, H extends object>({
   handlers,
   label,
   className,
+  paused = false,
 }: {
   load: SceneLoader<S, H>
   state: S
   handlers: H
   label: string
   className: string
+  paused?: boolean
 }) {
   const host = useRef<HTMLDivElement>(null)
   const scene = useRef<LiveScene<S> | null>(null)
-  const latest = useRef({ state, handlers, load })
-  latest.current = { state, handlers, load }
+  const latest = useRef({ state, handlers, load, paused })
+  latest.current = { state, handlers, load, paused }
 
   useEffect(() => {
     let alive = true
@@ -75,6 +84,7 @@ export function SceneHost<S, H extends object>({
       made = created
       scene.current = created
       created.update(latest.current.state)
+      created.pause(latest.current.paused)
     })
     return () => {
       alive = false
@@ -86,6 +96,10 @@ export function SceneHost<S, H extends object>({
   useEffect(() => {
     scene.current?.update(state)
   }, [state])
+
+  useEffect(() => {
+    scene.current?.pause(paused)
+  }, [paused])
 
   return <div ref={host} className={className} role="img" aria-label={label} />
 }
