@@ -6,22 +6,29 @@
  *
  * @packageDocumentation
  */
-import { Application, Container, Graphics, Text } from 'pixi.js'
+import { Container, Graphics, Text } from 'pixi.js'
+import {
+  bird,
+  cloud,
+  DISPLAY,
+  easeOutBack,
+  makePlaque,
+  PALETTE,
+  ship,
+  tree,
+} from '@/ui/pixi/drawing'
+import type { LiveScene } from '@/ui/pixi/scene-host'
+import { createStage, driftWaves, scatterWaves } from '@/ui/pixi/stage'
 import { BUILDINGS, type Building, CATALOG, type Levels, MAX_LEVEL, type Stock } from '../contracts'
 import {
   type BuildingDrawing,
-  bird,
   buildingDrawing,
   cliff,
-  cloud,
   field,
   harbor,
   mountain,
-  PALETTE,
   resourceToken,
-  ship,
   townHall,
-  tree,
   villager,
   wallDrawing,
 } from './draw'
@@ -55,6 +62,8 @@ export interface VillageSceneState {
   levels: Levels
   /** Production of each resource per minute. */
   rates: Stock
+  /** Building highlighted for the player, or null. */
+  selected: Building | null
 }
 
 /** Handlers the scene calls back when the player acts on it. */
@@ -65,25 +74,6 @@ export interface VillageSceneHandlers {
    * @param building - Picked building.
    */
   onSelect(building: Building): void
-}
-
-/** Live scene, driven by the screen. */
-export interface VillageScene {
-  /**
-   * Shows a new state of the village. A building whose level went up is rebuilt with a
-   * celebration.
-   *
-   * @param state - New state.
-   */
-  update(state: VillageSceneState): void
-  /**
-   * Highlights the building the player is looking at.
-   *
-   * @param building - Selected building, or null.
-   */
-  select(building: Building | null): void
-  /** Stops the scene and frees its resources. */
-  destroy(): void
 }
 
 /** French name of each building, written on its plaque. */
@@ -97,9 +87,6 @@ const BOAT: Point = { x: 700, y: 835 }
 
 /** Colors of the villagers' tunics. */
 const TUNICS = [0x8c2a1c, 0x1f5f92, 0x4a7428, 0xb9761a, 0x6a4a7e, 0x7a3a1e]
-
-/** Font of the plaques, the display font of the game. */
-const DISPLAY = 'Cinzel, Alegreya, Georgia, serif'
 
 /** Short-lived element of the scene: smoke, dust, token or text. */
 interface Particle {
@@ -132,17 +119,6 @@ interface Site {
 }
 
 /**
- * Easing that overshoots its target, then settles: used when a building rises.
- *
- * @param t - Progress, from 0 to 1.
- * @returns The eased progress.
- */
-function easeOutBack(t: number) {
-  const c = 1.9
-  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2
-}
-
-/**
  * Turns a list of points into the flat list of coordinates Pixi expects, scaled around a
  * center.
  *
@@ -159,56 +135,6 @@ function flat(points: Point[], factor = 1, center: Point = { x: 800, y: 470 }) {
 }
 
 /**
- * Draws a plaque of the scene: a parchment board with a name and, for a building, its
- * level in a dark medallion.
- *
- * @param label - Text of the plaque.
- * @param withLevel - True to add the level medallion.
- * @returns The plaque, its board to recolor, and the level text.
- */
-function makePlaque(label: string, withLevel: boolean) {
-  const plaque = new Container()
-  const name = new Text({
-    text: label,
-    resolution: 2,
-    style: {
-      fontFamily: DISPLAY,
-      fontWeight: '700',
-      fontSize: 20,
-      fill: PALETTE.ink,
-      letterSpacing: 1,
-    },
-  })
-  const levelText = new Text({
-    text: '',
-    resolution: 2,
-    style: { fontFamily: DISPLAY, fontWeight: '900', fontSize: 18, fill: PALETTE.gold },
-  })
-  const width = name.width + 28 + (withLevel ? 34 : 0)
-  const back = new Graphics()
-  name.anchor.set(0, 0.5)
-  name.position.set(-width / 2 + 14, 0)
-  levelText.anchor.set(0.5)
-  levelText.position.set(width / 2 - 20, 0)
-  plaque.addChild(back, name)
-  if (withLevel) plaque.addChild(levelText)
-  const paint = (color: number) => {
-    back.clear()
-    back
-      .roundRect(-width / 2, -17, width, 34, 6)
-      .fill(color)
-      .stroke({ width: 3, color: PALETTE.ink })
-    if (withLevel)
-      back
-        .circle(width / 2 - 20, 0, 15)
-        .fill(PALETTE.ink)
-        .stroke({ width: 2, color: PALETTE.goldDark })
-  }
-  paint(PALETTE.parchment)
-  return { plaque, levelText, paint }
-}
-
-/**
  * Creates the village scene in an element of the page. The world keeps its proportions
  * and scales to the width of the element.
  *
@@ -221,27 +147,13 @@ export async function createVillageScene(
   host: HTMLElement,
   initial: VillageSceneState,
   handlers: VillageSceneHandlers,
-): Promise<VillageScene> {
-  const app = new Application()
-  await app.init({
-    resizeTo: host,
-    antialias: true,
-    backgroundColor: PALETTE.sea,
-    resolution: Math.min(2, window.devicePixelRatio || 1),
-    autoDensity: true,
-  })
-  await document.fonts?.load(`700 20px ${DISPLAY}`).catch(() => undefined)
-  host.appendChild(app.canvas)
-
-  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+): Promise<LiveScene<VillageSceneState>> {
+  const { app, world, calm, destroy } = await createStage(host, WORLD_WIDTH, WORLD_HEIGHT)
   const random = seeded(11)
   let state = initial
-  let selected: Building | null = null
+  let selected = initial.selected
   let hovered: Building | null = null
   let time = 0
-
-  const world = new Container()
-  app.stage.addChild(world)
 
   const sea = new Container()
   const ground = new Container()
@@ -252,14 +164,7 @@ export async function createVillageScene(
   const labels = new Container()
   world.addChild(sea, ground, objects, effects, labels, sky)
 
-  const waves = Array.from({ length: 46 }, () => {
-    const wave = new Graphics()
-    wave.moveTo(-14, 0).quadraticCurveTo(-7, -6, 0, 0).quadraticCurveTo(7, -6, 14, 0)
-    wave.stroke({ width: 2.5, color: random() > 0.5 ? PALETTE.wave : PALETTE.deep, cap: 'round' })
-    wave.position.set(random() * WORLD_WIDTH, random() * WORLD_HEIGHT)
-    sea.addChild(wave)
-    return { wave, speed: 4 + random() * 6, phase: random() * 6 }
-  })
+  const waves = scatterWaves(sea, 46, WORLD_WIDTH, WORLD_HEIGHT, random)
 
   const coast = islandOutline()
   const land = new Graphics()
@@ -612,18 +517,6 @@ export async function createVillageScene(
     placePlaque(site)
   }
 
-  /** Scales the world to the size of the canvas, centered. */
-  function fitWorld() {
-    const scale = Math.max(app.screen.width / WORLD_WIDTH, app.screen.height / WORLD_HEIGHT)
-    world.scale.set(scale)
-    world.position.set(
-      (app.screen.width - WORLD_WIDTH * scale) / 2,
-      (app.screen.height - WORLD_HEIGHT * scale) / 2,
-    )
-  }
-  fitWorld()
-  app.renderer.on('resize', fitWorld)
-
   app.ticker.add((ticker) => {
     const dt = Math.min(0.1, ticker.deltaMS / 1000)
     time += dt
@@ -648,11 +541,7 @@ export async function createVillageScene(
     }
     if (calm) return
 
-    for (const { wave, speed, phase } of waves) {
-      wave.x += speed * dt
-      if (wave.x > WORLD_WIDTH + 20) wave.x = -20
-      wave.alpha = 0.55 + 0.45 * Math.sin(time * 1.4 + phase)
-    }
+    driftWaves(waves, WORLD_WIDTH, time, dt)
     forest.forEach((view, i) => {
       view.skew.x = Math.sin(time * 1.2 + i * 0.7) * 0.025
     })
@@ -754,13 +643,11 @@ export async function createVillageScene(
         }
       }
       populate(next.levels)
+      if (next.selected !== selected) {
+        selected = next.selected
+        for (const site of sites) paintSite(site)
+      }
     },
-    select(building) {
-      selected = building
-      for (const site of sites) paintSite(site)
-    },
-    destroy() {
-      app.destroy({ removeView: true }, { children: true })
-    },
+    destroy,
   }
 }
