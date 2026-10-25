@@ -441,6 +441,65 @@ function SeaMap({
   )
 }
 
+/** Key of the browser storage keeping the battle reports already closed. */
+const SEEN_REPORTS = 'royaumes.seen-reports'
+
+/** Age after which a battle report is no longer shown, even if never seen, in milliseconds. */
+const REPORT_FRESH_MS = 60 * 60 * 1000
+
+/** Number of battle reports remembered as closed. */
+const SEEN_LIMIT = 50
+
+/**
+ * Key naming a battle report among those shown: the raid, and the side of the player.
+ *
+ * @param report - Data of the `BattleReported` event.
+ * @returns The key of the report.
+ */
+const reportKey = (report: Record<string, unknown>) =>
+  `${String(report.raidId)}:${String(report.role)}`
+
+/**
+ * Reads the keys of the battle reports already closed in this browser.
+ *
+ * @returns The keys, or none when the browser keeps no storage.
+ */
+function seenReports(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(SEEN_REPORTS) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Tells whether a battle report should be shown. The harbor channel sends again every
+ * event of the harbor each time the screen opens: a report already closed in this
+ * browser, or older than an hour, stays closed.
+ *
+ * @param report - Data of the `BattleReported` event.
+ * @param now - Current time in milliseconds.
+ * @returns True for a recent report never closed.
+ */
+function isNewReport(report: Record<string, unknown>, now: number): boolean {
+  const at = typeof report.at === 'number' ? report.at : 0
+  return now - at <= REPORT_FRESH_MS && !seenReports().includes(reportKey(report))
+}
+
+/**
+ * Remembers a battle report as closed, so it is not shown again.
+ *
+ * @param report - Data of the `BattleReported` event.
+ */
+function rememberReport(report: Record<string, unknown>) {
+  try {
+    const seen = [...seenReports(), reportKey(report)].slice(-SEEN_LIMIT)
+    localStorage.setItem(SEEN_REPORTS, JSON.stringify(seen))
+  } catch {
+    return
+  }
+}
+
 /**
  * Full screen battle report, shown when a report reaches the harbor in real time: the
  * report drops into place, the two ships ram each other, the verdict is stamped, then
@@ -611,7 +670,12 @@ export function FleetScreen({ userId }: { userId: string }) {
   }, [message])
   const [report, setReport] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
-  const closeReport = useCallback(() => setReport(null), [])
+  const closeReport = useCallback(() => {
+    setReport((current) => {
+      if (current) rememberReport(current)
+      return null
+    })
+  }, [])
   const [draft, setDraft] = useState('')
   const [search, setSearch] = useState('')
   const latest = useRef(0)
@@ -646,7 +710,7 @@ export function FleetScreen({ userId }: { userId: string }) {
   }, [refresh])
 
   const status = useChannel(harborChannel(userId), (event: ChannelEvent) => {
-    if (event.type === 'BattleReported') {
+    if (event.type === 'BattleReported' && isNewReport(event.data, Date.now())) {
       setReport(event.data)
       window.dispatchEvent(new Event(VILLAGE_CHANGED))
     }
