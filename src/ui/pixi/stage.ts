@@ -1,22 +1,54 @@
 /**
- * Stage shared by the scenes of the game: a PixiJS application filling its element, and a
- * world of fixed size scaled to cover it.
+ * Stage shared by the scenes of the game: a PixiJS application filling its element, a
+ * world of fixed size, and the camera through which the player looks at it.
  *
  * @packageDocumentation
  */
 import { Application, Container, Graphics } from 'pixi.js'
 import { DISPLAY, PALETTE } from './drawing'
+import { clampView, scaleRange, type View, viewOn, zoomAround } from './view'
+
+/** Camera of a scene: the player zooms with the wheel or two fingers, and slides the world. */
+export interface Camera {
+  /**
+   * Current view of the world.
+   *
+   * @returns The view.
+   */
+  view(): View
+  /**
+   * Zooms around the middle of the screen.
+   *
+   * @param factor - Zoom factor: above 1 to zoom in, below 1 to zoom out.
+   */
+  zoomBy(factor: number): void
+  /** Comes back to the starting view, on the home point of the scene. */
+  reset(): void
+  /**
+   * Tells whether the gesture under way moved the world, so a tap at its end is not a
+   * click on a building.
+   *
+   * @returns True if the world moved since the finger or the button went down.
+   */
+  dragged(): boolean
+  /**
+   * Calls back on every move of the camera, to keep elements of the page over the world.
+   *
+   * @param listener - Called with the new view.
+   */
+  onChange(listener: (view: View) => void): void
+}
 
 /** Stage of a scene, ready to receive its layers. */
 export interface Stage {
   /** PixiJS application, with its ticker and its renderer. */
   app: Application
-  /** Container of the world, scaled to the element. */
+  /** Container of the world, moved and scaled by the camera. */
   world: Container
+  /** Camera of the scene. */
+  camera: Camera
   /** True when the system asks for less motion: the scene keeps still. */
   calm: boolean
-  /** Scale of the world on screen, updated on resize. */
-  scale(): number
   /**
    * Stops or restarts the animation, to spare the device while the scene is hidden.
    *
@@ -27,20 +59,29 @@ export interface Stage {
   destroy(): void
 }
 
+/** Frames per second of a scene: smooth enough for its life, and light on a phone battery. */
+const MAX_FPS = 30
+
+/** Distance a finger or the mouse travels before a press becomes a slide, in pixels. */
+const DRAG_THRESHOLD = 6
+
 /**
- * Creates the stage of a scene in an element of the page. The world keeps its proportions
- * and covers the element, centered; the fonts of the plaques are loaded first. A finger
- * sliding on the canvas still scrolls the page, so a scene never traps a phone user.
+ * Creates the stage of a scene in an element of the page, with its camera. The scene starts
+ * on its home point, at the scale that fills the element; the player then zooms with the
+ * wheel or with two fingers, and slides the world with the mouse or one finger. The fonts
+ * of the plaques are loaded first.
  *
- * @param host - Element receiving the canvas; its size is the size of the scene.
+ * @param host - Element receiving the canvas, and the gestures of the player.
  * @param width - Width of the world, in scene units.
  * @param height - Height of the world, in scene units.
+ * @param home - Point of the world shown first; the middle of the world by default.
  * @returns The stage.
  */
 export async function createStage(
   host: HTMLElement,
   width: number,
   height: number,
+  home: { x: number; y: number } = { x: width / 2, y: height / 2 },
 ): Promise<Stage> {
   const app = new Application()
   await app.init({
@@ -52,30 +93,146 @@ export async function createStage(
   })
   await document.fonts?.load(`700 20px ${DISPLAY}`).catch(() => undefined)
   host.appendChild(app.canvas)
-  app.renderer.events.autoPreventDefault = false
-  app.canvas.style.touchAction = 'pan-x pan-y'
+  app.ticker.maxFPS = MAX_FPS
+  host.style.touchAction = 'none'
+  app.canvas.style.touchAction = 'none'
 
   const world = new Container()
   app.stage.addChild(world)
-  let scale = 1
+  const size = { width, height }
+  const listeners: Array<(view: View) => void> = []
+  const screen = () => ({ width: app.screen.width, height: app.screen.height })
+  let view: View = clampView(
+    viewOn(home, scaleRange(screen(), size).cover, screen()),
+    screen(),
+    size,
+  )
 
-  /** Scales the world to cover the canvas, centered. */
-  function fitWorld() {
-    scale = Math.max(app.screen.width / width, app.screen.height / height)
-    world.scale.set(scale)
-    world.position.set(
-      (app.screen.width - width * scale) / 2,
-      (app.screen.height - height * scale) / 2,
-    )
+  /**
+   * Moves the camera, within its limits.
+   *
+   * @param next - View asked for.
+   */
+  function apply(next: View) {
+    view = clampView(next, screen(), size)
+    world.scale.set(view.scale)
+    world.position.set(view.x, view.y)
+    for (const listener of listeners) listener(view)
   }
-  fitWorld()
-  app.renderer.on('resize', fitWorld)
+  apply(view)
+
+  app.renderer.on('resize', () => {
+    apply(view)
+  })
+
+  const pointers = new Map<number, { x: number; y: number }>()
+  let travelled = 0
+  let moved = false
+
+  /**
+   * Position of an event in the element.
+   *
+   * @param event - Pointer or wheel event.
+   * @returns The position, in pixels.
+   */
+  const at = (event: { clientX: number; clientY: number }) => {
+    const box = host.getBoundingClientRect()
+    return { x: event.clientX - box.left, y: event.clientY - box.top }
+  }
+
+  /**
+   * Middle and spread of the pointers on the element.
+   *
+   * @returns The middle point and the distance between the first two pointers.
+   */
+  const spread = () => {
+    const [a, b] = [...pointers.values()]
+    return {
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      span: Math.hypot(a.x - b.x, a.y - b.y),
+    }
+  }
+
+  host.addEventListener('pointerdown', (event) => {
+    if (pointers.size === 0) {
+      travelled = 0
+      moved = false
+    }
+    pointers.set(event.pointerId, at(event))
+  })
+
+  host.addEventListener('pointermove', (event) => {
+    const before = pointers.get(event.pointerId)
+    if (!before) return
+    const now = at(event)
+    if (pointers.size >= 2) {
+      const old = spread()
+      pointers.set(event.pointerId, now)
+      const next = spread()
+      moved = true
+      const zoomed = zoomAround(view, old.span > 0 ? next.span / old.span : 1, next.mid)
+      apply({
+        ...zoomed,
+        x: zoomed.x + next.mid.x - old.mid.x,
+        y: zoomed.y + next.mid.y - old.mid.y,
+      })
+      return
+    }
+    pointers.set(event.pointerId, now)
+    travelled += Math.hypot(now.x - before.x, now.y - before.y)
+    if (!moved && travelled < DRAG_THRESHOLD) return
+    if (!moved) host.setPointerCapture(event.pointerId)
+    moved = true
+    apply({ ...view, x: view.x + now.x - before.x, y: view.y + now.y - before.y })
+  })
+
+  /**
+   * Forgets a pointer lifted or lost.
+   *
+   * @param event - Pointer event.
+   */
+  const release = (event: PointerEvent) => {
+    pointers.delete(event.pointerId)
+  }
+  host.addEventListener('pointerup', release)
+  host.addEventListener('pointercancel', release)
+
+  host.addEventListener(
+    'click',
+    (event) => {
+      if (!moved) return
+      event.stopPropagation()
+      event.preventDefault()
+    },
+    true,
+  )
+
+  host.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault()
+      apply(zoomAround(view, Math.exp(-event.deltaY * 0.0015), at(event)))
+    },
+    { passive: false },
+  )
+
+  const camera: Camera = {
+    view: () => view,
+    zoomBy: (factor) =>
+      apply(zoomAround(view, factor, { x: app.screen.width / 2, y: app.screen.height / 2 })),
+    reset: () => apply(viewOn(home, scaleRange(screen(), size).cover, screen())),
+    dragged: () => moved,
+    onChange: (listener) => {
+      listeners.push(listener)
+      listener(view)
+    },
+  }
 
   return {
     app,
     world,
+    camera,
     calm: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    scale: () => scale,
     pause: (paused) => (paused ? app.ticker.stop() : app.ticker.start()),
     destroy: () => app.destroy({ removeView: true }, { children: true }),
   }

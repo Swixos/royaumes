@@ -20,6 +20,7 @@ import {
 } from '@/ui/pixi/drawing'
 import type { LiveScene } from '@/ui/pixi/scene-host'
 import { createStage, driftWaves, scatterWaves } from '@/ui/pixi/stage'
+import type { View } from '@/ui/pixi/view'
 import { hash } from '../contracts'
 import {
   along,
@@ -69,6 +70,16 @@ export interface SeaFleet {
 export interface SeaSceneState {
   islands: SeaIsland[]
   fleets: SeaFleet[]
+}
+
+/** Handlers the sea map calls back. */
+export interface SeaSceneHandlers {
+  /**
+   * Called on every move of the camera, so the buttons of the islands follow the world.
+   *
+   * @param view - New view: scale and position of the world on screen.
+   */
+  onCamera(view: View): void
 }
 
 /** Colors of the sea map, on top of the shared palette. */
@@ -215,14 +226,18 @@ interface ShownFleet {
  * covers the element.
  *
  * @param host - Element receiving the canvas; its size is the size of the scene.
- * @param initial - State of the sea to show first.
+ * @param initial - State of the sea to show first; the scene starts on the player's port.
+ * @param handlers - Handlers called back by the scene.
  * @returns The live scene.
  */
 export async function createSeaScene(
   host: HTMLElement,
   initial: SeaSceneState,
+  handlers: SeaSceneHandlers,
 ): Promise<LiveScene<SeaSceneState>> {
-  const { app, world, calm, pause, destroy } = await createStage(host, MAP_W, MAP_H)
+  const home = initial.islands.find((island) => island.kind === 'home')?.at
+  const { app, world, camera, calm, pause, destroy } = await createStage(host, MAP_W, MAP_H, home)
+  camera.onChange((view) => handlers.onCamera(view))
   let state = initial
   let time = 0
   let seed = 3
@@ -608,6 +623,8 @@ export async function createSeaScene(
       showFleets(next.fleets)
     },
     pause,
+    zoom: camera.zoomBy,
+    recenter: camera.reset,
     destroy,
   }
 }

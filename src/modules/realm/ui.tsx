@@ -1,15 +1,16 @@
 'use client'
 import { hc } from 'hono/client'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fleetLimits, villageDefense } from '@/modules/fleet/contracts'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
 import { GameWindow, HOME } from '@/ui/game-window'
 import { Icon } from '@/ui/icons'
+import { useSceneControls } from '@/ui/pixi/scene-host'
+import { ZoomControls } from '@/ui/pixi/zoom-controls'
 import { look } from '@/ui/theme'
-import { useCenteredScroll } from '@/ui/use-centered-scroll'
 import type { RealmApi } from './api'
 import {
   BUILDINGS,
@@ -296,7 +297,7 @@ export function VillageScreen({ userId }: { userId: string }) {
         ))}
       </section>
       {selected && (
-        <GameWindow label={look(selected).label} size="narrow" onClose={() => setSelected(null)}>
+        <GameWindow label={look(selected).label} size="side" onClose={() => setSelected(null)}>
           <BuildingCard
             building={selected}
             view={view}
@@ -312,8 +313,9 @@ export function VillageScreen({ userId }: { userId: string }) {
 }
 
 /**
- * Scene of the village, filling the screen. On a phone it keeps its proportions and
- * slides under the finger, starting on the senate. It pauses while a window covers it.
+ * Scene of the village, filling the screen and starting on the senate: the player zooms
+ * with the wheel, two fingers or the buttons, and slides the village with the mouse or a
+ * finger. It pauses while a window covers it.
  *
  * @param props - Component props.
  * @param props.view - Current village view.
@@ -333,8 +335,7 @@ function VillageScene({
   paused: boolean
   onSelect: (building: Building) => void
 }) {
-  const scroller = useRef<HTMLDivElement>(null)
-  useCenteredScroll(scroller, 0.5)
+  const controls = useSceneControls()
   const state = useMemo(
     () => ({
       name: view.name,
@@ -346,8 +347,9 @@ function VillageScene({
     [view.name, view.levels, view.ratesPerMinute, view.queue, selected],
   )
   return (
-    <section ref={scroller} className="scene-scroll world-scene" aria-label="Vue du village">
-      <VillageMap state={state} handlers={{ onSelect }} paused={paused} />
+    <section className="world-scene" aria-label="Vue du village">
+      <VillageMap state={state} handlers={{ onSelect }} paused={paused} controls={controls} />
+      <ZoomControls controls={controls} />
     </section>
   )
 }

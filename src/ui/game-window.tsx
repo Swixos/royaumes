@@ -16,7 +16,8 @@ export const HOME = '/village'
  * @param props.children - Content of the window.
  * @param props.label - Name of the window, read by screen readers.
  * @param props.onClose - Called to close the window; by default, goes back to the village.
- * @param props.size - `wide` for a screen with a map, `narrow` for a card.
+ * @param props.size - `wide` for a screen, `narrow` for a card over a dimmed screen, `side`
+ *   for a panel docked beside the world, which stays visible and usable.
  * @returns The window.
  */
 export function GameWindow({
@@ -28,7 +29,7 @@ export function GameWindow({
   children: ReactNode
   label: string
   onClose?: () => void
-  size?: 'wide' | 'narrow'
+  size?: 'wide' | 'narrow' | 'side'
 }) {
   const router = useRouter()
   const panel = useRef<HTMLDivElement>(null)
@@ -52,13 +53,15 @@ export function GameWindow({
 
   return (
     <div className="game-window-layer" data-size={size}>
-      <button
-        type="button"
-        className="game-window-backdrop"
-        aria-label={`Fermer : ${label}`}
-        tabIndex={-1}
-        onClick={() => latest.current()}
-      />
+      {size !== 'side' && (
+        <button
+          type="button"
+          className="game-window-backdrop"
+          aria-label={`Fermer : ${label}`}
+          tabIndex={-1}
+          onClick={() => latest.current()}
+        />
+      )}
       <div ref={panel} className="game-window" role="dialog" aria-label={label} tabIndex={-1}>
         <button
           type="button"
@@ -71,5 +74,22 @@ export function GameWindow({
         <div className="game-window-body">{children}</div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Full screen of the game, laid over the village like the island view of a strategy game:
+ * a world of its own, with its menus as panels.
+ *
+ * @param props - Component props.
+ * @param props.label - Name of the screen, read by screen readers.
+ * @param props.children - Content of the screen.
+ * @returns The screen.
+ */
+export function GameScreen({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="game-screen" aria-label={label}>
+      {children}
+    </section>
   )
 }

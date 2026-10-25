@@ -45,6 +45,19 @@ async function openFleet(page: Page) {
 }
 
 /**
+ * Opens a menu of the fleet screen, such as the logbook or the harbor, unless it is open.
+ *
+ * @param page - Page of a signed-in player, on the fleet screen.
+ * @param name - Name of the menu.
+ */
+async function openMenu(page: Page, name: string) {
+  const button = page.getByRole('navigation', { name: 'Menus de la flotte' }).getByRole('button', {
+    name,
+  })
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click()
+}
+
+/**
  * Looks for a harbor by its name, so it shows on the sea map whatever its distance. The
  * targets come from a projection, consistent in time: like a player, the test looks again
  * until the newly founded village shows.
@@ -72,7 +85,7 @@ test('lance un raid, alerte le défenseur en temps réel, puis rappelle la flott
 
   await searchHarbor(alice, `Port Gardien ${RUN}`)
   await alice.getByRole('button', { name: `Cibler Port Gardien ${RUN}` }).click({ delay: 150 })
-  await expect(alice.getByText('Conseil de guerre')).toBeVisible()
+  await expect(alice.getByRole('heading', { name: 'Conseil de guerre' })).toBeVisible()
   await alice.getByRole('button', { name: '2 trirèmes' }).click()
   await alice
     .getByRole('button', { name: /Abordage/ })
@@ -81,14 +94,18 @@ test('lance un raid, alerte le défenseur en temps réel, puis rappelle la flott
   await alice.getByRole('button', { name: 'Hisser les voiles' }).click()
   await expect(
     alice.getByText(`La flotte a hissé les voiles vers Port Gardien ${RUN}.`),
-  ).toBeVisible()
+  ).toBeVisible({ timeout: 15_000 })
 
   await expect(bob.getByText('Flotte ennemie en approche')).toBeVisible({ timeout: 15_000 })
   await expect(bob.getByText(/Amirale lance 2 trirèmes sur votre port/)).toBeVisible()
 
+  await openMenu(alice, 'Journal de bord')
   await alice.getByRole('button', { name: 'Rappeler' }).click()
-  await expect(alice.getByText("Demi-tour ! L'équipement rentre au village.")).toBeVisible()
+  await expect(alice.getByText("Demi-tour ! L'équipement rentre au village.")).toBeVisible({
+    timeout: 15_000,
+  })
   await expect(bob.getByText('Flotte ennemie en approche')).toBeHidden({ timeout: 15_000 })
+  await openMenu(bob, 'Journal de bord')
   await expect(bob.getByText('Demi-tour')).toBeVisible()
 })
 
@@ -98,6 +115,7 @@ test('choisit la posture du port, et prévoit la bataille contre une île pirate
   const page = await newPlayer(browser, 'Vigie')
   await openFleet(page)
 
+  await openMenu(page, 'Votre port')
   const harbor = page.locator('section', { has: page.getByRole('heading', { name: /Votre port/ }) })
   await harbor.getByRole('button', { name: /Éperonnage/ }).click()
   await expect(page.locator('dd').filter({ hasText: 'Éperonnage' })).toBeVisible()

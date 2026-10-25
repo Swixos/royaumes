@@ -277,6 +277,13 @@ dessinée par la même mise en page (ADR 0019) : le village n'est jamais recharg
 pause tant qu'une fenêtre le couvre. Un bâtiment touché dans la scène ou dans la barre des
 bâtiments ouvre sa fiche ; celle du Sénat présente le plan de construction de tout le village.
 
+La Flotte a, elle aussi, son écran plein : la mer et ses îles remplissent l'écran, avec la
+recherche, les chiffres du port et les alertes par-dessus, et une barre de menus qui ouvre le
+Journal de bord, le Port et le Conseil de guerre en panneaux latéraux, sans cacher la carte.
+Dans les deux scènes, le joueur zoome à la molette, à deux doigts ou avec les boutons + et -,
+fait glisser la vue à la souris ou au doigt, et revient à la vue de départ avec la boussole.
+Les scènes tournent à 30 images par seconde, pour ménager la batterie d'un téléphone.
+
 Le jeu est pensé d'abord pour le téléphone. Sur un petit écran, la barre du haut se réduit
 aux ressources et à deux boutons, et le menu devient une barre d'onglets fixée en bas de
 l'écran, qui respecte l'encoche et la barre d'accueil. Les cartes du village et des mers
