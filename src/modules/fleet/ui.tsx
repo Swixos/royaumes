@@ -9,6 +9,7 @@ import { Icon } from '@/ui/icons'
 import { DROP, SPRING } from '@/ui/motion'
 import { SceneHost, type SceneLoader } from '@/ui/pixi/scene-host'
 import { look } from '@/ui/theme'
+import { useCenteredScroll } from '@/ui/use-centered-scroll'
 import type { FleetApi } from './api'
 import {
   type Amounts,
@@ -275,7 +276,8 @@ const isTarget = (island: MapIsland, selected: Selection) =>
 
 /**
  * Sea map: flat islands, sea lanes and fleets moving in real time. The islands are
- * buttons laid over the drawing, so they can be reached with the keyboard.
+ * buttons laid over the drawing, so they can be reached with the keyboard. On a phone the
+ * map keeps a readable size and slides under the finger, starting on the player's port.
  *
  * @param props - Component props.
  * @param props.userId - Signed-in player.
@@ -359,39 +361,51 @@ function SeaMap({
     }
   }, [islands, raids, selected, userId])
 
+  const scroller = useRef<HTMLDivElement>(null)
+  const homeShare = islands.find((island) => island.kind === 'home')?.point.x
+  useCenteredScroll(scroller, homeShare === undefined ? 0.5 : homeShare / 100)
+
   const atSea = scene.fleets.length
   return (
-    <div className={styles.sea}>
-      <SceneHost
-        load={loadSea}
-        state={scene}
-        handlers={NO_HANDLERS}
-        className={styles.map}
-        label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
-      />
-
-      {islands.map((island) => (
-        <button
-          key={`${island.kind}-${island.shapeId}`}
-          type="button"
-          className={styles.hotspot}
-          data-kind={island.kind}
-          style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
-          disabled={!island.selection}
-          aria-pressed={isTarget(island, selected)}
-          aria-label={
-            island.kind === 'home' ? `Votre village : ${island.name}` : `Cibler ${island.name}`
-          }
-          onClick={() => island.selection && onSelect(island.selection)}
-        >
-          <Icon
-            kind={
-              island.kind === 'home' ? 'village' : island.kind === 'pirates' ? 'pirates' : 'harbor'
-            }
-            size="68%"
+    <div className={styles.chart}>
+      <div ref={scroller} className={styles.scroller}>
+        <div className={styles.sea}>
+          <SceneHost
+            load={loadSea}
+            state={scene}
+            handlers={NO_HANDLERS}
+            className={styles.map}
+            label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
           />
-        </button>
-      ))}
+
+          {islands.map((island) => (
+            <button
+              key={`${island.kind}-${island.shapeId}`}
+              type="button"
+              className={styles.hotspot}
+              data-kind={island.kind}
+              style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
+              disabled={!island.selection}
+              aria-pressed={isTarget(island, selected)}
+              aria-label={
+                island.kind === 'home' ? `Votre village : ${island.name}` : `Cibler ${island.name}`
+              }
+              onClick={() => island.selection && onSelect(island.selection)}
+            >
+              <Icon
+                kind={
+                  island.kind === 'home'
+                    ? 'village'
+                    : island.kind === 'pirates'
+                      ? 'pirates'
+                      : 'harbor'
+                }
+                size="68%"
+              />
+            </button>
+          ))}
+        </div>
+      </div>
 
       <ul className={styles.legend} aria-hidden="true">
         <li>
@@ -546,6 +560,24 @@ export function FleetScreen({ userId }: { userId: string }) {
   const [raids, setRaids] = useState<RaidSummary[]>([])
   const [harbor, setHarbor] = useState<HarborView | null>(null)
   const [selected, setSelected] = useState<Selection>(null)
+
+  /**
+   * Targets an island. On a phone, where the war council sits under the map, the screen
+   * slides to the council so the player prepares the raid right away.
+   *
+   * @param selection - Targeted island.
+   */
+  const aim = useCallback((selection: Selection) => {
+    setSelected(selection)
+    if (window.matchMedia('(max-width: 960px)').matches) {
+      requestAnimationFrame(() =>
+        document
+          .getElementById('council')
+          ?.closest('section')
+          ?.scrollIntoView({ behavior: 'smooth' }),
+      )
+    }
+  }, [])
   const [ships, setShips] = useState(3)
   const [tactic, setTactic] = useState<Tactic>('ram')
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
@@ -797,10 +829,12 @@ export function FleetScreen({ userId }: { userId: string }) {
               targets={targets}
               raids={raids}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={aim}
             />
           ) : (
-            <div className={styles.sea} aria-busy="true" />
+            <div className={styles.chart} aria-busy="true">
+              <div className={styles.sea} />
+            </div>
           )}
 
           <section className="panel" aria-labelledby="logbook">

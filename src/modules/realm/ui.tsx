@@ -1,10 +1,11 @@
 'use client'
 import { hc } from 'hono/client'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
 import { look } from '@/ui/theme'
+import { useCenteredScroll } from '@/ui/use-centered-scroll'
 import type { RealmApi } from './api'
 import {
   BUILDINGS,
@@ -206,7 +207,8 @@ export function VillageScreen({ userId }: { userId: string }) {
 }
 
 /**
- * Village scene, with the card of the selected building laid over it.
+ * Village scene, with the card of the selected building laid over it. On a phone the scene
+ * keeps its size and slides under the finger, starting on the town hall.
  *
  * @param props - Component props.
  * @param props.view - Current village view.
@@ -226,13 +228,17 @@ function VillageStage({
   onSelect: (building: Building) => void
   children: ReactNode
 }) {
+  const scroller = useRef<HTMLDivElement>(null)
+  useCenteredScroll(scroller, 0.5)
   const state = useMemo(
     () => ({ name: view.name, levels: view.levels, rates: view.ratesPerMinute, selected }),
     [view.name, view.levels, view.ratesPerMinute, selected],
   )
   return (
     <section className="village-stage" aria-label="Vue du village">
-      <VillageMap state={state} handlers={{ onSelect }} />
+      <div ref={scroller} className="scene-scroll">
+        <VillageMap state={state} handlers={{ onSelect }} />
+      </div>
       {children}
     </section>
   )
