@@ -24,23 +24,25 @@ offrent une cible au joueur seul, et récompensent celui qui varie ses tactiques
 
 ## Les règles métier
 
-1. Un raid engage de 1 à 10 trirèmes.
+1. Un raid engage de 1 à 10 trirèmes, plus 2 par niveau du chantier naval (ADR 0018).
 2. Un joueur ne peut pas lancer un raid contre son propre village, ni contre un joueur qui n'a
    pas fondé de village.
-3. Un joueur a au plus deux raids en mer à la fois.
+3. Un joueur a au plus deux raids en mer à la fois, plus un tous les 4 niveaux du chantier
+   naval (ADR 0018).
 4. L'équipement d'un raid coûte 15 bois et 5 pierre par trirème. Il est prélevé sur le village
    de l'attaquant avant le départ : si le village ne peut pas le payer, le raid est annulé, et
    aucune flotte ne part.
 5. La durée de la traversée dépend de la distance entre les deux villages : elle est comprise
    entre 2 et 6 minutes, et toujours la même pour deux villages donnés. Elle est fixe pour
-   chaque île pirate.
+   chaque île pirate. Le chantier naval de l'attaquant la raccourcit de 4 % par niveau
+   (ADR 0018).
 6. Seul l'attaquant peut rappeler sa flotte, et seulement avant son arrivée : l'équipement lui
    est alors rendu en totalité.
 7. Les tactiques se battent en triangle : l'abordage bat l'éperonnage, l'éperonnage bat le
    blocus, le blocus bat l'abordage. La force d'attaque vaut 10 par trirème, multipliée par 1,5
    si la tactique de l'attaquant bat la posture du défenseur, et par 0,5 si elle est battue.
-8. La défense d'un village vaut 20, plus 5 par amélioration de bâtiment qu'il a réalisée.
-   L'attaquant l'emporte si sa force est strictement supérieure à la défense ; sinon, sa
+8. La défense d'un village vaut 20, plus 12 par niveau de son rempart achevé à l'arrivée de
+   la flotte (règle revue par l'ADR 0018). L'attaquant l'emporte si sa force est strictement supérieure à la défense ; sinon, sa
    flotte est perdue.
 9. Une flotte victorieuse pille au plus 10 bois, 5 pierre et 2 or par trirème. Si le village
    ne possède pas tout ce butin, le pillage est réduit à ce qui manque une seule fois ; un
