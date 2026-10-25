@@ -348,8 +348,8 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
           </div>
           <p>
             Salle {view.room + 1} sur {view.roomCount}
-            {view.currentRoom?.kind === 'treasure' && ` : un trésor de ${view.currentRoom.gold} or`}
-            {view.currentRoom?.kind === 'empty' && ' : une salle vide'}
+            {view.currentRoom?.kind === 'treasure' && ` : un trésor de ${view.currentRoom.gold} or`}
+            {view.currentRoom?.kind === 'empty' && ' : une salle vide'}
             {' - '}
             <Entity kind="gold" /> {view.loot}
           </p>
@@ -410,7 +410,7 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
           )}
           {me?.action && (
             <p className="muted">
-              Votre choix : {describeAction(me.action, nameOf)}. En attente des autres héros.
+              Votre choix : {describeAction(me.action, nameOf)}. En attente des autres héros.
             </p>
           )}
         </div>
@@ -418,9 +418,9 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
 
       {(view.phase === 'won' || view.phase === 'lost') && (
         <div className="panel">
-          <h2>{view.phase === 'won' ? 'Victoire !' : 'Défaite...'}</h2>
+          <h2>{view.phase === 'won' ? 'Victoire !' : 'Défaite...'}</h2>
           <p>
-            Butin de l'expédition : <Entity kind="gold" /> {view.loot}
+            Butin de l'expédition : <Entity kind="gold" /> {view.loot}
           </p>
           <Link href="/dungeon">Retour au Donjon</Link>
         </div>

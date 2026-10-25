@@ -52,13 +52,13 @@ describe("récit de l'historique", () => {
         },
         0,
       ),
-    ).toEqual({ title: 'Victoire contre Roche-Haute', detail: 'Butin : 30 or', tone: 'good' })
+    ).toEqual({ title: 'Victoire contre Roche-Haute', detail: 'Butin : 30 or', tone: 'good' })
     expect(
       tell(
         { type: 'battle', role: 'defender', won: false, opponent: 'alice', loot: { wood: 12 } },
         0,
       ),
-    ).toEqual({ title: 'Village pillé par alice', detail: 'Pertes : 12 bois', tone: 'bad' })
+    ).toEqual({ title: 'Village pillé par alice', detail: 'Pertes : 12 bois', tone: 'bad' })
     expect(
       tell({ type: 'battle', role: 'defender', won: true, opponent: 'alice', loot: {} }, 0),
     ).toMatchObject({ title: 'Attaque repoussée par alice', tone: 'good' })
@@ -67,14 +67,14 @@ describe("récit de l'historique", () => {
   it("raconte un échange selon qu'on vend ou qu'on achète", () => {
     const trade = { type: 'trade-completed' as const, give: { wood: 10 }, want: { stone: 5 } }
     expect(tell({ ...trade, role: 'seller', partner: 'bob' }, 0).detail).toBe(
-      'Donné : 10 bois ; reçu : 5 pierre',
+      'Donné : 10 bois ; reçu : 5 pierre',
     )
     expect(tell({ ...trade, role: 'buyer', partner: 'alice' }, 0).detail).toBe(
-      'Donné : 5 pierre ; reçu : 10 bois',
+      'Donné : 5 pierre ; reçu : 10 bois',
     )
   })
 
-  it("explique une défaite de l'attaquant : la tactique, les sommes, les pertes et le conseil", () => {
+  it("explique une défaite de l'attaquant : la tactique, les sommes, les pertes et le conseil", () => {
     const report: BattleDetail = {
       ships: 2,
       tactic: 'ram',
@@ -104,11 +104,11 @@ describe("récit de l'historique", () => {
     expect(lines).toEqual({
       'Votre flotte': '2 trirèmes en éperonnage',
       'Défense adverse': 'Abordage',
-      Tactique: 'Abordage bat éperonnage : attaque ×0,5',
+      Tactique: 'Abordage bat éperonnage : attaque ×0,5',
       "Force d'attaque": '2 × 10 × 0,5 = 10',
       Défense: '20 de base + rempart niveau 2 (24) = 44',
-      Issue: '10 ≤ 44 : la flotte est repoussée',
-      Pertes: '2 trirèmes coulées, équipement perdu : 30 bois, 10 pierre',
+      Issue: '10 ≤ 44 : la flotte est repoussée',
+      Pertes: '2 trirèmes coulées, équipement perdu : 30 bois, 10 pierre',
       Conseil: 'Il fallait au moins 9 trirèmes en éperonnage, ou une tactique qui bat abordage.',
     })
   })
@@ -139,11 +139,11 @@ describe("récit de l'historique", () => {
     }
     const lines = explainBattle(fact, report)
     expect(lines.find((line) => line.label === 'Issue')).toMatchObject({
-      value: '10 ≤ 20 : la flotte est repoussée',
+      value: '10 ≤ 20 : la flotte est repoussée',
       tone: 'good',
     })
     expect(lines.find((line) => line.label === 'Pertes')?.value).toBe(
-      'Flotte ennemie coulée : 1 trirème',
+      'Flotte ennemie coulée : 1 trirème',
     )
     expect(lines.some((line) => line.label === 'Conseil')).toBe(false)
   })

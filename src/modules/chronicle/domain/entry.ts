@@ -231,17 +231,17 @@ export function tell(fact: Fact, now: number): Told {
       const loot = tellAmounts(fact.loot)
       const detail = attacking
         ? fact.won
-          ? `Butin : ${loot}`
+          ? `Butin : ${loot}`
           : 'La flotte est perdue'
         : fact.won
           ? 'Le port a tenu bon'
-          : `Pertes : ${loot}`
+          : `Pertes : ${loot}`
       return { title, detail, tone: fact.won ? 'good' : 'bad' }
     }
     case 'posture-chosen':
       return {
         title: 'Défense du port changée',
-        detail: `Posture : ${TACTIC_NAMES[fact.posture]}`,
+        detail: `Posture : ${TACTIC_NAMES[fact.posture]}`,
         tone: 'plain',
       }
     case 'expedition-created':
@@ -250,7 +250,7 @@ export function tell(fact: Fact, now: number): Told {
       return { title: `Expédition de ${fact.host} rejointe`, detail: '', tone: 'plain' }
     case 'expedition-ended':
       return fact.won
-        ? { title: 'Expédition gagnée', detail: `Butin : ${fact.loot} or`, tone: 'good' }
+        ? { title: 'Expédition gagnée', detail: `Butin : ${fact.loot} or`, tone: 'good' }
         : { title: 'Expédition perdue', detail: 'Les héros sont tombés', tone: 'bad' }
     case 'offer-published':
       return {
@@ -268,7 +268,7 @@ export function tell(fact: Fact, now: number): Told {
       const [gave, got] = fact.role === 'seller' ? [fact.give, fact.want] : [fact.want, fact.give]
       return {
         title: `Échange conclu avec ${fact.partner}`,
-        detail: `Donné : ${tellAmounts(gave)} ; reçu : ${tellAmounts(got)}`,
+        detail: `Donné : ${tellAmounts(gave)} ; reçu : ${tellAmounts(got)}`,
         tone: 'good',
       }
     }
@@ -319,13 +319,13 @@ export function explainBattle(
   const fleet = `${triremes(report.ships)} en ${TACTIC_NAMES[report.tactic]}`
   const triangle =
     report.multiplier > 1
-      ? `${capital(TACTIC_NAMES[report.tactic])} bat ${TACTIC_NAMES[report.posture]} : attaque ×${french(report.multiplier)}`
+      ? `${capital(TACTIC_NAMES[report.tactic])} bat ${TACTIC_NAMES[report.posture]} : attaque ×${french(report.multiplier)}`
       : report.multiplier < 1
-        ? `${capital(TACTIC_NAMES[report.posture])} bat ${TACTIC_NAMES[report.tactic]} : attaque ×${french(report.multiplier)}`
-        : `Aucune tactique ne domine : attaque ×1`
+        ? `${capital(TACTIC_NAMES[report.posture])} bat ${TACTIC_NAMES[report.tactic]} : attaque ×${french(report.multiplier)}`
+        : `Aucune tactique ne domine : attaque ×1`
   const base = report.defense - (report.wall ?? 0) * report.perWallLevel
   const defense = report.pirates
-    ? `Défense de l'île : ${report.defense}`
+    ? `Défense de l'île : ${report.defense}`
     : `${base} de base + rempart niveau ${report.wall} (${(report.wall ?? 0) * report.perWallLevel}) = ${report.defense}`
   const lines: ReportLine[] = [
     { label: attacking ? 'Votre flotte' : 'Flotte ennemie', value: fleet, tone: 'plain' },
@@ -353,8 +353,8 @@ export function explainBattle(
     {
       label: 'Issue',
       value: fleetWon
-        ? `${french(report.attack)} > ${report.defense} : la flotte l'emporte`
-        : `${french(report.attack)} ≤ ${report.defense} : la flotte est repoussée`,
+        ? `${french(report.attack)} > ${report.defense} : la flotte l'emporte`
+        : `${french(report.attack)} ≤ ${report.defense} : la flotte est repoussée`,
       tone: fact.won ? 'good' : 'bad',
     },
     {
@@ -362,10 +362,10 @@ export function explainBattle(
       value: fleetWon
         ? attacking
           ? 'Aucune trirème perdue'
-          : `Ressources pillées : ${tellAmounts(fact.loot)}`
+          : `Ressources pillées : ${tellAmounts(fact.loot)}`
         : attacking
-          ? `${triremes(report.ships)} coulée${report.ships > 1 ? 's' : ''}, équipement perdu : ${tellAmounts(report.cost)}`
-          : `Flotte ennemie coulée : ${triremes(report.ships)}`,
+          ? `${triremes(report.ships)} coulée${report.ships > 1 ? 's' : ''}, équipement perdu : ${tellAmounts(report.cost)}`
+          : `Flotte ennemie coulée : ${triremes(report.ships)}`,
       tone: fact.won ? (attacking ? 'good' : 'plain') : 'bad',
     },
   ]
@@ -381,7 +381,7 @@ export function explainBattle(
       label: 'Conseil',
       value: attacking
         ? `Il fallait au moins ${triremes(report.neededShips)} en ${TACTIC_NAMES[report.tactic]}, ou une tactique qui bat ${TACTIC_NAMES[report.posture]}.`
-        : `La posture ${TACTIC_NAMES[report.counter]} aurait affaibli cette attaque ; chaque niveau de rempart ajoute ${report.perWallLevel} de défense.`,
+        : `La posture ${TACTIC_NAMES[report.counter]} aurait affaibli cette attaque ; chaque niveau de rempart ajoute ${report.perWallLevel} de défense.`,
       tone: 'plain',
     })
   }

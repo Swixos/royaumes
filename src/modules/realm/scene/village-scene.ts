@@ -767,7 +767,7 @@ export async function createVillageScene(
       })
     }
     const text = new Text({
-      text: site.level >= MAX_LEVEL ? 'Niveau max !' : `Niveau ${site.level} !`,
+      text: site.level >= MAX_LEVEL ? 'Niveau max !' : `Niveau ${site.level} !`,
       resolution: 2,
       style: {
         fontFamily: DISPLAY,

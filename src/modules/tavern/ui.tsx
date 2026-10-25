@@ -36,7 +36,7 @@ function errorText(error: MessageError | { code: 'INVALID_INPUT' }): string {
     case 'MESSAGE_TOO_LONG':
       return `Le message dépasse ${error.max} caractères.`
     case 'TOO_MANY_MESSAGES':
-      return `Trop de messages : patientez ${Math.ceil(error.retryAfterMs / 1000)} secondes.`
+      return `Trop de messages : patientez ${Math.ceil(error.retryAfterMs / 1000)} secondes.`
     case 'INVALID_INPUT':
       return 'Saisie invalide.'
   }

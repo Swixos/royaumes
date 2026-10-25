@@ -31,7 +31,7 @@ const OFFER_STATUS: Record<OfferStatus, string> = {
   open: 'Ouverte',
   settling: 'Règlement en cours',
   completed: 'Échange conclu',
-  rejected: 'Refusée : stock insuffisant',
+  rejected: 'Refusée : stock insuffisant',
   withdrawn: 'Retirée',
 }
 
@@ -83,7 +83,7 @@ function outcomeOf(view: OfferView): string {
     const missing = Object.entries(view.missing)
       .map(([resource, amount]) => `${amount} ${look(resource).label.toLowerCase()}`)
       .join(', ')
-    return `Paiement refusé : il vous manque ${missing}.`
+    return `Paiement refusé : il vous manque ${missing}.`
   }
   return OFFER_STATUS[view.status]
 }
@@ -208,7 +208,7 @@ export function MarketScreen() {
         onChange={(e) => onChange({ ...value, amount: Number(e.target.value) })}
       />
       <select
-        aria-label={`Ressource : ${label}`}
+        aria-label={`Ressource : ${label}`}
         value={value.resource}
         onChange={(e) => onChange({ ...value, resource: e.target.value as Resource })}
       >

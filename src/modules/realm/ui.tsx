@@ -59,13 +59,13 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
 
 /** What each building does, told on its card. */
 const STORIES: Record<Building, string> = {
-  senate: 'Le conseil des anciens organise les chantiers : plus il grandit, plus on bâtit vite.',
+  senate: 'Le conseil des anciens organise les chantiers : plus il grandit, plus on bâtit vite.',
   sawmill: "Les bûcherons abattent la forêt de l'ouest et débitent les troncs.",
   quarry: 'Les tailleurs découpent la falaise en blocs prêts à bâtir.',
   mine: "Les mineurs creusent la montagne de l'est pour en tirer de l'or.",
   warehouse:
-    "L'entrepôt garde les récoltes : la production s'arrête quand il est plein, et une part y reste cachée aux pillards.",
-  wall: 'Le rempart protège le port : chaque niveau renforce sa défense contre les raids.',
+    "L'entrepôt garde les récoltes : la production s'arrête quand il est plein, et une part y reste cachée aux pillards.",
+  wall: 'Le rempart protège le port : chaque niveau renforce sa défense contre les raids.',
   shipyard:
     'Les charpentiers arment des flottes plus grandes, en mettent davantage en mer et les rendent plus rapides.',
 }
@@ -240,10 +240,11 @@ export function VillageScreen({ userId }: { userId: string }) {
   const title = (
     <div className="world-title">
       <h1>
-        <Entity kind="village" /> {view?.name ?? 'Royaumes'}
+        <Entity kind="village" />
+        <span className="world-name">{view?.name ?? 'Royaumes'}</span>
       </h1>
-      <span className="status" data-status={status}>
-        {STATUS_LABELS[status]}
+      <span className="status" data-status={status} title={STATUS_LABELS[status]}>
+        <span className="status-label">{STATUS_LABELS[status]}</span>
       </span>
     </div>
   )
@@ -386,7 +387,7 @@ function Works({
             <button type="button" className="link" onClick={() => onSelect(item.building)}>
               <Entity kind={item.building} showLabel />
             </button>
-            <span className="muted">niveau {item.toLevel}</span>
+            <span className="muted works-level">niv. {item.toLevel}</span>
             <span className="works-time">
               {index === 0 || view.queue[index - 1].completesAt <= now ? (
                 <>
@@ -476,10 +477,10 @@ function BuildingCard({
           ))}
         </tbody>
       </table>
-      {blocked && <p className="error">Nécessite : {requirementText(missing)}.</p>}
+      {blocked && <p className="error">Nécessite : {requirementText(missing)}.</p>}
       {tooBig && !blocked && (
         <p className="error">
-          Agrandissez l'entrepôt : il ne peut stocker que {view.capacity} de chaque ressource.
+          Agrandissez l'entrepôt : il ne peut stocker que {view.capacity} de chaque ressource.
         </p>
       )}
       {cost ? (
@@ -565,7 +566,7 @@ function Constructions({
               <button
                 type="button"
                 className="primary"
-                aria-label={`Améliorer : ${look(building).label}`}
+                aria-label={`Améliorer : ${look(building).label}`}
                 disabled={!cost || blocked || full || !canAfford(stock, cost)}
                 onClick={() => onUpgrade(building)}
               >

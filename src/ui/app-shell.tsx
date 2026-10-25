@@ -13,14 +13,17 @@ import { HOME } from './game-window'
 import { Icon } from './icons'
 import { GameMotion, RollingNumber, SPRING } from './motion'
 
-/** Navigation links: every module added to the game gets an entry here. */
-export const NAV = [
+/**
+ * Navigation links: every module added to the game gets an entry here. A long label may
+ * have a shorter one, shown in the narrow menu of a small phone.
+ */
+export const NAV: Array<{ href: string; kind: string; label: string; short?: string }> = [
   { href: '/village', kind: 'village', label: 'Village' },
   { href: '/dungeon', kind: 'dungeon', label: 'Donjon' },
   { href: '/fleet', kind: 'fleet', label: 'Flotte' },
   { href: '/market', kind: 'market', label: 'Marché' },
   { href: '/tavern', kind: 'tavern', label: 'Taverne' },
-  { href: '/ranking', kind: 'ranking', label: 'Classement' },
+  { href: '/ranking', kind: 'ranking', label: 'Classement', short: 'Rangs' },
   { href: '/history', kind: 'history', label: 'Historique' },
 ]
 
@@ -224,14 +227,23 @@ export function AppShell({
               >
                 <Icon kind={item.kind} />
               </m.span>
-              <span>{item.label}</span>
+              {item.short ? (
+                <span className="menu-label">
+                  <span className="menu-long">{item.label}</span>
+                  <span className="menu-short" aria-hidden="true">
+                    {item.short}
+                  </span>
+                </span>
+              ) : (
+                <span>{item.label}</span>
+              )}
             </Link>
           ))}
         </nav>
         <main className="world" inert={windowOpen}>
           {world}
           <footer className="credits">
-            Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
+            Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
             contributeurs, sous licence{' '}
             <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
           </footer>
