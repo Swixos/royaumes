@@ -290,7 +290,7 @@ a { color: var(--brand); font-weight: 700; }
   .resource-gain { left: 24px; font-size: 0.85rem; }
 
   .player { margin-left: 0; flex: none; flex-wrap: nowrap; gap: 6px; }
-  .hud-button, a.hud-button { width: 38px; height: 38px; padding: 0; justify-content: center; font-size: 19px; }
+  .hud-button, a.hud-button { width: 40px; height: 40px; min-height: 0; margin: 0; padding: 0; justify-content: center; font-size: 20px; }
 
   .menu {
     position: fixed;
@@ -675,6 +675,7 @@ input.amount { width: 6em; }
 
 .scene-scroll { overflow-x: auto; contain: paint; overscroll-behavior-x: contain; scrollbar-width: none; }
 .scene-scroll::-webkit-scrollbar { display: none; }
+.table-scroll { overflow-x: auto; contain: paint; overscroll-behavior-x: contain; }
 
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 a, button, input, select { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -714,26 +715,10 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
   .building > span:first-child .muted { font-size: 0.7rem; padding: 0 6px; }
   .building .row { display: none; }
 
-  .ranking, .ranking tbody { display: block; }
-  .ranking thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .ranking tbody { display: grid; gap: 8px; }
-  .ranking tr {
-    position: relative;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
-    padding: 10px 12px 10px 3.2em;
-    border-radius: var(--radius-sm);
-    background: var(--parchment-2);
-    border: 1px solid var(--line);
-  }
-  .ranking td { display: block; padding: 0; border: 0; background: none; }
-  .ranking tbody tr:nth-child(even) td, .ranking tr[aria-current='true'] td { background: none; }
-  .ranking tr[aria-current='true'] { background: var(--brand-soft); border-color: var(--brand); }
-  .ranking td:first-child { position: absolute; left: 0; top: 8px; width: 2.6em; text-align: center; font-size: 1.3rem; }
-  .ranking td:nth-child(2) { flex-basis: 100%; font-family: var(--display); font-size: 0.95rem; line-height: 1.2; }
-  .ranking td[data-label] { display: inline-flex; align-items: baseline; gap: 5px; font-size: 0.95rem; }
-  .ranking td[data-label]::before { content: attr(data-label); font-family: var(--font); font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+  .ranking { font-size: 0.85rem; }
+  .ranking th, .ranking td { padding: 6px 9px; white-space: nowrap; }
+  .ranking th { font-size: 0.62rem; letter-spacing: 0.04em; }
+  .ranking td:first-child { width: auto; text-align: center; }
 
   .games li, .offers li { flex-wrap: wrap; }
   .messages { max-height: 55vh; }
