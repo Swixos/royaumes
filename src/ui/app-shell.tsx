@@ -167,11 +167,11 @@ export function AppShell({ userName, children }: { userName: string; children: R
             <span className="crest-badge">
               <Icon kind="brand" />
             </span>
-            <span className="crest-name">Royaumes</span>
+            <span className="crest-name hud-label">Royaumes</span>
           </Link>
           <ResourceBar />
           <div className="player">
-            <span className="player-name">
+            <span className="player-name hud-label">
               <Icon kind="hero" /> {userName}
             </span>
             <Link
@@ -179,10 +179,10 @@ export function AppShell({ userName, children }: { userName: string; children: R
               className="hud-button"
               aria-current={pathname === '/account' ? 'page' : undefined}
             >
-              <Icon kind="account" /> Mes données
+              <Icon kind="account" /> <span className="hud-label">Mes données</span>
             </Link>
             <button className="hud-button" type="button" onClick={signOut}>
-              <Icon kind="logout" /> Déconnexion
+              <Icon kind="logout" /> <span className="hud-label">Déconnexion</span>
             </button>
           </div>
         </header>

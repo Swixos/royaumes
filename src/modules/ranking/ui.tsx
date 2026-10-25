@@ -94,37 +94,39 @@ export function RankingScreen({ userId }: { userId: string }) {
       <section className="panel" aria-label="Classement des joueurs">
         {entries?.length === 0 && <p className="muted">Aucun joueur classé pour le moment.</p>}
         {entries && entries.length > 0 && (
-          <table className="ranking">
-            <thead>
-              <tr>
-                <th>Rang</th>
-                <th>Joueur</th>
-                <th>Victoires</th>
-                <th>Expéditions</th>
-                <th>
-                  <Entity kind="gold" />
-                </th>
-                <th>Meilleur butin</th>
-                <th>Améliorations</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((entry) => (
-                <tr
-                  key={entry.playerId}
-                  aria-current={entry.playerId === userId ? 'true' : undefined}
-                >
-                  <td>{entry.rank}</td>
-                  <td>{entry.label}</td>
-                  <td>{entry.gamesWon}</td>
-                  <td>{entry.gamesPlayed}</td>
-                  <td>{entry.gold}</td>
-                  <td>{entry.bestLoot}</td>
-                  <td>{entry.upgrades}</td>
+          <div className="table-scroll">
+            <table className="ranking">
+              <thead>
+                <tr>
+                  <th>Rang</th>
+                  <th>Joueur</th>
+                  <th>Victoires</th>
+                  <th>Expéditions</th>
+                  <th>
+                    <Entity kind="gold" />
+                  </th>
+                  <th>Meilleur butin</th>
+                  <th>Améliorations</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr
+                    key={entry.playerId}
+                    aria-current={entry.playerId === userId ? 'true' : undefined}
+                  >
+                    <td>{entry.rank}</td>
+                    <td>{entry.label}</td>
+                    <td>{entry.gamesWon}</td>
+                    <td>{entry.gamesPlayed}</td>
+                    <td>{entry.gold}</td>
+                    <td>{entry.bestLoot}</td>
+                    <td>{entry.upgrades}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </>
