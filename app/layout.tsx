@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import '@fontsource/alegreya/400.css'
 import '@fontsource/alegreya/400-italic.css'
@@ -12,6 +12,18 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Royaumes',
   description: 'Jeu multijoueur - monolithe modulaire',
+  appleWebApp: { capable: true, title: 'Royaumes', statusBarStyle: 'black-translucent' },
+}
+
+/**
+ * Viewport of every page: the width of the device, drawn under the notch and the home bar
+ * of a phone, whose safe areas the stylesheet keeps clear.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#2a170a',
 }
 
 /**

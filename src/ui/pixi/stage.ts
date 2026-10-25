@@ -23,7 +23,8 @@ export interface Stage {
 
 /**
  * Creates the stage of a scene in an element of the page. The world keeps its proportions
- * and covers the element, centered; the fonts of the plaques are loaded first.
+ * and covers the element, centered; the fonts of the plaques are loaded first. A finger
+ * sliding on the canvas still scrolls the page, so a scene never traps a phone user.
  *
  * @param host - Element receiving the canvas; its size is the size of the scene.
  * @param width - Width of the world, in scene units.
@@ -45,6 +46,8 @@ export async function createStage(
   })
   await document.fonts?.load(`700 20px ${DISPLAY}`).catch(() => undefined)
   host.appendChild(app.canvas)
+  app.renderer.events.autoPreventDefault = false
+  app.canvas.style.touchAction = 'pan-x pan-y'
 
   const world = new Container()
   app.stage.addChild(world)

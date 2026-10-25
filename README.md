@@ -254,6 +254,14 @@ scènes (palette, dessins, mise en place du canvas) sont dans `src/ui/pixi/`. Le
 animations de l'interface (rapport de bataille, compteurs, sélecteurs) utilisent la
 bibliothèque Motion, et toutes respectent le réglage système de réduction des animations.
 
+Le jeu est pensé d'abord pour le téléphone. Sur un petit écran, la barre du haut se réduit
+aux ressources et à deux boutons, et le menu devient une barre d'onglets fixée en bas de
+l'écran, qui respecte l'encoche et la barre d'accueil. Les cartes du village et des mers
+gardent une taille lisible et défilent sous le doigt, en s'ouvrant sur l'hôtel de ville ou
+sur votre port. Les champs de saisie font au moins 16 pixels et les boutons au moins
+44 pixels de haut, pour éviter le zoom automatique et viser juste au doigt. Le manifeste web
+permet d'ajouter le jeu à l'écran d'accueil, où il s'ouvre en plein écran.
+
 L'apparence de chaque entité du jeu (libellé et couleur) est définie dans `src/ui/theme.ts`,
 et son icône dans `src/ui/game-icons.ts`, produit par `scripts/generate-icons.ts` : seules les
 icônes utilisées sont copiées, sous forme de tracés SVG, dans le code envoyé au navigateur.
