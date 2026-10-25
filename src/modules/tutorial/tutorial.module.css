@@ -145,16 +145,13 @@
   border: 2px solid var(--gold);
   border-radius: 8px;
   box-shadow: 0 3px 0 var(--frame);
-  transform: translate(-50%, -100%);
   white-space: nowrap;
 }
-
-.tip[data-side='below'] { transform: translate(-50%, 0); }
 
 .tip::after {
   content: '';
   position: absolute;
-  left: 50%;
+  left: var(--arrow, 50%);
   bottom: -9px;
   width: 14px;
   height: 14px;
