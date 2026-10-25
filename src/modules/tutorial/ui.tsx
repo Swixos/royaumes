@@ -3,7 +3,15 @@ import { hc } from 'hono/client'
 import { AnimatePresence, m } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Entity } from '@/ui/entity'
 import { TUTORIAL_CHANGED, TUTORIAL_INTRO, VILLAGE_CHANGED } from '@/ui/events'
@@ -73,7 +81,7 @@ function stepsOf(quest: QuestView): Step[] {
     case 'offer':
       return [
         { target: 'nav-market', hint: 'Ouvrez le Marché' },
-        { target: 'publish-offer', hint: 'Choisissez un échange, puis publiez' },
+        { target: 'publish-offer', hint: 'Publiez votre offre' },
       ]
     case 'expedition':
       return [
@@ -254,13 +262,13 @@ function GoalBar({ quest }: { quest: QuestView }) {
 /** Pages of the introduction told by the advisor. */
 const INTRO = [
   {
-    title: 'Bienvenue, seigneur !',
-    text: `Je suis ${ADVISOR}, votre conseillère. Votre village n'est encore qu'un hameau au bord de la mer : ensemble, nous allons en faire un royaume.`,
+    title: 'Bienvenue, seigneur !',
+    text: `Je suis ${ADVISOR}, votre conseillère. Votre village n'est encore qu'un hameau au bord de la mer : ensemble, nous allons en faire un royaume.`,
     icon: 'village',
   },
   {
     title: 'Les ressources',
-    text: 'Le bois, la pierre et l’or arrivent chaque minute de la scierie, de la carrière et de la mine. Vos réserves s’affichent en haut de l’écran ; l’entrepôt fixe leur plafond.',
+    text: 'Le bois, la pierre et l’or arrivent chaque minute de la scierie, de la carrière et de la mine. Vos réserves s’affichent en haut de l’écran ; l’entrepôt fixe leur plafond.',
     icon: 'wood',
   },
   {
@@ -275,7 +283,7 @@ const INTRO = [
   },
   {
     title: 'Vos quêtes',
-    text: 'Je vous confierai des quêtes, chacune payée en ressources. Suivez la lumière dorée : elle montre où toucher. Vous retrouverez vos quêtes en me touchant.',
+    text: 'Je vous confierai des quêtes, chacune payée en ressources. Suivez la lumière dorée : elle montre où toucher. Vous retrouverez vos quêtes en me touchant.',
     icon: 'chest',
   },
 ]
@@ -367,8 +375,11 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
 
 /**
  * Golden light around the element the player should touch next, with a hint beside it.
- * It follows the element while the page moves, and lets every touch through. A step
- * hidden further down a window is scrolled into view once.
+ * It follows the element while the page moves, and lets every touch through. The bubble
+ * stays inside the screen, and its arrow always points at the element; in a window, it
+ * stands beside or under the element when there is room, so it hides no field above it.
+ * A step further down a window is scrolled into view, and announced until it shows; a
+ * building aside in the building bar is scrolled into view once.
  *
  * @param props - Component props.
  * @param props.steps - Steps of the quest under way.
@@ -376,14 +387,29 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
  * @returns The light, or nothing when no step shows on screen.
  */
 function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
-  const [spot, setSpot] = useState<{ box: DOMRect | null; hint: string } | null>(null)
+  const [spot, setSpot] = useState<{
+    box: DOMRect | null
+    hint: string
+    inWindow?: boolean
+  } | null>(null)
+  const tip = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+
+  useLayoutEffect(() => {
+    const element = tip.current
+    if (!element || !spot) return
+    const next = { width: element.offsetWidth, height: element.offsetHeight }
+    setSize((current) =>
+      current.width === next.width && current.height === next.height ? current : next,
+    )
+  }, [spot])
 
   useEffect(() => {
     let key: string | null = null
     const scrolled = new Set<string>()
     /** Looks for the deepest step on screen, and moves the light onto it. */
     const look = () => {
-      let found: { box: DOMRect | null; hint: string } | null = null
+      let found: { box: DOMRect | null; hint: string; inWindow?: boolean } | null = null
       let away: string | null = null
       for (let i = steps.length - 1; i >= 0 && !found; i--) {
         const step = steps[i]
@@ -393,12 +419,22 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         const all = [...document.querySelectorAll(`[data-guide="${step.target}"]`)]
         const element = all.find(onScreen) ?? all[0]
         if (element && onScreen(element)) {
-          found = { box: element.getBoundingClientRect(), hint: step.hint }
+          found = {
+            box: element.getBoundingClientRect(),
+            hint: step.hint,
+            inWindow: !!element.closest('.game-window-body'),
+          }
+        } else if (element?.closest('.game-window-body')) {
+          if (!scrolled.has(step.target)) {
+            scrolled.add(step.target)
+            element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }
+          found = { box: null, hint: `Descendez dans la fenêtre : ${step.hint.toLowerCase()}` }
         } else if (element && step.away && away === null) {
           away = step.away
-        } else if (element && !scrolled.has(step.target) && element.closest('.game-window-body')) {
+        } else if (element && !scrolled.has(step.target) && element.closest('.village-bar')) {
           scrolled.add(step.target)
-          element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          element.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
         }
       }
       if (away !== null && (!found || found.hint !== away)) {
@@ -427,17 +463,55 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         className={styles.tip}
         data-side="free"
         role="status"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        style={{ left: '50%', top: '58%' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
       >
         <Icon kind="advisor" /> {hint}
       </m.div>,
       document.body,
     )
   }
-  const below = box.top < 150
-  const left = Math.min(Math.max(box.left + box.width / 2, 130), window.innerWidth - 130)
+  const right = window.innerWidth - box.right
+  if (spot.inWindow && size.width > 0 && right >= size.width + 24) {
+    return createPortal(
+      <>
+        <m.div
+          className={styles.ring}
+          aria-hidden="true"
+          initial={false}
+          animate={{
+            left: box.left - 6,
+            top: box.top - 6,
+            width: box.width + 12,
+            height: box.height + 12,
+          }}
+          transition={SPRING}
+        />
+        <m.div
+          ref={tip}
+          className={styles.tip}
+          data-side="right"
+          role="status"
+          initial={false}
+          animate={{ left: box.right + 16, top: box.top + box.height / 2 - size.height / 2 }}
+          transition={SPRING}
+        >
+          <Icon kind="advisor" /> {hint}
+        </m.div>
+      </>,
+      document.body,
+    )
+  }
+  const roomBelow = window.innerHeight - 100 - box.bottom >= size.height + 24
+  const below = box.top < 150 || (!!spot.inWindow && roomBelow)
+  const center = box.left + box.width / 2
+  const margin = 8
+  const left = Math.min(
+    Math.max(center - size.width / 2, margin),
+    window.innerWidth - size.width - margin,
+  )
+  const arrow = Math.min(Math.max(center - left, 16), Math.max(16, size.width - 16))
+  const top = below ? box.bottom + 16 : box.top - 16 - size.height
   return createPortal(
     <>
       <m.div
@@ -453,12 +527,14 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         transition={SPRING}
       />
       <m.div
+        ref={tip}
         className={styles.tip}
         data-side={below ? 'below' : 'above'}
         role="status"
         initial={false}
-        animate={{ left, top: below ? box.bottom + 16 : box.top - 16 }}
+        animate={{ left, top, opacity: size.width > 0 ? 1 : 0 }}
         transition={SPRING}
+        style={{ '--arrow': `${arrow}px` } as CSSProperties}
       >
         <Icon kind="advisor" /> {hint}
       </m.div>
@@ -494,7 +570,7 @@ function RewardToast({ reward, title }: { reward: Amounts; title: string }) {
         <Entity kind="chest" />
       </m.span>
       <span>
-        <strong>Quête accomplie : {title}</strong>
+        <strong>Quête accomplie : {title}</strong>
         <Reward reward={reward} />
       </span>
     </m.div>,
@@ -599,7 +675,7 @@ export function TutorialGuide() {
               className={styles.medallion}
               data-ready={ready}
               aria-expanded={open}
-              aria-label={`Quête en cours : ${quest?.title}`}
+              aria-label={`Quête en cours : ${quest?.title}`}
               onClick={() => setOpen(!open)}
             >
               <Advisor />
@@ -714,7 +790,7 @@ export function QuestsScreen() {
           <p>
             {current
               ? current.advice
-              : 'Toutes les quêtes sont accomplies : le royaume est à vous, seigneur.'}
+              : 'Toutes les quêtes sont accomplies : le royaume est à vous, seigneur.'}
           </p>
           <div className={styles.total}>
             <span className={styles.bar}>

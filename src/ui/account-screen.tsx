@@ -67,7 +67,7 @@ export function AccountScreen() {
       <section className="panel" aria-label="Exporter mes données">
         <h2>Exporter mes données</h2>
         <p>
-          Téléchargez, au format JSON, l'ensemble des données que le jeu conserve à votre sujet :
+          Téléchargez, au format JSON, l'ensemble des données que le jeu conserve à votre sujet :
           compte, village, expéditions, offres, messages, classement et raids.
         </p>
         <a className="button" href={exportUrl} download>
@@ -78,7 +78,7 @@ export function AccountScreen() {
       <section className="panel" aria-label="Corriger mon nom">
         <h2>Corriger mon nom</h2>
         <p>
-          Votre nom est remplacé partout où le jeu l'a recopié : expéditions, offres, messages,
+          Votre nom est remplacé partout où le jeu l'a recopié : expéditions, offres, messages,
           classement et raids de la Flotte.
         </p>
         <div className="row">
@@ -131,6 +131,12 @@ export function AccountScreen() {
           </p>
         )}
       </section>
+
+      <p className="muted">
+        Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
+        contributeurs, sous licence{' '}
+        <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
+      </p>
     </>
   )
 }
