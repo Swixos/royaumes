@@ -21,6 +21,7 @@ export const NAV = [
   { href: '/market', kind: 'market', label: 'Marché' },
   { href: '/tavern', kind: 'tavern', label: 'Taverne' },
   { href: '/ranking', kind: 'ranking', label: 'Classement' },
+  { href: '/history', kind: 'history', label: 'Historique' },
 ]
 
 /** Typed HTTP client of the village, read by the resource bar. */

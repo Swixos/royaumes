@@ -44,7 +44,7 @@ flowchart TB
 
 Le journal d'événements est la seule source de vérité des modules Village, Donjon, Marché et Flotte.
 La Taverne n'enregistre pas d'événements : ses tables sont sa propre source de vérité (ADR 0008).
-Les tables des schémas `ranking`, `dungeon`, `market` et `fleet` sont des modèles de lecture, dérivés du journal par des projections : elles peuvent
+Les tables des schémas `ranking`, `chronicle`, `dungeon`, `market` et `fleet` sont des modèles de lecture, dérivés du journal par des projections : elles peuvent
 être vidées puis reconstruites à tout moment, sans perte d'information.
 
 L'interface web ne communique jamais directement avec la base : toute lecture et toute
@@ -115,6 +115,10 @@ dans leurs propres tables, au sein de la transaction fournie par le moteur des p
 Le module `ranking` lit des événements du Village et du Donjon, mais n'importe aucun de leurs
 fichiers en dehors de leurs contrats : il ne dépend que de leur langage publié, c'est-à-dire
 du nom et des données de leurs événements, ainsi que du préfixe de leurs flux.
+
+Le module `chronicle` (l'historique) suit le même principe pour quatre modules : sa projection
+lit le langage publié du Village, de la Flotte, du Donjon et du Marché, et écrit pour chaque
+joueur une entrée par événement qui le concerne (ADR 0021). Il n'importe que leurs contrats.
 
 Le module `market` modifie les villages sans jamais importer le code du Village : il enregistre
 des messages dans la boîte d'envoi, que le distributeur remet aux gestionnaires du Village.
