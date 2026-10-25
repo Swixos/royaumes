@@ -262,13 +262,13 @@ function GoalBar({ quest }: { quest: QuestView }) {
 /** Pages of the introduction told by the advisor. */
 const INTRO = [
   {
-    title: 'Bienvenue, seigneur !',
-    text: `Je suis ${ADVISOR}, votre conseillère. Votre village n'est encore qu'un hameau au bord de la mer : ensemble, nous allons en faire un royaume.`,
+    title: 'Bienvenue, seigneur !',
+    text: `Je suis ${ADVISOR}, votre conseillère. Votre village n'est encore qu'un hameau au bord de la mer : ensemble, nous allons en faire un royaume.`,
     icon: 'village',
   },
   {
     title: 'Les ressources',
-    text: 'Le bois, la pierre et l’or arrivent chaque minute de la scierie, de la carrière et de la mine. Vos réserves s’affichent en haut de l’écran ; l’entrepôt fixe leur plafond.',
+    text: 'Le bois, la pierre et l’or arrivent chaque minute de la scierie, de la carrière et de la mine. Vos réserves s’affichent en haut de l’écran ; l’entrepôt fixe leur plafond.',
     icon: 'wood',
   },
   {
@@ -283,7 +283,7 @@ const INTRO = [
   },
   {
     title: 'Vos quêtes',
-    text: 'Je vous confierai des quêtes, chacune payée en ressources. Suivez la lumière dorée : elle montre où toucher. Vous retrouverez vos quêtes en me touchant.',
+    text: 'Je vous confierai des quêtes, chacune payée en ressources. Suivez la lumière dorée : elle montre où toucher. Vous retrouverez vos quêtes en me touchant.',
     icon: 'chest',
   },
 ]
@@ -429,7 +429,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
             scrolled.add(step.target)
             element.scrollIntoView({ block: 'center', behavior: 'smooth' })
           }
-          found = { box: null, hint: `Descendez dans la fenêtre : ${step.hint.toLowerCase()}` }
+          found = { box: null, hint: `Descendez dans la fenêtre : ${step.hint.toLowerCase()}` }
         } else if (element && step.away && away === null) {
           away = step.away
         } else if (element && !scrolled.has(step.target) && element.closest('.village-bar')) {
@@ -570,7 +570,7 @@ function RewardToast({ reward, title }: { reward: Amounts; title: string }) {
         <Entity kind="chest" />
       </m.span>
       <span>
-        <strong>Quête accomplie : {title}</strong>
+        <strong>Quête accomplie : {title}</strong>
         <Reward reward={reward} />
       </span>
     </m.div>,
@@ -675,7 +675,7 @@ export function TutorialGuide() {
               className={styles.medallion}
               data-ready={ready}
               aria-expanded={open}
-              aria-label={`Quête en cours : ${quest?.title}`}
+              aria-label={`Quête en cours : ${quest?.title}`}
               onClick={() => setOpen(!open)}
             >
               <Advisor />
@@ -790,7 +790,7 @@ export function QuestsScreen() {
           <p>
             {current
               ? current.advice
-              : 'Toutes les quêtes sont accomplies : le royaume est à vous, seigneur.'}
+              : 'Toutes les quêtes sont accomplies : le royaume est à vous, seigneur.'}
           </p>
           <div className={styles.total}>
             <span className={styles.bar}>

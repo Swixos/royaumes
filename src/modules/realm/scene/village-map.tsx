@@ -47,7 +47,7 @@ export function VillageMap({
       paused={paused}
       controls={controls}
       className="village-map"
-      label={`Vue de ${state.name} : hôtel de ville, scierie niveau ${levels.sawmill}, carrière niveau ${levels.quarry}, mine niveau ${levels.mine}`}
+      label={`Vue de ${state.name} : hôtel de ville, scierie niveau ${levels.sawmill}, carrière niveau ${levels.quarry}, mine niveau ${levels.mine}`}
     />
   )
 }

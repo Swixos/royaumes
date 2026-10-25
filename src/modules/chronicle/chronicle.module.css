@@ -109,3 +109,8 @@
 }
 
 .more { display: flex; justify-content: center; margin-top: 14px; }
+
+@media (max-width: 400px) {
+  .filters { gap: 4px; }
+  .filters button { padding: 8px 2px; font-size: 0.6rem; letter-spacing: 0; }
+}

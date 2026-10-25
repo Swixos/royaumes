@@ -35,7 +35,7 @@ export function HealthStatus() {
   if (health.status === 'error') return <p className="error">L'API ne répond pas.</p>
   return (
     <p className="muted">
-      API disponible - heure du serveur : {new Date(health.time).toLocaleTimeString('fr-FR')}
+      API disponible - heure du serveur : {new Date(health.time).toLocaleTimeString('fr-FR')}
     </p>
   )
 }
