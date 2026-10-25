@@ -3,7 +3,15 @@ import { hc } from 'hono/client'
 import { AnimatePresence, m } from 'motion/react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Entity } from '@/ui/entity'
 import { TUTORIAL_CHANGED, TUTORIAL_INTRO, VILLAGE_CHANGED } from '@/ui/events'
@@ -367,8 +375,9 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
 
 /**
  * Golden light around the element the player should touch next, with a hint beside it.
- * It follows the element while the page moves, and lets every touch through. A step
- * hidden further down a window is scrolled into view once.
+ * It follows the element while the page moves, and lets every touch through. The bubble
+ * stays inside the screen, and its arrow always points at the element. A step hidden
+ * further down a window, or aside in the building bar, is scrolled into view once.
  *
  * @param props - Component props.
  * @param props.steps - Steps of the quest under way.
@@ -377,6 +386,17 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
  */
 function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
   const [spot, setSpot] = useState<{ box: DOMRect | null; hint: string } | null>(null)
+  const tip = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+
+  useLayoutEffect(() => {
+    const element = tip.current
+    if (!element || !spot) return
+    const next = { width: element.offsetWidth, height: element.offsetHeight }
+    setSize((current) =>
+      current.width === next.width && current.height === next.height ? current : next,
+    )
+  }, [spot])
 
   useEffect(() => {
     let key: string | null = null
@@ -396,9 +416,13 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
           found = { box: element.getBoundingClientRect(), hint: step.hint }
         } else if (element && step.away && away === null) {
           away = step.away
-        } else if (element && !scrolled.has(step.target) && element.closest('.game-window-body')) {
+        } else if (
+          element &&
+          !scrolled.has(step.target) &&
+          element.closest('.game-window-body, .village-bar')
+        ) {
           scrolled.add(step.target)
-          element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' })
         }
       }
       if (away !== null && (!found || found.hint !== away)) {
@@ -437,7 +461,14 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
     )
   }
   const below = box.top < 150
-  const left = Math.min(Math.max(box.left + box.width / 2, 130), window.innerWidth - 130)
+  const center = box.left + box.width / 2
+  const margin = 8
+  const left = Math.min(
+    Math.max(center - size.width / 2, margin),
+    window.innerWidth - size.width - margin,
+  )
+  const arrow = Math.min(Math.max(center - left, 16), Math.max(16, size.width - 16))
+  const top = below ? box.bottom + 16 : box.top - 16 - size.height
   return createPortal(
     <>
       <m.div
@@ -453,12 +484,14 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         transition={SPRING}
       />
       <m.div
+        ref={tip}
         className={styles.tip}
         data-side={below ? 'below' : 'above'}
         role="status"
         initial={false}
-        animate={{ left, top: below ? box.bottom + 16 : box.top - 16 }}
+        animate={{ left, top, opacity: size.width > 0 ? 1 : 0 }}
         transition={SPRING}
+        style={{ '--arrow': `${arrow}px` } as CSSProperties}
       >
         <Icon kind="advisor" /> {hint}
       </m.div>
