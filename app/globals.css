@@ -234,7 +234,7 @@ a { color: var(--brand); font-weight: 700; }
 .window-host { grid-area: page; position: relative; min-width: 0; min-height: 0; pointer-events: none; z-index: 10; }
 .window-host > * { pointer-events: auto; }
 
-.game-window-layer { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 22px; }
+.game-window-layer { position: absolute; inset: 0; z-index: 40; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 22px; }
 .game-window-backdrop {
   position: absolute;
   inset: 0;
@@ -303,6 +303,8 @@ a { color: var(--brand); font-weight: 700; }
 .zoom-controls button:hover:not(:disabled) { background: var(--wood-light); color: var(--gold-light); }
 
 .game-window-body {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 22px 24px 28px;
@@ -616,7 +618,7 @@ input.amount { width: 6em; }
 .status[data-status='open']::before { background: #8fc85a; }
 .status[data-status='reconnecting']::before { background: #e0623e; }
 
-.village-world { position: absolute; inset: 0; }
+.village-world { position: absolute; inset: 0; --menu-top: 76px; --menu-right: 64px; --menu-bottom: 110px; }
 .world-scene { position: absolute; inset: 0; overflow: hidden; }
 .village-map { position: relative; width: 100%; height: 100%; }
 .village-map canvas { position: absolute; inset: 0; }
@@ -861,6 +863,7 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
   form { max-width: none; }
 
   .zoom-controls { right: 8px; bottom: 96px; }
+  .village-world { --menu-top: 64px; --menu-right: 52px; --menu-bottom: 86px; }
   .zoom-controls button { width: 38px; height: 38px; }
   .game-window-layer[data-size='side'] { inset: auto 0 0 0; width: 100%; height: 72%; padding: 0; }
   .game-window-layer[data-size='side'] .game-window { border-width: 3px 0 0; border-radius: 0; }

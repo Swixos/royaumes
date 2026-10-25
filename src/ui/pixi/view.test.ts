@@ -32,6 +32,12 @@ describe('caméra des scènes', () => {
     expect(clampView({ scale: 10, x: 0, y: 0 }, desktop, world).scale).toBe(3)
   })
 
+  it('laisse glisser le monde hors des menus posés sur les bords', () => {
+    const insets = { top: 200, right: 0, bottom: 80, left: 0 }
+    expect(clampView({ scale: 1, x: 0, y: 500 }, desktop, world, insets).y).toBe(200)
+    expect(clampView({ scale: 1, x: 0, y: -500 }, desktop, world, insets).y).toBe(-80)
+  })
+
   it('zoome autour du point visé, qui reste sous le curseur', () => {
     const view = zoomAround({ scale: 1, x: -100, y: -50 }, 2, { x: 300, y: 200 })
     expect(view.scale).toBe(2)

@@ -1,4 +1,4 @@
-.screen { position: absolute; inset: 0; overflow: hidden; }
+.screen { position: absolute; inset: 0; overflow: hidden; --menu-top: 110px; --menu-right: 64px; --menu-bottom: 100px; }
 
 .figures {
   position: absolute;
@@ -12,6 +12,7 @@
 }
 
 .figures > div {
+  min-width: 0;
   background: var(--parchment) var(--tex-paper);
   border: 2px solid var(--frame);
   border-radius: var(--radius-sm);
@@ -37,8 +38,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
+.figureText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.figures dt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top { position: absolute; top: 12px; left: 12px; z-index: 3; display: grid; gap: 8px; justify-items: start; width: min(440px, calc(100% - 24px)); }
 .top > header { gap: 8px; }
 .notice { margin: 0; justify-self: center; padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 800; color: var(--ok); background: var(--parchment) var(--tex-paper); border: 2px solid var(--frame); box-shadow: 0 3px 0 var(--frame); }
@@ -374,6 +378,7 @@
 
 @media (max-width: 760px) {
   .legend { display: none; }
+  .screen { --menu-top: 180px; --menu-right: 52px; --menu-bottom: 84px; }
   .top { top: 8px; left: 8px; width: calc(100% - 16px); }
   .top h1 { font-size: 1rem; }
   .figures { top: 112px; left: 8px; right: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }

@@ -809,11 +809,11 @@ export function FleetScreen({ userId }: { userId: string }) {
 
       <dl className={styles.figures}>
         <div>
-          <dt>Défense du port</dt>
+          <dt>Défense</dt>
           <dd>{targets?.home?.defense ?? '-'}</dd>
         </div>
         <div>
-          <dt>Flottes en mer</dt>
+          <dt>En mer</dt>
           <dd>
             {out} / {targets?.home?.limits.maxRaids ?? MAX_RAIDS_AT_SEA}
           </dd>
@@ -823,7 +823,8 @@ export function FleetScreen({ userId }: { userId: string }) {
           <dd>
             {harbor ? (
               <>
-                <Icon kind={harbor.holding} /> {look(harbor.holding).label}
+                <Icon kind={harbor.holding} />
+                <span className={styles.figureText}>{look(harbor.holding).label}</span>
               </>
             ) : (
               '-'
@@ -831,7 +832,7 @@ export function FleetScreen({ userId }: { userId: string }) {
           </dd>
         </div>
         <div>
-          <dt>Prochaine arrivée</dt>
+          <dt>Arrivée</dt>
           <dd>{nextArrival === null ? '-' : clock(nextArrival - now)}</dd>
         </div>
       </dl>
@@ -866,7 +867,7 @@ export function FleetScreen({ userId }: { userId: string }) {
           ))}
         </AnimatePresence>
         {targets && !targets.home && (
-          <p className="error">
+          <p className={styles.notice} data-error="true">
             Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
           </p>
         )}
