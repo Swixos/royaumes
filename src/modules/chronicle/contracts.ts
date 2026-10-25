@@ -7,8 +7,16 @@
 import { z } from 'zod'
 import { CATEGORIES, type Category, type ChronicleEntry } from './domain/entry'
 
-export type { Amounts, Category, ChronicleEntry, Fact, Told } from './domain/entry'
-export { CATEGORIES, categoryOf, tell, tellAmounts } from './domain/entry'
+export type {
+  Amounts,
+  BattleDetail,
+  Category,
+  ChronicleEntry,
+  Fact,
+  ReportLine,
+  Told,
+} from './domain/entry'
+export { CATEGORIES, categoryOf, explainBattle, tell, tellAmounts } from './domain/entry'
 
 /** Number of entries returned by one page of the chronicle. */
 export const CHRONICLE_PAGE_SIZE = 30

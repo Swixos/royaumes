@@ -61,6 +61,11 @@ describe("Projection de l'historique", () => {
           at: 1,
         },
       },
+      { type: 'FleetSailed', data: { arrivesAt: 2, at: 1 } },
+      {
+        type: 'BattleFought',
+        data: { attack: 45, defense: 44, posture: 'blockade', victory: true, at: 2 },
+      },
     ])
     await store.append('harbor-bob', 0, [
       {
@@ -104,7 +109,24 @@ describe("Projection de l'historique", () => {
     expect(await typesOf('alice')).toEqual(['battle', 'raid-launched'])
     expect(await typesOf('bob')).toEqual(['battle', 'fleet-sighted'])
     const [report] = (await reader.page('bob', { limit: 1 })).entries
-    expect(report).toMatchObject({ role: 'defender', won: false, opponent: 'Alice' })
+    expect(report).toMatchObject({
+      role: 'defender',
+      won: false,
+      opponent: 'Alice',
+      report: {
+        ships: 3,
+        tactic: 'ram',
+        posture: 'blockade',
+        counter: 'board',
+        multiplier: 1.5,
+        attack: 45,
+        defense: 44,
+        wall: 2,
+        pirates: false,
+        neededShips: 3,
+        hold: { wood: 30, stone: 15, gold: 6 },
+      },
+    })
   })
 
   it("raconte l'issue d'une expédition à ses joueurs, sans les compagnons", async () => {

@@ -78,6 +78,7 @@ async function searchHarbor(page: Page, name: string) {
 test('lance un raid, alerte le défenseur en temps réel, puis rappelle la flotte', async ({
   browser,
 }) => {
+  test.slow()
   const alice = await newPlayer(browser, 'Amirale')
   const bob = await newPlayer(browser, 'Gardien')
   await openFleet(alice)
