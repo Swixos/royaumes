@@ -307,7 +307,7 @@ a { color: var(--brand); font-weight: 700; }
     box-shadow: 0 -3px 0 var(--frame);
   }
 
-  .menu-item { gap: 3px; min-width: 0; font-size: 0.66rem; letter-spacing: 0; text-transform: none; min-height: 56px; align-content: center; -webkit-tap-highlight-color: transparent; }
+  .menu-item { gap: 3px; min-width: 0; font-size: clamp(0.44rem, 2.3vw, 0.66rem); letter-spacing: -0.01em; text-transform: none; min-height: 56px; align-content: center; -webkit-tap-highlight-color: transparent; }
   .menu-item > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .menu-badge { width: 40px; height: 40px; font-size: 22px; border-width: 2px; box-shadow: 0 0 0 2px var(--frame), 0 2px 0 2px var(--frame); }
 
@@ -317,7 +317,6 @@ a { color: var(--brand); font-weight: 700; }
 
 @media (max-width: 370px) {
   .crest { display: none; }
-  .menu-item { font-size: 0.56rem; }
   .menu-badge { width: 36px; height: 36px; font-size: 20px; }
 }
 
@@ -676,7 +675,6 @@ input.amount { width: 6em; }
 
 .scene-scroll { overflow-x: auto; contain: paint; overscroll-behavior-x: contain; scrollbar-width: none; }
 .scene-scroll::-webkit-scrollbar { display: none; }
-.table-scroll { overflow-x: auto; contain: paint; margin: 0 -20px; padding: 0 20px; }
 
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 a, button, input, select { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
@@ -696,7 +694,6 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
 
   .panel { padding: 14px; }
   .panel > h2:first-child { margin: -14px -14px 12px; padding: 9px 12px; font-size: 0.85rem; letter-spacing: 0.08em; }
-  .table-scroll { margin: 0 -14px; padding: 0 14px; }
 
   input, select { font-size: 16px; min-height: 44px; }
   button, a.button { min-height: 44px; }
@@ -717,14 +714,26 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
   .building > span:first-child .muted { font-size: 0.7rem; padding: 0 6px; }
   .building .row { display: none; }
 
-  .ranking th, .ranking td { padding: 8px; white-space: nowrap; }
-  .ranking th:nth-child(-n + 2), .ranking td:nth-child(-n + 2) { position: sticky; z-index: 1; background: var(--parchment); }
-  .ranking th:nth-child(-n + 2) { background: var(--wood) var(--tex-wood); }
-  .ranking tbody tr:nth-child(even) td:nth-child(-n + 2) { background: #e3cf9f; }
-  .ranking tr[aria-current='true'] td:nth-child(-n + 2) { background: var(--brand-soft); }
-  .ranking th:first-child, .ranking td:first-child { left: 0; width: 2.6em; }
-  .ranking th:nth-child(2), .ranking td:nth-child(2) { left: 2.6em; box-shadow: 2px 0 0 var(--line); }
-  .ranking td:nth-child(2) { white-space: normal; min-width: 9em; }
+  .ranking, .ranking tbody { display: block; }
+  .ranking thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ranking tbody { display: grid; gap: 8px; }
+  .ranking tr {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    padding: 10px 12px 10px 3.2em;
+    border-radius: var(--radius-sm);
+    background: var(--parchment-2);
+    border: 1px solid var(--line);
+  }
+  .ranking td { display: block; padding: 0; border: 0; background: none; }
+  .ranking tbody tr:nth-child(even) td, .ranking tr[aria-current='true'] td { background: none; }
+  .ranking tr[aria-current='true'] { background: var(--brand-soft); border-color: var(--brand); }
+  .ranking td:first-child { position: absolute; left: 0; top: 8px; width: 2.6em; text-align: center; font-size: 1.3rem; }
+  .ranking td:nth-child(2) { flex-basis: 100%; font-family: var(--display); font-size: 0.95rem; line-height: 1.2; }
+  .ranking td[data-label] { display: inline-flex; align-items: baseline; gap: 5px; font-size: 0.95rem; }
+  .ranking td[data-label]::before { content: attr(data-label); font-family: var(--font); font-size: 0.75rem; font-weight: 700; color: var(--muted); }
 
   .games li, .offers li { flex-wrap: wrap; }
   .messages { max-height: 55vh; }
