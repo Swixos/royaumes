@@ -21,6 +21,17 @@ export interface View {
   y: number
 }
 
+/** Margins of the screen covered by menus, which the world may slide out from under. */
+export interface Insets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+/** No margin: the whole screen shows the world. */
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
+
 /** Furthest the camera zooms in, as a multiple of the scale covering the screen. */
 export const MAX_ZOOM = 3
 
@@ -40,30 +51,37 @@ export function scaleRange(screen: Size, world: Size) {
 
 /**
  * Keeps a view within its limits: the scale within its range, and the world over the
- * screen. Along an axis where the world is smaller than the screen, it is centered.
+ * screen. The menus laid over the edges of the screen are margins the world may slide out
+ * from under, so nothing stays hidden behind them. Along an axis where the world is smaller
+ * than the space between the margins, it is centered in that space.
  *
  * @param view - View to check.
  * @param screen - Size of the screen, in pixels.
  * @param world - Size of the world, in world units.
+ * @param insets - Margins of the screen covered by menus.
  * @returns The view within its limits.
  */
-export function clampView(view: View, screen: Size, world: Size): View {
+export function clampView(view: View, screen: Size, world: Size, insets: Insets = NO_INSETS): View {
   const { min, max } = scaleRange(screen, world)
   const scale = Math.min(max, Math.max(min, view.scale))
   /**
-   * Keeps one axis of the world over the screen.
+   * Keeps one axis of the world over the screen, between its margins.
    *
    * @param position - Position of the world origin on this axis.
    * @param span - Size of the screen on this axis.
    * @param extent - Size of the world on this axis, in pixels.
+   * @param start - Margin at the start of the axis.
+   * @param end - Margin at the end of the axis.
    * @returns The position within its limits.
    */
-  const clampAxis = (position: number, span: number, extent: number) =>
-    extent <= span ? (span - extent) / 2 : Math.min(0, Math.max(span - extent, position))
+  const clampAxis = (position: number, span: number, extent: number, start: number, end: number) =>
+    extent <= span - start - end
+      ? start + (span - start - end - extent) / 2
+      : Math.min(start, Math.max(span - end - extent, position))
   return {
     scale,
-    x: clampAxis(view.x, screen.width, world.width * scale),
-    y: clampAxis(view.y, screen.height, world.height * scale),
+    x: clampAxis(view.x, screen.width, world.width * scale, insets.left, insets.right),
+    y: clampAxis(view.y, screen.height, world.height * scale, insets.top, insets.bottom),
   }
 }
 

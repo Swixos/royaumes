@@ -6,7 +6,7 @@
  */
 import { Application, Container, Graphics } from 'pixi.js'
 import { DISPLAY, PALETTE } from './drawing'
-import { clampView, scaleRange, type View, viewOn, zoomAround } from './view'
+import { clampView, type Insets, scaleRange, type View, viewOn, zoomAround } from './view'
 
 /** Camera of a scene: the player zooms with the wheel or two fingers, and slides the world. */
 export interface Camera {
@@ -68,8 +68,10 @@ const DRAG_THRESHOLD = 6
 /**
  * Creates the stage of a scene in an element of the page, with its camera. The scene starts
  * on its home point, at the scale that fills the element; the player then zooms with the
- * wheel or with two fingers, and slides the world with the mouse or one finger. The fonts
- * of the plaques are loaded first.
+ * wheel or with two fingers, and slides the world with the mouse or one finger. The menus
+ * laid over the scene are declared by the custom properties `--menu-top`, `--menu-right`,
+ * `--menu-bottom` and `--menu-left` of the element, in pixels: the world may slide out from
+ * under them. The fonts of the plaques are loaded first.
  *
  * @param host - Element receiving the canvas, and the gestures of the player.
  * @param width - Width of the world, in scene units.
@@ -102,11 +104,39 @@ export async function createStage(
   const size = { width, height }
   const listeners: Array<(view: View) => void> = []
   const screen = () => ({ width: app.screen.width, height: app.screen.height })
-  let view: View = clampView(
-    viewOn(home, scaleRange(screen(), size).cover, screen()),
-    screen(),
-    size,
-  )
+
+  /**
+   * Reads the margins covered by menus, from the custom properties of the element.
+   *
+   * @returns The margins, in pixels.
+   */
+  const readInsets = (): Insets => {
+    const style = getComputedStyle(host)
+    /**
+     * Reads one margin.
+     *
+     * @param side - Side of the screen.
+     * @returns The margin, 0 when not declared.
+     */
+    const read = (side: string) => Number.parseFloat(style.getPropertyValue(`--menu-${side}`)) || 0
+    return { top: read('top'), right: read('right'), bottom: read('bottom'), left: read('left') }
+  }
+  let insets = readInsets()
+
+  /**
+   * Starting view: the home point in the middle of the space left free by the menus.
+   *
+   * @returns The view.
+   */
+  const homeView = (): View => {
+    const start = viewOn(home, scaleRange(screen(), size).cover, screen())
+    return {
+      ...start,
+      x: start.x + (insets.left - insets.right) / 2,
+      y: start.y + (insets.top - insets.bottom) / 2,
+    }
+  }
+  let view: View = clampView(homeView(), screen(), size, insets)
 
   /**
    * Moves the camera, within its limits.
@@ -114,7 +144,7 @@ export async function createStage(
    * @param next - View asked for.
    */
   function apply(next: View) {
-    view = clampView(next, screen(), size)
+    view = clampView(next, screen(), size, insets)
     world.scale.set(view.scale)
     world.position.set(view.x, view.y)
     for (const listener of listeners) listener(view)
@@ -122,6 +152,7 @@ export async function createStage(
   apply(view)
 
   app.renderer.on('resize', () => {
+    insets = readInsets()
     apply(view)
   })
 
@@ -220,7 +251,10 @@ export async function createStage(
     view: () => view,
     zoomBy: (factor) =>
       apply(zoomAround(view, factor, { x: app.screen.width / 2, y: app.screen.height / 2 })),
-    reset: () => apply(viewOn(home, scaleRange(screen(), size).cover, screen())),
+    reset: () => {
+      insets = readInsets()
+      apply(homeView())
+    },
     dragged: () => moved,
     onChange: (listener) => {
       listeners.push(listener)
