@@ -227,7 +227,7 @@ export function ship(): Graphics {
 }
 
 /**
- * Draws a cloud: a few flat puffs on a straight base.
+ * Draws a cloud: soft puffs over a rounded base, shaded underneath.
  *
  * @param width - Width of the cloud.
  * @returns The cloud.
@@ -235,10 +235,12 @@ export function ship(): Graphics {
 export function cloud(width: number): Graphics {
   const g = new Graphics()
   const r = width / 6
+  g.ellipse(0, r * 0.45, r * 2.7, r * 0.75).fill({ color: PALETTE.smoke, alpha: 0.9 })
   g.circle(-r * 1.6, 0, r)
-    .circle(0, -r * 0.6, r * 1.4)
-    .circle(r * 1.7, 0, r * 1.05)
-    .rect(-r * 2.6, 0, r * 5.4, r)
+    .circle(-r * 0.4, -r * 0.6, r * 1.3)
+    .circle(r * 0.9, -r * 0.35, r * 1.15)
+    .circle(r * 1.9, r * 0.1, r * 0.8)
+    .ellipse(0, r * 0.25, r * 2.5, r * 0.7)
   g.fill(PALETTE.cloud)
   return g
 }

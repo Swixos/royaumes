@@ -257,11 +257,16 @@ capitales gravées (Cinzel) et texte en Alegreya, polices embarquées par les pa
 SVG dessinées dans la feuille de style, sans dégradé. Une barre de ressources montre en
 permanence le stock du village, et un menu de médaillons mène aux modules.
 
-Le village est une scène 2D animée, rendue par PixiJS (ADR 0016) : l'île, l'hôtel de ville,
-la scierie au bord de la forêt, la carrière taillée dans la falaise et la mine creusée dans la
-montagne. Chaque bâtiment change d'allure tous les trois niveaux, l'hôtel de ville se dote de
-tours puis de remparts à mesure que le village grandit, et la scène s'anime : fumées,
-villageois sur les routes, ressources produites, vagues et oiseaux. Un clic sur un bâtiment
+Le village est une scène 2D animée, rendue par PixiJS (ADR 0016) et vue en perspective
+isométrique, sous un seul angle et une seule lumière (ADR 0020) : une ville fortifiée avec sa
+place, son puits, ses étals et ses rues pavées, le Sénat et l'Entrepôt dans les murs, la
+scierie au bord de la forêt, la carrière taillée dans la falaise, la mine creusée dans la
+montagne, le chantier naval sur la plage et le port au bout de la route, entre les champs.
+Chaque bâtiment change d'allure tous les trois niveaux, le rempart passe du talus à la
+palissade puis à la muraille, et une maison s'élève pour chaque niveau gagné, dans les murs
+puis le long des routes. La scène s'anime : fumées, villageois sur les routes, ressources
+produites, vagues et oiseaux. Les noms des bâtiments n'apparaissent qu'au survol, à la
+sélection, pendant un chantier ou en zoomant. Un clic sur un bâtiment
 ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. La carte des
 mers de la Flotte est rendue de la même façon (ADR 0017) : chaque île est dessinée selon son
 type (votre port, les ports des autres joueurs, les repaires pirates), et les flottes voguent
