@@ -9,6 +9,7 @@ import { RESOURCES, type Resource, stockAt, type VillageView } from '@/modules/r
 import { authClient } from '@/platform/auth/client'
 import { Entity } from './entity'
 import { VILLAGE_CHANGED } from './events'
+import { HOME } from './game-window'
 import { Icon } from './icons'
 import { GameMotion, RollingNumber, SPRING } from './motion'
 
@@ -143,16 +144,28 @@ function ResourceCounter({
 }
 
 /**
- * Game area shell: the top bar (coat of arms, resources, player), the game menu, then the
- * page.
+ * Game area shell, on a single screen as in a strategy game: the top bar (coat of arms,
+ * resources, player), the game menu, and the village, which fills the screen and stays
+ * there. Each page opens its window over the village; while a window is open, the village
+ * behind it is inert, so the keyboard and screen readers stay in the window.
  *
  * @param props - Component props.
  * @param props.userName - Name of the signed-in player.
- * @param props.children - Page content.
+ * @param props.world - Village, drawn under every window.
+ * @param props.children - Window of the current page, if any.
  * @returns The game screen.
  */
-export function AppShell({ userName, children }: { userName: string; children: ReactNode }) {
+export function AppShell({
+  userName,
+  world,
+  children,
+}: {
+  userName: string
+  world: ReactNode
+  children: ReactNode
+}) {
   const pathname = usePathname()
+  const windowOpen = pathname !== HOME
 
   /**
    * Deletes the session on the server, then fully reloads the sign-in page so
@@ -210,12 +223,15 @@ export function AppShell({ userName, children }: { userName: string; children: R
             </Link>
           ))}
         </nav>
-        <main className="page">{children}</main>
-        <footer className="credits">
-          Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
-          contributeurs, sous licence{' '}
-          <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
-        </footer>
+        <main className="world" inert={windowOpen}>
+          {world}
+          <footer className="credits">
+            Icônes : <a href="https://game-icons.net">Game Icons</a>, par Lorc, Delapouite et leurs
+            contributeurs, sous licence{' '}
+            <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
+          </footer>
+        </main>
+        <div className="window-host">{children}</div>
       </div>
     </GameMotion>
   )
