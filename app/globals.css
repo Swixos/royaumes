@@ -234,7 +234,7 @@ a { color: var(--brand); font-weight: 700; }
 .window-host { grid-area: page; position: relative; min-width: 0; min-height: 0; pointer-events: none; z-index: 10; }
 .window-host > * { pointer-events: auto; }
 
-.game-window-layer { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 22px; }
+.game-window-layer { position: absolute; inset: 0; z-index: 40; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 22px; }
 .game-window-backdrop {
   position: absolute;
   inset: 0;
@@ -303,6 +303,8 @@ a { color: var(--brand); font-weight: 700; }
 .zoom-controls button:hover:not(:disabled) { background: var(--wood-light); color: var(--gold-light); }
 
 .game-window-body {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 22px 24px 28px;
