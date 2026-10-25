@@ -47,6 +47,7 @@ export const theme: Record<string, Look> = {
   ram: { label: 'Éperonnage', color: '#b2382c' },
   board: { label: 'Abordage', color: '#4a5560' },
   blockade: { label: 'Blocus', color: '#4a5560' },
+  history: { label: 'Historique', color: '#6b3f23' },
 }
 
 /**
