@@ -268,7 +268,7 @@ export function VillageScreen({ userId }: { userId: string }) {
   return (
     <>
       {title}
-      <VillageStage view={view} selected={selected} onSelect={setSelected}>
+      <VillageBoard view={view} now={now} selected={selected} onSelect={setSelected}>
         <BuildingCard
           building={selected}
           view={view}
@@ -276,64 +276,34 @@ export function VillageScreen({ userId }: { userId: string }) {
           onUpgrade={() => upgrade(selected)}
           error={error}
         />
-      </VillageStage>
-      <Works view={view} now={now} onSelect={setSelected} />
-      <section className="panel buildings" aria-label="Bâtiments">
-        {BUILDINGS.map((b) => {
-          const cost = view.nextCosts[b]
-          return (
-            <button
-              key={b}
-              type="button"
-              className="building"
-              aria-pressed={selected === b}
-              onClick={() => setSelected(b)}
-            >
-              <span>
-                <Entity kind={b} showLabel /> <span className="muted">niveau {view.levels[b]}</span>
-                {view.queue.some((item) => item.building === b) && (
-                  <span className="building-works" title="En chantier">
-                    <Entity kind="build" />
-                  </span>
-                )}
-              </span>
-              <span className="row">
-                {cost ? (
-                  Object.entries(cost).map(([r, n]) => (
-                    <span key={r} className="muted" data-short={stock[r as keyof Stock] < (n ?? 0)}>
-                      <Entity kind={r} /> {n}
-                    </span>
-                  ))
-                ) : (
-                  <span className="muted">Niveau maximum</span>
-                )}
-              </span>
-            </button>
-          )
-        })}
-      </section>
+      </VillageBoard>
     </>
   )
 }
 
 /**
- * Village scene, with the card of the selected building laid over it. On a phone the scene
- * keeps its size and slides under the finger, starting on the town hall.
+ * Board of the village, gathering everything on one screen: the scene with the
+ * construction queue laid over it, the bar of the buildings under it, and the card of the
+ * selected building beside it. On a phone the parts stack, and the scene keeps its size and
+ * slides under the finger, starting on the senate.
  *
  * @param props - Component props.
  * @param props.view - Current village view.
+ * @param props.now - Current time in milliseconds.
  * @param props.selected - Selected building.
- * @param props.onSelect - Called when the player picks a building in the scene.
- * @param props.children - Card laid over the scene.
- * @returns The scene and its card.
+ * @param props.onSelect - Called with the building the player picks.
+ * @param props.children - Card of the selected building.
+ * @returns The board.
  */
-function VillageStage({
+function VillageBoard({
   view,
+  now,
   selected,
   onSelect,
   children,
 }: {
   view: VillageView
+  now: number
   selected: Building
   onSelect: (building: Building) => void
   children: ReactNode
@@ -351,23 +321,46 @@ function VillageStage({
     [view.name, view.levels, view.ratesPerMinute, view.queue, selected],
   )
   return (
-    <section className="village-stage" aria-label="Vue du village">
-      <div ref={scroller} className="scene-scroll">
-        <VillageMap state={state} handlers={{ onSelect }} />
-      </div>
+    <div className="village-board">
+      <section className="village-view" aria-label="Vue du village">
+        <div ref={scroller} className="scene-scroll">
+          <VillageMap state={state} handlers={{ onSelect }} />
+        </div>
+        <Works view={view} now={now} onSelect={onSelect} />
+      </section>
+      <section className="village-bar" aria-label="Bâtiments">
+        {BUILDINGS.map((building) => (
+          <button
+            key={building}
+            type="button"
+            aria-pressed={selected === building}
+            onClick={() => onSelect(building)}
+          >
+            <Entity kind={building} />
+            <span className="village-bar-name">{look(building).label}</span>
+            <span className="village-bar-level">{view.levels[building]}</span>
+            {view.queue.some((item) => item.building === building) && (
+              <span className="village-bar-works" title="En chantier">
+                <Entity kind="build" />
+              </span>
+            )}
+          </button>
+        ))}
+      </section>
       {children}
-    </section>
+    </div>
   )
 }
 
 /**
- * Construction queue: the upgrade under way with its countdown, then the one waiting.
+ * Construction queue, laid over the scene: the upgrade under way with its countdown, then
+ * the one waiting.
  *
  * @param props - Component props.
  * @param props.view - Current village view.
  * @param props.now - Current time in milliseconds.
  * @param props.onSelect - Called with a building to show its card.
- * @returns The queue, or nothing when no construction is under way.
+ * @returns The queue.
  */
 function Works({
   view,
@@ -378,12 +371,12 @@ function Works({
   now: number
   onSelect: (building: Building) => void
 }) {
-  if (view.queue.length === 0) return null
   return (
-    <section className="panel works" aria-label="Chantiers en cours">
+    <section className="works" aria-label="Chantiers en cours">
       <h2>
-        Chantiers {view.queue.length} / {view.queueSlots}
+        <Entity kind="build" /> Chantiers {view.queue.length} / {view.queueSlots}
       </h2>
+      {view.queue.length === 0 && <p>Aucun chantier en cours.</p>}
       <ol>
         {view.queue.map((item, index) => (
           <li key={`${item.building}-${item.toLevel}`}>
