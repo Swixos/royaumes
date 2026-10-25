@@ -386,7 +386,7 @@ function Works({
             <button type="button" className="link" onClick={() => onSelect(item.building)}>
               <Entity kind={item.building} showLabel />
             </button>
-            <span className="muted">niveau {item.toLevel}</span>
+            <span className="muted works-level">niv. {item.toLevel}</span>
             <span className="works-time">
               {index === 0 || view.queue[index - 1].completesAt <= now ? (
                 <>
