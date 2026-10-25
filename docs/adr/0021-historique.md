@@ -31,6 +31,14 @@ joueurs de chaque expédition, le vendeur et l'acheteur de chaque offre. Une ent
 données du fait ; l'interface les raconte en français (`tell`), ce qui permet de dire
 « en construction » ou « construit » selon l'heure de lecture.
 
+Chaque bataille garde aussi son rapport détaillé, comme dans Grepolis : les trirèmes et la
+tactique de la flotte, la posture du défenseur, l'avantage du triangle des tactiques, le
+calcul de la force d'attaque et de la défense (rempart compris), l'issue, les pertes, le
+butin et la cale, et, pour le perdant, ce qui aurait changé l'issue. La projection garde la
+flotte de chaque raid et son événement `BattleFought` ; les règles publiées par la Flotte
+(force d'une trirème, défense d'un rempart, triangle des tactiques) donnent le détail du
+calcul. Le rapport s'ouvre depuis l'entrée de la bataille (version 2 de la projection).
+
 L'API `GET /api/chronicle/entries` renvoie les entrées du joueur connecté, de la plus récente
 à la plus ancienne, par pages de trente, filtrées au besoin par partie du jeu. La lecture
 rattrape la projection, comme pour le Classement. L'écran est une fenêtre du jeu, ouverte par

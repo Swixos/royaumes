@@ -1,5 +1,14 @@
-import { bigint, index, integer, jsonb, pgSchema, primaryKey, text } from 'drizzle-orm/pg-core'
-import type { Amounts, Fact } from '../domain/entry'
+import {
+  bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  primaryKey,
+  text,
+} from 'drizzle-orm/pg-core'
+import type { Amounts, Fact, Tactic } from '../domain/entry'
 
 /** PostgreSQL schema of the chronicle module: it only holds read models. */
 export const chronicle = pgSchema('chronicle')
@@ -28,13 +37,20 @@ export const entries = chronicle.table(
 
 /**
  * Raids known from their launch: the later events of a raid name only the raid, and the
- * chronicle needs its attacker and its target.
+ * chronicle needs its attacker and its target. Their fleet and their battle are kept for
+ * the battle report; version 2 of the projection added them.
  */
 export const raids = chronicle.table('raids', {
   raidId: text('raid_id').primaryKey(),
   attackerId: text('attacker_id').notNull(),
   attackerName: text('attacker_name').notNull(),
   targetName: text('target_name').notNull(),
+  pirates: boolean('pirates').notNull().default(false),
+  ships: integer('ships').notNull().default(0),
+  tactic: text('tactic').$type<Tactic>().notNull().default('ram'),
+  cost: jsonb('cost').$type<Amounts>().notNull().default({}),
+  /** Battle of the raid, once fought: attack, defense and posture of the defender. */
+  battle: jsonb('battle').$type<{ attack: number; defense: number; posture: Tactic }>(),
 })
 
 /**
