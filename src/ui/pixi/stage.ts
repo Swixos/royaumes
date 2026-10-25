@@ -17,6 +17,12 @@ export interface Stage {
   calm: boolean
   /** Scale of the world on screen, updated on resize. */
   scale(): number
+  /**
+   * Stops or restarts the animation, to spare the device while the scene is hidden.
+   *
+   * @param paused - True to stop the animation.
+   */
+  pause(paused: boolean): void
   /** Stops the application and frees its resources. */
   destroy(): void
 }
@@ -70,6 +76,7 @@ export async function createStage(
     world,
     calm: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     scale: () => scale,
+    pause: (paused) => (paused ? app.ticker.stop() : app.ticker.start()),
     destroy: () => app.destroy({ removeView: true }, { children: true }),
   }
 }

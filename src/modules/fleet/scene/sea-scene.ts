@@ -128,7 +128,7 @@ function palm(g: Graphics, x: number, y: number, lean: number) {
  * @param id - Identifier of the island, which places its decorations.
  * @returns The decorations, around the center of the island.
  */
-function decorations(kind: IslandKind, id: string): Graphics {
+function decorations(kind: IslandKind, id: string): Container {
   const g = new Graphics()
   const seed = hash(id)
   const side = seed % 2 === 0 ? 1 : -1
@@ -169,8 +169,9 @@ function decorations(kind: IslandKind, id: string): Graphics {
   }
   houses.scale.set(scale)
   houses.position.set(0, 6)
-  g.addChild(t1, houses, t2)
-  return g
+  const root = new Container()
+  root.addChild(t1, houses, t2)
+  return root
 }
 
 /**
@@ -221,7 +222,7 @@ export async function createSeaScene(
   host: HTMLElement,
   initial: SeaSceneState,
 ): Promise<LiveScene<SeaSceneState>> {
-  const { app, world, calm, destroy } = await createStage(host, MAP_W, MAP_H)
+  const { app, world, calm, pause, destroy } = await createStage(host, MAP_W, MAP_H)
   let state = initial
   let time = 0
   let seed = 3
@@ -259,9 +260,10 @@ export async function createSeaScene(
   })
   north.anchor.set(0.5)
   north.position.set(0, -46)
-  compass.addChild(north)
-  compass.position.set(70, 560)
-  sea.addChild(compass)
+  const rose = new Container()
+  rose.addChild(compass, north)
+  rose.position.set(70, 560)
+  sea.addChild(rose)
 
   const effectsList: Array<{
     view: Container
@@ -327,11 +329,12 @@ export async function createSeaScene(
           })
         land.poly(flat(outline, 0.74, -4)).fill(pirate ? SEA.pirateTop : PALETTE.grass)
         if (!pirate) land.stroke({ width: 2, color: PALETTE.grassDark })
-        land.position.set(island.at.x, island.at.y)
         const deco = decorations(island.kind, island.id)
         deco.position.set(0, 2)
-        land.addChild(deco)
-        isles.addChild(land)
+        const ground = new Container()
+        ground.addChild(land, deco)
+        ground.position.set(island.at.x, island.at.y)
+        isles.addChild(ground)
 
         const ring = new Graphics()
         ring.position.set(island.at.x, island.at.y)
@@ -604,6 +607,7 @@ export async function createSeaScene(
       showIslands(next.islands)
       showFleets(next.fleets)
     },
+    pause,
     destroy,
   }
 }

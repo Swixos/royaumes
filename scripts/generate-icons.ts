@@ -28,6 +28,7 @@ const ICONS: Record<string, string> = {
   wall: 'stone-wall',
   shipyard: 'ship-wheel',
   build: 'hammer-nails',
+  close: 'cancel',
   capacity: 'wooden-crate',
   dungeon: 'dungeon-gate',
   hero: 'visored-helm',
