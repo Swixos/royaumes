@@ -8,11 +8,11 @@ import {
   PLACES,
   pathLength,
   pointAlong,
+  ROAD_ENDS,
   roads,
   seeded,
   stageOf,
   TOWN_HALL,
-  townHallStage,
   trees,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -24,13 +24,8 @@ describe('scène du village', () => {
     expect([0, 1, 3, 4, 6, 7, 9, MAX_LEVEL].map(stageOf)).toEqual([0, 1, 1, 2, 2, 3, 3, 4])
   })
 
-  it("fait grandir l'hôtel de ville et ses remparts avec le village", () => {
-    const levels = (n: number) => ({ sawmill: n, quarry: n, mine: n })
-    expect(townHallStage(levels(1))).toBe(1)
-    expect(townHallStage(levels(2))).toBe(2)
-    expect(townHallStage(levels(5))).toBe(3)
-    expect(townHallStage(levels(MAX_LEVEL))).toBe(4)
-    expect([1, 3, 6].map((n) => wallOf(levels(n)))).toEqual(['none', 'palisade', 'stone'])
+  it('dresse une palissade, puis un rempart de pierre à partir du niveau 5', () => {
+    expect([0, 1, 4, 5, 10].map(wallOf)).toEqual(['none', 'palisade', 'palisade', 'stone', 'stone'])
   })
 
   it("place l'île dans le monde, et chaque bâtiment sur l'île", () => {
@@ -73,7 +68,7 @@ describe('scène du village', () => {
     expect(pointAlong(path, 0)).toEqual({ x: 0, y: 0 })
     expect(pointAlong(path, 25 / 110)).toEqual({ x: 15, y: 20 })
     expect(pointAlong(path, 2)).toEqual({ x: 30, y: 100 })
-    expect(roads()).toHaveLength(BUILDINGS.length + 1)
+    expect(roads()).toHaveLength(ROAD_ENDS.length + 1)
     expect(roads()[0][0].x).toBe(TOWN_HALL.x)
   })
 })

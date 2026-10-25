@@ -307,10 +307,190 @@ function mine(stage: number): BuildingDrawing {
  * @returns The drawing and its animated parts.
  */
 export function buildingDrawing(building: Building, stage: number): BuildingDrawing {
-  if (stage === 0) return { root: plot(), chimneys: [], height: 70 }
+  if (building === 'senate') return townHall(Math.max(1, stage))
+  if (stage === 0) {
+    const root = plot()
+    if (building === 'wall') root.scale.set(0.7)
+    return { root, chimneys: [], height: building === 'wall' ? 50 : 70 }
+  }
   if (building === 'sawmill') return sawmill(stage)
   if (building === 'quarry') return quarry(stage)
-  return mine(stage)
+  if (building === 'mine') return mine(stage)
+  if (building === 'warehouse') return warehouse(stage)
+  if (building === 'wall') return gate()
+  return shipyard(stage)
+}
+
+/**
+ * Draws the warehouse: a large barn with its double door, and crates, sacks and barrels
+ * piling up in front of it as it grows.
+ *
+ * @param stage - Size stage, from 1 to 4.
+ * @returns The drawing.
+ */
+function warehouse(stage: number): BuildingDrawing {
+  const root = new Container()
+  const g = new Graphics()
+  groundShadow(g, 140 + stage * 16)
+  const w = 92 + stage * 14
+  const chimneys = [
+    house(g, {
+      w,
+      h: 42 + stage * 6,
+      d: 54 + stage * 6,
+      r: 36 + stage * 3,
+      wall: [PALETTE.timber, PALETTE.timberDark],
+      roof: [PALETTE.thatch, PALETTE.thatchSide],
+    }),
+  ]
+  g.rect(-20, -40, 40, 40).fill(PALETTE.timberDark).stroke({ width: 2.5, color: PALETTE.ink })
+  g.moveTo(-20, -40).lineTo(20, 0).moveTo(20, -40).lineTo(-20, 0).moveTo(0, -40).lineTo(0, 0)
+  g.stroke({ width: 2, color: PALETTE.timber })
+  for (let i = 0; i < stage + 1; i++) {
+    const x = w / 2 + 18 + (i % 3) * 22
+    const y = 6 - Math.floor(i / 3) * 18
+    g.rect(x - 9, y - 18, 18, 18)
+      .fill(PALETTE.field)
+      .stroke({ width: 2, color: PALETTE.timberDark })
+    g.moveTo(x - 9, y - 9)
+      .lineTo(x + 9, y - 9)
+      .stroke({ width: 1.5, color: PALETTE.timberDark })
+  }
+  for (let i = 0; i < Math.min(3, stage); i++) {
+    const x = -w / 2 - 16 - i * 18
+    g.roundRect(x - 8, -20, 16, 20, 7)
+      .fill(PALETTE.parchment)
+      .stroke({ width: 2, color: PALETTE.ink })
+    g.moveTo(x - 4, -20)
+      .lineTo(x, -26)
+      .lineTo(x + 4, -20)
+      .stroke({ width: 2, color: PALETTE.ink })
+  }
+  if (stage >= 3) {
+    g.roundRect(w / 2 + 6, -22, 16, 22, 4)
+      .fill(PALETTE.trunk)
+      .stroke({ width: 2, color: PALETTE.ink })
+    g.moveTo(w / 2 + 6, -11)
+      .lineTo(w / 2 + 22, -11)
+      .stroke({ width: 2, color: PALETTE.ink })
+  }
+  if (stage === 4) flag(g, -w / 2 + 6, -48 - stage * 6, 50, PALETTE.goldDark)
+  root.addChild(g)
+  return { root, chimneys, height: 96 + stage * 10 }
+}
+
+/**
+ * Draws the wooden gate of the wall, between the posts of the palisade or the towers of
+ * the stone wall.
+ *
+ * @returns The drawing, anchored at the foot of the gate.
+ */
+function gate(): BuildingDrawing {
+  const root = new Container()
+  const g = new Graphics()
+  g.rect(-30, -50, 9, 50).fill(PALETTE.timber).stroke({ width: 2.5, color: PALETTE.ink })
+  g.rect(21, -50, 9, 50).fill(PALETTE.timber).stroke({ width: 2.5, color: PALETTE.ink })
+  g.rect(-34, -58, 68, 10).fill(PALETTE.timberDark).stroke({ width: 2.5, color: PALETTE.ink })
+  g.rect(-21, -46, 42, 46).fill(PALETTE.trunk).stroke({ width: 2.5, color: PALETTE.ink })
+  g.moveTo(0, -46)
+    .lineTo(0, 0)
+    .moveTo(-21, -28)
+    .lineTo(21, -28)
+    .stroke({ width: 2, color: PALETTE.timberDark })
+  root.addChild(g)
+  return { root, chimneys: [], height: 70 }
+}
+
+/**
+ * Draws the shipyard: slipways going down into the sea, with a hull being built, a crane
+ * and a hut, more of each as it grows.
+ *
+ * @param stage - Size stage, from 1 to 4.
+ * @returns The drawing and its swinging crane hook.
+ */
+function shipyard(stage: number): BuildingDrawing {
+  const root = new Container()
+  const g = new Graphics()
+  const ways = stage >= 3 ? 2 : 1
+  for (let k = 0; k < ways; k++) {
+    const ox = k * 74
+    shape(g, [ox - 26, -6, ox + 26, -6, ox + 64, 70, ox + 12, 70], PALETTE.timber)
+    for (let i = 1; i < 6; i++) {
+      const t = i / 6
+      g.moveTo(ox - 26 + 38 * t, -6 + 76 * t).lineTo(ox + 26 + 38 * t, -6 + 76 * t)
+    }
+    g.stroke({ width: 2, color: PALETTE.timberDark })
+    const hx = ox + 18
+    shape(
+      g,
+      [hx - 34, 10, hx + 30, 10, hx + 40, -4, hx + 22, 26, hx - 22, 26, hx - 40, -2],
+      PALETTE.trunk,
+      2.5,
+    )
+    for (let i = 0; i < 5; i++) {
+      g.moveTo(hx - 24 + i * 12, 22).quadraticCurveTo(hx - 28 + i * 12, -6, hx - 18 + i * 12, -14)
+    }
+    g.stroke({ width: 2.5, color: PALETTE.timber })
+  }
+  const chimneys = [
+    house(g, {
+      x: -86,
+      y: -6,
+      w: 50 + stage * 4,
+      h: 32,
+      d: 30,
+      r: 22,
+      roof: [PALETTE.roof, PALETTE.roofSide],
+      door: true,
+    }),
+  ]
+  logPile(g, -36, 6, Math.min(2, stage))
+  if (stage === 4) flag(g, -104, -40, 54, PALETTE.goldDark)
+  root.addChild(g)
+
+  let hook: Graphics | undefined
+  if (stage >= 2) {
+    const crane = new Graphics()
+    crane.moveTo(52, 0).lineTo(60, -110).lineTo(68, 0).stroke({ width: 5, color: PALETTE.timber })
+    crane.moveTo(60, -110).lineTo(0, -96).stroke({ width: 5, color: PALETTE.timber })
+    root.addChild(crane)
+    hook = new Graphics()
+    hook.moveTo(0, 0).lineTo(0, 40).stroke({ width: 2, color: PALETTE.ink })
+    hook.roundRect(-10, 40, 20, 10, 3).fill(PALETTE.trunk).stroke({ width: 2, color: PALETTE.ink })
+    hook.position.set(2, -96)
+    root.addChild(hook)
+  }
+  return { root, chimneys, moving: hook, motion: hook ? 'swing' : undefined, height: 110 }
+}
+
+/**
+ * Draws the scaffolding of a construction under way: poles, planks and a hoisted beam,
+ * laid over the building.
+ *
+ * @param width - Width of the building.
+ * @param height - Height of the building.
+ * @returns The scaffolding, anchored at the front foot of the building.
+ */
+export function scaffold(width: number, height: number): Graphics {
+  const g = new Graphics()
+  const left = -width / 2 - 10
+  const right = width / 2 + 10
+  const top = -height + 10
+  for (const x of [left, (left + right) / 2, right]) {
+    g.moveTo(x, 4).lineTo(x, top)
+  }
+  for (let y = -18; y > top; y -= 34) g.moveTo(left - 4, y).lineTo(right + 4, y)
+  g.moveTo(left, -18).lineTo((left + right) / 2, top + 6)
+  g.stroke({ width: 4, color: PALETTE.timber, cap: 'round' })
+  g.moveTo(left, -18)
+    .lineTo((left + right) / 2, top + 6)
+    .stroke({ width: 1.5, color: PALETTE.ink })
+  for (let y = -18; y > top; y -= 34) {
+    g.rect(left - 4, y - 4, right - left + 8, 6)
+      .fill(PALETTE.field)
+      .stroke({ width: 1.5, color: PALETTE.ink })
+  }
+  return g
 }
 
 /**

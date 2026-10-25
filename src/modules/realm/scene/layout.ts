@@ -5,7 +5,7 @@
  *
  * @packageDocumentation
  */
-import { BUILDINGS, type Building, type Levels, MAX_LEVEL } from '../contracts'
+import { BUILDINGS, type Building, type Levels, MAX_LEVEL, PRODUCERS } from '../contracts'
 
 /** A point of the world, in scene units. */
 export interface Point {
@@ -19,18 +19,32 @@ export const WORLD_WIDTH = 1600
 /** Height of the world, in scene units. */
 export const WORLD_HEIGHT = 900
 
-/** Center of the island, where the town hall stands. */
+/** Center of the island, where the senate stands. */
 export const TOWN_HALL: Point = { x: 800, y: 440 }
+
+/** Gate of the wall, south of the senate, where its plaque hangs. */
+export const GATE: Point = { x: 800, y: 548 }
 
 /** Landing stage of the harbor, at the south shore. */
 export const HARBOR: Point = { x: 930, y: 735 }
 
-/** Place of each production building, on its own ground: forest, cliff and mountain. */
+/**
+ * Place of each building: the senate at the center, the producers on their own ground
+ * (forest, cliff and mountain), the warehouse near the fields, the wall around the senate
+ * and the shipyard on the shore, west of the pier.
+ */
 export const PLACES: Record<Building, Point> = {
+  senate: TOWN_HALL,
   sawmill: { x: 430, y: 540 },
   quarry: { x: 560, y: 300 },
   mine: { x: 1190, y: 400 },
+  warehouse: { x: 1040, y: 585 },
+  wall: GATE,
+  shipyard: { x: 520, y: 730 },
 }
+
+/** Buildings reached by a road from the senate. */
+export const ROAD_ENDS: readonly Building[] = [...PRODUCERS, 'warehouse', 'shipyard']
 
 /** Foot of the mountain holding the mine, behind its entrance. */
 export const MOUNTAIN: Point = { x: 1250, y: 330 }
@@ -55,7 +69,8 @@ export function stageOf(level: number): number {
 }
 
 /**
- * Sum of the levels of the village, which measures how far it has grown.
+ * Sum of the levels of the village, which measures how far it has grown and how many
+ * villagers walk its roads.
  *
  * @param levels - Level of each building.
  * @returns The total level.
@@ -64,33 +79,19 @@ export function totalLevel(levels: Levels): number {
   return BUILDINGS.reduce((sum, building) => sum + levels[building], 0)
 }
 
-/**
- * Size stage of the town hall, which follows the growth of the whole village.
- *
- * @param levels - Level of each building.
- * @returns The stage, from 1 to 4.
- */
-export function townHallStage(levels: Levels): number {
-  const total = totalLevel(levels)
-  if (total >= BUILDINGS.length * MAX_LEVEL) return 4
-  if (total >= 15) return 3
-  if (total >= 6) return 2
-  return 1
-}
-
-/** Defense around the town hall, from the growth of the village. */
+/** Defense around the senate, from the level of the wall. */
 export type Wall = 'none' | 'palisade' | 'stone'
 
 /**
- * Defense surrounding the town hall: a wooden palisade first, then a stone wall.
+ * Defense surrounding the senate: a wooden palisade first, then a stone wall from the
+ * fifth level.
  *
- * @param levels - Level of each building.
+ * @param level - Level of the wall.
  * @returns The kind of wall.
  */
-export function wallOf(levels: Levels): Wall {
-  const total = totalLevel(levels)
-  if (total >= 18) return 'stone'
-  if (total >= 8) return 'palisade'
+export function wallOf(level: number): Wall {
+  if (level >= 5) return 'stone'
+  if (level >= 1) return 'palisade'
   return 'none'
 }
 
@@ -174,6 +175,7 @@ export function trees(count = 64): Array<Point & { size: number }> {
   const blocked: Array<{ at: Point; radius: number }> = [
     { at: TOWN_HALL, radius: 230 },
     { at: HARBOR, radius: 90 },
+    { at: { x: 1150, y: 650 }, radius: 80 },
     { at: MOUNTAIN, radius: 190 },
     { at: CLIFF, radius: 130 },
     ...BUILDINGS.map((b) => ({ at: PLACES[b], radius: 135 })),
@@ -204,7 +206,7 @@ export function trees(count = 64): Array<Point & { size: number }> {
  * @returns The points of each road, starting at the town hall.
  */
 export function roads(samples = 14): Point[][] {
-  const targets = [...BUILDINGS.map((b) => PLACES[b]), HARBOR]
+  const targets = [...ROAD_ENDS.map((b) => PLACES[b]), HARBOR]
   return targets.map((to) => {
     const from = { x: TOWN_HALL.x, y: TOWN_HALL.y + 40 }
     const end = { x: to.x, y: to.y + 20 }

@@ -11,8 +11,17 @@ import { type RaidEvent, type RaidState, transferIdOf } from './raid'
 
 /** Request produced by a step of the saga. */
 export type SagaRequest =
-  /** Withdraw resources: the village module replies, and the reply moves the saga forward. */
-  | { kind: 'withdraw'; transferId: string; playerId: string; resources: Amounts }
+  /**
+   * Withdraw resources: the village module replies, and the reply moves the saga forward.
+   * A plunder cannot take what the defender's warehouse hides.
+   */
+  | {
+      kind: 'withdraw'
+      transferId: string
+      playerId: string
+      resources: Amounts
+      plunder?: boolean
+    }
   /** Deposit resources: a deposit cannot fail, so no reply is expected. */
   | { kind: 'deposit'; transferId: string; playerId: string; resources: Amounts }
   /** Reminder addressed to the raid itself at the arrival of its fleet. */
@@ -104,6 +113,7 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
               transferId: id('plunder-1'),
               playerId: defender,
               resources: state.plunderAsked,
+              plunder: true,
             },
           ]
         : []
@@ -115,6 +125,7 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
           transferId: id(`plunder-${event.data.attempt}`),
           playerId: defender ?? '',
           resources: event.data.asked,
+          plunder: true,
         },
       ]
 

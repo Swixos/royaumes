@@ -3,7 +3,7 @@ import { withOptimisticRetry } from '@/platform/event-store/retry'
 import type { NewMessage } from '@/platform/outbox/outbox'
 import { FLEET_TOPICS, type HarborView } from '../contracts'
 import { decideHarbor, type HarborCommand, type HarborNotice } from '../domain/harbor'
-import { DEFAULT_POSTURE, type Tactic } from '../domain/naval'
+import { DEFAULT_POSTURE, levelAt, type Tactic } from '../domain/naval'
 import {
   type ArrivalContext,
   decide,
@@ -62,6 +62,7 @@ function toMessage(request: SagaRequest, now: number): NewMessage {
           transferId: request.transferId,
           playerId: request.playerId,
           resources: request.resources,
+          ...(request.plunder ? { plunder: true } : {}),
           replyTo: FLEET_TOPICS.transferResult,
         },
       }
@@ -150,8 +151,9 @@ export function createFleetService(
   }
 
   /**
-   * Gathers the defense met by a fleet at its arrival: the posture and the upgrades of
-   * the targeted village, or the past tactics of the attacker against the pirates.
+   * Gathers the defense met by a fleet at its arrival: the posture and the level of the
+   * wall of the targeted village at the arrival time, or the past tactics of the attacker
+   * against the pirates.
    *
    * @param state - Raid at sea.
    * @returns The arrival context; null if the village is no longer a target.
@@ -163,7 +165,11 @@ export function createFleetService(
     const village = await reader.village(state.target.playerId)
     if (!village) return null
     const harbor = await harborsRepo.load(state.target.playerId)
-    return { kind: 'village', posture: harbor.state.posture, upgrades: village.upgrades }
+    return {
+      kind: 'village',
+      posture: harbor.state.posture,
+      wall: levelAt(village.wall, state.arrivesAt),
+    }
   }
 
   /**
@@ -228,6 +234,7 @@ export function createFleetService(
       // DETTE TECHNIQUE DT-014 (docs/qualite/dette-technique.md): rules 3 and 12 are checked
       // on the read model, so two launches at the same instant may both pass them.
       const raidsOut = await reader.raidsOut(player.id)
+      const shipyard = levelAt((await reader.village(player.id))?.shipyard ?? [], clock())
       if (target.kind === 'pirates') {
         return {
           type: 'LaunchRaid',
@@ -241,6 +248,7 @@ export function createFleetService(
             raidsOut,
             targetHasVillage: false,
             islandRaidDays: await reader.islandRaidDays(player.id, target.islandId),
+            shipyard,
           },
         }
       }
@@ -253,7 +261,7 @@ export function createFleetService(
         target: { kind: 'village', playerId: target.playerId, name: village?.name ?? '' },
         ships,
         tactic,
-        context: { raidsOut, targetHasVillage: village !== null, islandRaidDays: [] },
+        context: { raidsOut, targetHasVillage: village !== null, islandRaidDays: [], shipyard },
       }
     })
     return { raidId, result }

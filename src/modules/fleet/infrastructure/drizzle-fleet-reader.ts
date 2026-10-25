@@ -5,7 +5,10 @@ import type { FleetReader } from '../application/fleet-reader'
 import type { RaidSummary } from '../contracts'
 import {
   type Amounts,
+  crossingMs,
   dayOf,
+  fleetLimits,
+  levelAt,
   mapPositionOf,
   PIRATE_ISLANDS,
   type Tactic,
@@ -63,12 +66,21 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           ),
         )
       const own = rows.find((row) => row.playerId === viewerId)
+      const limits = fleetLimits(levelAt(own?.shipyard ?? [], now))
+      /**
+       * Crossing time shortened by the viewer's shipyard, rounded to a tenth of a minute.
+       *
+       * @param minutes - Crossing time without shipyard.
+       * @returns The crossing time, in minutes.
+       */
+      const crossing = (minutes: number) => Math.round(crossingMs(minutes, limits) / 6_000) / 10
       return {
         position,
         home: own
           ? {
               name: own.villageName,
-              defense: villageDefense(own.upgrades),
+              defense: villageDefense(levelAt(own.wall, now)),
+              limits,
               map: mapPositionOf(viewerId),
             }
           : null,
@@ -78,8 +90,8 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           .map((row) => ({
             playerId: row.playerId,
             name: row.villageName,
-            defense: villageDefense(row.upgrades),
-            travelMinutes: travelMinutes(viewerId, row.playerId),
+            defense: villageDefense(levelAt(row.wall, now)),
+            travelMinutes: crossing(travelMinutes(viewerId, row.playerId)),
             map: mapPositionOf(row.playerId),
           }))
           .sort((a, b) => a.travelMinutes - b.travelMinutes || a.name.localeCompare(b.name))
@@ -88,7 +100,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           islandId: island.id,
           name: island.name,
           defense: island.defense,
-          travelMinutes: island.travelMinutes,
+          travelMinutes: crossing(island.travelMinutes),
           treasure: island.treasure,
           raidedToday: raided.some(
             (r) => r.targetId === island.id && dayOf(r.launchedAt) === today,
@@ -143,7 +155,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
     async village(playerId) {
       await fresh()
       const [row] = await db.select().from(harbors).where(eq(harbors.playerId, playerId))
-      return row ? { name: row.villageName, upgrades: row.upgrades } : null
+      return row ? { name: row.villageName, wall: row.wall, shipyard: row.shipyard } : null
     },
 
     async raidsOut(attackerId) {
