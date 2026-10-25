@@ -81,7 +81,7 @@ function stepsOf(quest: QuestView): Step[] {
     case 'offer':
       return [
         { target: 'nav-market', hint: 'Ouvrez le Marché' },
-        { target: 'publish-offer', hint: 'Choisissez un échange, puis publiez' },
+        { target: 'publish-offer', hint: 'Publiez votre offre' },
       ]
     case 'expedition':
       return [
@@ -376,7 +376,8 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
 /**
  * Golden light around the element the player should touch next, with a hint beside it.
  * It follows the element while the page moves, and lets every touch through. The bubble
- * stays inside the screen, and its arrow always points at the element. A step hidden
+ * stays inside the screen, and its arrow always points at the element; in a window, it
+ * stands beside or under the element when there is room, so it hides no field above it. A step hidden
  * further down a window, or aside in the building bar, is scrolled into view once.
  *
  * @param props - Component props.
@@ -385,7 +386,11 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
  * @returns The light, or nothing when no step shows on screen.
  */
 function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
-  const [spot, setSpot] = useState<{ box: DOMRect | null; hint: string } | null>(null)
+  const [spot, setSpot] = useState<{
+    box: DOMRect | null
+    hint: string
+    inWindow?: boolean
+  } | null>(null)
   const tip = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
 
@@ -403,7 +408,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
     const scrolled = new Set<string>()
     /** Looks for the deepest step on screen, and moves the light onto it. */
     const look = () => {
-      let found: { box: DOMRect | null; hint: string } | null = null
+      let found: { box: DOMRect | null; hint: string; inWindow?: boolean } | null = null
       let away: string | null = null
       for (let i = steps.length - 1; i >= 0 && !found; i--) {
         const step = steps[i]
@@ -413,7 +418,11 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         const all = [...document.querySelectorAll(`[data-guide="${step.target}"]`)]
         const element = all.find(onScreen) ?? all[0]
         if (element && onScreen(element)) {
-          found = { box: element.getBoundingClientRect(), hint: step.hint }
+          found = {
+            box: element.getBoundingClientRect(),
+            hint: step.hint,
+            inWindow: !!element.closest('.game-window-body'),
+          }
         } else if (element && step.away && away === null) {
           away = step.away
         } else if (
@@ -460,7 +469,39 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
       document.body,
     )
   }
-  const below = box.top < 150
+  const right = window.innerWidth - box.right
+  if (spot.inWindow && size.width > 0 && right >= size.width + 24) {
+    return createPortal(
+      <>
+        <m.div
+          className={styles.ring}
+          aria-hidden="true"
+          initial={false}
+          animate={{
+            left: box.left - 6,
+            top: box.top - 6,
+            width: box.width + 12,
+            height: box.height + 12,
+          }}
+          transition={SPRING}
+        />
+        <m.div
+          ref={tip}
+          className={styles.tip}
+          data-side="right"
+          role="status"
+          initial={false}
+          animate={{ left: box.right + 16, top: box.top + box.height / 2 - size.height / 2 }}
+          transition={SPRING}
+        >
+          <Icon kind="advisor" /> {hint}
+        </m.div>
+      </>,
+      document.body,
+    )
+  }
+  const roomBelow = window.innerHeight - 100 - box.bottom >= size.height + 24
+  const below = box.top < 150 || (!!spot.inWindow && roomBelow)
   const center = box.left + box.width / 2
   const margin = 8
   const left = Math.min(
