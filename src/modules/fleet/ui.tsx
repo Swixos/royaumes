@@ -2,6 +2,7 @@
 import { hc } from 'hono/client'
 import { AnimatePresence, m } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
@@ -443,7 +444,8 @@ function SeaMap({
 /**
  * Full screen battle report, shown when a report reaches the harbor in real time: the
  * report drops into place, the two ships ram each other, the verdict is stamped, then
- * the plunder comes in piece by piece.
+ * the plunder comes in piece by piece. It is drawn at the root of the page, above the
+ * menus of the game, so no menu hides part of it.
  *
  * @param props - Component props.
  * @param props.report - Data of the `BattleReported` event.
@@ -486,7 +488,7 @@ function BattleOverlay({
       {spoils.length === 0 && 'rien'}
     </span>
   )
-  return (
+  return createPortal(
     <m.div
       className={styles.overlay}
       role="dialog"
@@ -561,7 +563,8 @@ function BattleOverlay({
           Fermer le rapport
         </button>
       </m.div>
-    </m.div>
+    </m.div>,
+    document.body,
   )
 }
 
