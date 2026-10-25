@@ -57,7 +57,7 @@ export function GameWindow({
         <button
           type="button"
           className="game-window-backdrop"
-          aria-label={`Fermer : ${label}`}
+          aria-label={`Fermer : ${label}`}
           tabIndex={-1}
           onClick={() => latest.current()}
         />

@@ -83,11 +83,11 @@ const ERRORS: Record<RaidError['code'] | 'INVALID_INPUT', string> = {
   INVALID_FLEET: 'Une flotte compte de 1 à 10 trirèmes.',
   OWN_VILLAGE: 'Vous ne pouvez pas attaquer votre propre village.',
   UNKNOWN_TARGET: "Cette cible n'existe plus.",
-  TOO_MANY_RAIDS: 'Deux flottes sont déjà en mer : attendez leur retour.',
+  TOO_MANY_RAIDS: 'Deux flottes sont déjà en mer : attendez leur retour.',
   TREASURE_TAKEN: "Vous avez déjà attaqué cette île aujourd'hui.",
   NOT_ATTACKER: "Seul l'amiral de cette flotte peut la rappeler.",
   NOT_AT_SEA: "Cette flotte n'est plus en mer.",
-  ALREADY_ARRIVED: 'Trop tard : la flotte a touché terre.',
+  ALREADY_ARRIVED: 'Trop tard : la flotte a touché terre.',
   NOT_ARRIVED: "La flotte n'est pas encore arrivée.",
 }
 
@@ -392,7 +392,7 @@ function SeaMap({
         handlers={handlers}
         controls={controls}
         className={styles.map}
-        label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
+        label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
       >
         <div className={styles.pins}>
           <div ref={plane} className={styles.plane}>
@@ -408,7 +408,7 @@ function SeaMap({
                 aria-pressed={isTarget(island, selected)}
                 aria-label={
                   island.kind === 'home'
-                    ? `Votre village : ${island.name}`
+                    ? `Votre village : ${island.name}`
                     : `Cibler ${island.name}`
                 }
                 onClick={() => island.selection && onSelect(island.selection)}
@@ -608,8 +608,8 @@ function BattleOverlay({
         </m.p>
         <p className={styles.spoils}>
           {attacker
-            ? `Votre flotte contre ${String(report.opponentName)} : `
-            : `${String(report.opponentName)} a attaqué votre port : `}
+            ? `Votre flotte contre ${String(report.opponentName)} : `
+            : `${String(report.opponentName)} a attaqué votre port : `}
           {attacker ? (
             won ? (
               <>butin {lootList}</>
@@ -774,7 +774,7 @@ export function FleetScreen({ userId }: { userId: string }) {
       const view = body.view as RaidView
       setMessage(
         view.status === 'cancelled'
-          ? { text: 'Armement impossible : votre village manque de ressources.', error: true }
+          ? { text: 'Armement impossible : votre village manque de ressources.', error: true }
           : { text: `La flotte a hissé les voiles vers ${view.target.name}.`, error: false },
       )
       window.dispatchEvent(new Event(VILLAGE_CHANGED))
@@ -793,7 +793,7 @@ export function FleetScreen({ userId }: { userId: string }) {
     setMessage(
       'error' in body
         ? { text: ERRORS[body.error.code as keyof typeof ERRORS] ?? 'Ordre refusé.', error: true }
-        : { text: "Demi-tour ! L'équipement rentre au village.", error: false },
+        : { text: "Demi-tour ! L'équipement rentre au village.", error: false },
     )
     if (!('error' in body)) window.dispatchEvent(new Event(VILLAGE_CHANGED))
     refresh()
@@ -939,7 +939,7 @@ export function FleetScreen({ userId }: { userId: string }) {
         </AnimatePresence>
         {targets && !targets.home && (
           <p className={styles.notice} data-error="true">
-            Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
+            Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
           </p>
         )}
       </div>
@@ -995,7 +995,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                     </span>
                     {island && (
                       <span className="muted">
-                        Trésor : <AmountsText amounts={island.treasure} />
+                        Trésor : <AmountsText amounts={island.treasure} />
                         {island.raidedToday && " · déjà attaquée aujourd'hui"}
                       </span>
                     )}

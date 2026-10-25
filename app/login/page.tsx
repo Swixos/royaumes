@@ -25,7 +25,7 @@ const ERRORS: Record<string, string> = {
  * @returns A specific message for rate limiting (429) and known codes, a generic one otherwise.
  */
 function messageFor(error: { code?: string; status: number }): string {
-  if (error.status === 429) return 'Trop de tentatives : réessayez dans une minute.'
+  if (error.status === 429) return 'Trop de tentatives : réessayez dans une minute.'
   return (error.code && ERRORS[error.code]) || 'La connexion a échoué.'
 }
 
@@ -174,7 +174,7 @@ export default function LoginPage() {
                 setError(null)
               }}
             >
-              {mode === 'signIn' ? 'Pas de compte ? En créer un' : 'Déjà un compte ? Se connecter'}
+              {mode === 'signIn' ? 'Pas de compte ? En créer un' : 'Déjà un compte ? Se connecter'}
             </button>
           </p>
           <HealthStatus />

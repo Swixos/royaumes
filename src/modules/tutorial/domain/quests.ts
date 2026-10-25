@@ -82,7 +82,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'foundations',
     title: 'Les premières planches',
     advice:
-      'Tout royaume commence par le bois. Agrandissez la scierie : elle produira davantage, et chaque bâtiment en réclame.',
+      'Tout royaume commence par le bois. Agrandissez la scierie : elle produira davantage, et chaque bâtiment en réclame.',
     task: 'Monter la Scierie au niveau 2',
     goal: { kind: 'building', building: 'sawmill', level: 2 },
     reward: { wood: 80, stone: 40 },
@@ -122,7 +122,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'foundations',
     title: "L'or de la montagne",
     advice:
-      "Sans or, pas de flotte ni de commerce. Creusez la mine au pied de la montagne : elle extraira de l'or chaque minute.",
+      "Sans or, pas de flotte ni de commerce. Creusez la mine au pied de la montagne : elle extraira de l'or chaque minute.",
     task: 'Construire la Mine',
     goal: { kind: 'building', building: 'mine', level: 1 },
     reward: { gold: 40 },
@@ -132,7 +132,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'kingdom',
     title: 'Le premier marché',
     advice:
-      "Il vous manque toujours quelque chose. Au Marché, proposez ce que vous avez en trop contre ce qu'il vous faut : un autre seigneur acceptera.",
+      "Il vous manque toujours quelque chose. Au Marché, proposez ce que vous avez en trop contre ce qu'il vous faut : un autre seigneur acceptera.",
     task: 'Publier une offre au Marché',
     goal: { kind: 'deed', deed: 'offer' },
     reward: { wood: 60, stone: 60 },
@@ -152,7 +152,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'kingdom',
     title: 'Le trésor du donjon',
     advice:
-      "Choisissez bien vos actions à chaque manche : attaquer, se défendre ou soigner. Une expédition gagnée rapporte l'or des monstres.",
+      "Choisissez bien vos actions à chaque manche : attaquer, se défendre ou soigner. Une expédition gagnée rapporte l'or des monstres.",
     task: 'Gagner une expédition au Donjon',
     goal: { kind: 'deed', deed: 'expeditionWon' },
     reward: { gold: 50 },
@@ -162,7 +162,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'sea',
     title: 'Garder le port',
     advice:
-      "Les flottes ennemies viendront. Choisissez la posture de votre port : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage.",
+      "Les flottes ennemies viendront. Choisissez la posture de votre port : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage.",
     task: 'Choisir la posture de votre port',
     goal: { kind: 'deed', deed: 'posture' },
     reward: { wood: 50, stone: 50 },
@@ -182,7 +182,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'sea',
     title: 'Victoire en mer',
     advice:
-      "Votre force est le nombre de trirèmes multiplié par l'avantage de votre tactique. Elle doit dépasser la défense de la cible : lisez vos rapports de bataille dans l'Historique.",
+      "Votre force est le nombre de trirèmes multiplié par l'avantage de votre tactique. Elle doit dépasser la défense de la cible : lisez vos rapports de bataille dans l'Historique.",
     task: 'Remporter une bataille navale',
     goal: { kind: 'deed', deed: 'navalVictory' },
     reward: { gold: 60 },
@@ -201,7 +201,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'defense',
     title: 'Des murs autour de la ville',
     advice:
-      'Chaque niveau du rempart ajoute de la défense à votre port. Commencez par une palissade : la pierre viendra ensuite.',
+      'Chaque niveau du rempart ajoute de la défense à votre port. Commencez par une palissade : la pierre viendra ensuite.',
     task: 'Construire le Rempart',
     goal: { kind: 'building', building: 'wall', level: 1 },
     reward: { stone: 120, gold: 20 },
@@ -220,7 +220,7 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'defense',
     title: 'Le chantier naval',
     advice:
-      'Le chantier naval arme davantage de trirèmes, envoie plus de flottes à la fois et les fait voguer plus vite. Le royaume est à vous !',
+      'Le chantier naval arme davantage de trirèmes, envoie plus de flottes à la fois et les fait voguer plus vite. Le royaume est à vous !',
     task: 'Construire le Chantier naval',
     goal: { kind: 'building', building: 'shipyard', level: 1 },
     reward: { wood: 200, stone: 150, gold: 80 },
