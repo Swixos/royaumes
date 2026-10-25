@@ -4,7 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Entity } from '@/ui/entity'
 import type { ChronicleApi } from './api'
 import styles from './chronicle.module.css'
-import { CATEGORIES, type Category, type ChronicleEntry, categoryOf, tell } from './contracts'
+import {
+  CATEGORIES,
+  type Category,
+  type ChronicleEntry,
+  categoryOf,
+  explainBattle,
+  tell,
+} from './contracts'
 
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<ChronicleApi>('/api/chronicle')
@@ -80,6 +87,7 @@ export function ChronicleScreen() {
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const [opened, setOpened] = useState<number | null>(null)
 
   /**
    * Reads a page of the chronicle.
@@ -143,6 +151,8 @@ export function ChronicleScreen() {
               <ul className={styles.list}>
                 {day.entries.map((entry) => {
                   const told = tell(entry, now)
+                  const report = entry.type === 'battle' ? entry.report : undefined
+                  const open = opened === entry.position
                   return (
                     <li key={entry.position} className={styles.entry} data-tone={told.tone}>
                       <span className={styles.badge} aria-hidden="true">
@@ -152,9 +162,32 @@ export function ChronicleScreen() {
                         <span className={styles.title}>{told.title}</span>
                         {told.detail && <span className={styles.detail}>{told.detail}</span>}
                       </span>
-                      <time className={styles.time} dateTime={new Date(entry.at).toISOString()}>
-                        {TIME.format(entry.at)}
-                      </time>
+                      <span className={styles.side}>
+                        <time className={styles.time} dateTime={new Date(entry.at).toISOString()}>
+                          {TIME.format(entry.at)}
+                        </time>
+                        {report && (
+                          <button
+                            type="button"
+                            className={styles.open}
+                            aria-expanded={open}
+                            aria-controls={`report-${entry.position}`}
+                            onClick={() => setOpened(open ? null : entry.position)}
+                          >
+                            {open ? 'Fermer' : 'Rapport'}
+                          </button>
+                        )}
+                      </span>
+                      {entry.type === 'battle' && report && open && (
+                        <dl id={`report-${entry.position}`} className={styles.report}>
+                          {explainBattle(entry, report).map((line) => (
+                            <div key={line.label} data-tone={line.tone}>
+                              <dt>{line.label}</dt>
+                              <dd>{line.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
                     </li>
                   )
                 })}
