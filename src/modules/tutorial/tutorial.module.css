@@ -165,7 +165,7 @@
 
 .tip[data-side='below']::after { top: -9px; bottom: auto; transform: rotate(225deg); }
 .tip[data-side='right']::after { left: -9px; top: 50%; bottom: auto; margin: -7px 0 0; transform: rotate(135deg); }
-.tip[data-side='free'] { max-width: calc(100vw - 32px); white-space: normal; text-align: center; transform: translate(-50%, -50%); }
+.tip[data-side='free'] { left: 16px; right: 16px; bottom: calc(190px + env(safe-area-inset-bottom)); width: fit-content; max-width: min(360px, calc(100vw - 32px)); margin-inline: auto; text-align: center; }
 .tip[data-side='free']::after { display: none; }
 
 .scrim {

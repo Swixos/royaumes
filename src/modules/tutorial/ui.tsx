@@ -377,8 +377,9 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
  * Golden light around the element the player should touch next, with a hint beside it.
  * It follows the element while the page moves, and lets every touch through. The bubble
  * stays inside the screen, and its arrow always points at the element; in a window, it
- * stands beside or under the element when there is room, so it hides no field above it. A step hidden
- * further down a window, or aside in the building bar, is scrolled into view once.
+ * stands beside or under the element when there is room, so it hides no field above it.
+ * A step further down a window is scrolled into view, and announced until it shows; a
+ * building aside in the building bar is scrolled into view once.
  *
  * @param props - Component props.
  * @param props.steps - Steps of the quest under way.
@@ -423,15 +424,17 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
             hint: step.hint,
             inWindow: !!element.closest('.game-window-body'),
           }
+        } else if (element?.closest('.game-window-body')) {
+          if (!scrolled.has(step.target)) {
+            scrolled.add(step.target)
+            element.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }
+          found = { box: null, hint: `Descendez dans la fenêtre : ${step.hint.toLowerCase()}` }
         } else if (element && step.away && away === null) {
           away = step.away
-        } else if (
-          element &&
-          !scrolled.has(step.target) &&
-          element.closest('.game-window-body, .village-bar')
-        ) {
+        } else if (element && !scrolled.has(step.target) && element.closest('.village-bar')) {
           scrolled.add(step.target)
-          element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' })
+          element.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
         }
       }
       if (away !== null && (!found || found.hint !== away)) {
@@ -460,9 +463,8 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         className={styles.tip}
         data-side="free"
         role="status"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        style={{ left: '50%', top: '58%' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
       >
         <Icon kind="advisor" /> {hint}
       </m.div>,
