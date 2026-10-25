@@ -712,8 +712,11 @@ input.amount { width: 6em; }
 .works h2 { margin: 0 0 4px; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
 .works p { margin: 0; color: var(--muted); }
 .works ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.works li { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: var(--radius-sm); background: var(--parchment-2); border: 1px solid var(--line); }
-.works li button.link { font-family: var(--display); font-size: 0.85rem; min-height: 0; }
+.works li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; min-width: 0; padding: 3px 6px; border-radius: var(--radius-sm); background: var(--parchment-2); border: 1px solid var(--line); }
+.works li button.link { min-width: 0; margin: 0; padding: 0; overflow: hidden; justify-content: flex-start; font-family: var(--display); font-size: 0.85rem; min-height: 0; }
+.works li button.link .entity { min-width: 0; }
+.works li button.link .entity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.works-level { white-space: nowrap; }
 .works-time { margin-left: auto; font-weight: 800; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 
 .games, .log, .offers, .presence { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
@@ -874,6 +877,12 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
   .village-bar .entity .icon { width: 28px; height: 28px; }
   .village-bar-name { font-size: 0.6rem; }
   .works { top: 8px; right: 8px; width: min(170px, 44%); font-size: 0.7rem; padding: 5px 7px; }
+  .works li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name time' 'level time'; row-gap: 0; padding: 3px 5px; }
+  .works li button.link { grid-area: name; font-size: 0.72rem; }
+  .works li button.link .entity > :first-child { display: none; }
+  .works-level { grid-area: level; font-size: 0.62rem; }
+  .works-time { grid-area: time; }
+  .works h2 { font-size: 0.68rem; letter-spacing: 0.02em; white-space: nowrap; }
   .building-card { padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); gap: 8px; }
   .building-card h2 { font-size: 1.1rem; }
   .building-cost button { flex: 1; }
