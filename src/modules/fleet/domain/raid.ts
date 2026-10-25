@@ -8,15 +8,15 @@
 import {
   type Amounts,
   type Battle,
+  crossingMs,
   DEFAULT_POSTURE,
   dayOf,
   equipmentCost,
   fight,
+  fleetLimits,
   holdOf,
   isEmpty,
   islandOf,
-  MAX_RAIDS_AT_SEA,
-  MAX_SHIPS,
   MIN_SHIPS,
   pirateLoot,
   reducedLoot,
@@ -145,12 +145,14 @@ export interface LaunchContext {
   targetHasVillage: boolean
   /** Days on which the attacker already raided the targeted island (rule 12). */
   islandRaidDays: number[]
+  /** Level of the attacker's shipyard (rules 1, 3, 5). */
+  shipyard: number
 }
 
 /** Defense met by a fleet at its arrival, read by the application layer. */
 export type ArrivalContext =
-  /** Village of a player: its posture and its number of building upgrades. */
-  | { kind: 'village'; posture: Tactic | null; upgrades: number }
+  /** Village of a player: its posture and the level of its wall. */
+  | { kind: 'village'; posture: Tactic | null; wall: number }
   /** Pirate island: the attacker's past tactics against the pirates. */
   | { kind: 'pirates'; history: Tactic[] }
   /** The targeted village no longer exists. */
@@ -303,7 +305,8 @@ export const replay = (events: RaidEvent[]) => events.reduce(evolve, initialStat
  */
 function launch(command: Extract<RaidCommand, { type: 'LaunchRaid' }>, now: number): Decision {
   const { raidId, attackerId, attackerName, ships, tactic, context } = command
-  if (!Number.isInteger(ships) || ships < MIN_SHIPS || ships > MAX_SHIPS) {
+  const limits = fleetLimits(context.shipyard)
+  if (!Number.isInteger(ships) || ships < MIN_SHIPS || ships > limits.maxShips) {
     return fail({ code: 'INVALID_FLEET' })
   }
 
@@ -313,17 +316,17 @@ function launch(command: Extract<RaidCommand, { type: 'LaunchRaid' }>, now: numb
     if (command.target.playerId === attackerId) return fail({ code: 'OWN_VILLAGE' })
     if (!context.targetHasVillage) return fail({ code: 'UNKNOWN_TARGET' })
     target = command.target
-    travelMs = travelMinutes(attackerId, command.target.playerId) * 60_000
+    travelMs = crossingMs(travelMinutes(attackerId, command.target.playerId), limits)
   } else {
     const island = islandOf(command.target.islandId)
     if (!island) return fail({ code: 'UNKNOWN_TARGET' })
     if (context.islandRaidDays.includes(dayOf(now))) return fail({ code: 'TREASURE_TAKEN' })
     target = { kind: 'pirates', islandId: island.id, name: island.name }
-    travelMs = island.travelMinutes * 60_000
+    travelMs = crossingMs(island.travelMinutes, limits)
   }
 
-  if (context.raidsOut >= MAX_RAIDS_AT_SEA) {
-    return fail({ code: 'TOO_MANY_RAIDS', limit: MAX_RAIDS_AT_SEA })
+  if (context.raidsOut >= limits.maxRaids) {
+    return fail({ code: 'TOO_MANY_RAIDS', limit: limits.maxRaids })
   }
 
   return accept({
@@ -363,8 +366,7 @@ function arrive(state: RaidState, context: ArrivalContext, now: number): Decisio
     context.kind === 'pirates'
       ? captainPosture(context.history)
       : (context.posture ?? DEFAULT_POSTURE)
-  const defense =
-    context.kind === 'pirates' ? (island?.defense ?? 0) : villageDefense(context.upgrades)
+  const defense = context.kind === 'pirates' ? (island?.defense ?? 0) : villageDefense(context.wall)
   const battle = fight(state.ships, state.tactic, posture, defense)
   const fought: RaidEvent = { type: 'BattleFought', data: { ...battle, at: now } }
 

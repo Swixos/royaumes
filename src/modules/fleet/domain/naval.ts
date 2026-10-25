@@ -22,10 +22,16 @@ export const DEFAULT_POSTURE: Tactic = 'blockade'
 
 /** Smallest number of triremes in a raid. */
 export const MIN_SHIPS = 1
-/** Largest number of triremes in a raid. */
+/** Largest number of triremes in a raid, without shipyard. */
 export const MAX_SHIPS = 10
-/** Largest number of raids a player may have at sea at once. */
+/** Largest number of raids a player may have at sea at once, without shipyard. */
 export const MAX_RAIDS_AT_SEA = 2
+/** Triremes added to the largest raid by each level of the shipyard. */
+export const SHIPS_PER_SHIPYARD_LEVEL = 2
+/** Levels of the shipyard needed for each more raid at sea. */
+export const SHIPYARD_LEVELS_PER_RAID = 4
+/** Share of every crossing time saved per level of the shipyard. */
+export const SHIPYARD_SPEEDUP = 0.04
 
 /** Equipment cost of one trireme, withdrawn from the attacker's village. */
 export const SHIP_COST = { wood: 15, stone: 5 } as const
@@ -33,10 +39,10 @@ export const SHIP_COST = { wood: 15, stone: 5 } as const
 export const SHIP_HOLD = { wood: 10, stone: 5, gold: 2 } as const
 /** Attack strength of one trireme. */
 export const ATTACK_PER_SHIP = 10
-/** Base defense of a village. */
+/** Base defense of a village, without wall. */
 export const BASE_DEFENSE = 20
-/** Defense added by each building upgrade of a village. */
-export const DEFENSE_PER_UPGRADE = 5
+/** Defense added by each level of the wall of a village. */
+export const DEFENSE_PER_WALL_LEVEL = 12
 
 /** Shortest crossing towards a village, in minutes. */
 export const MIN_TRAVEL_MINUTES = 2
@@ -163,12 +169,60 @@ export function mapPositionOf(playerId: string): { x: number; y: number } {
 }
 
 /**
- * Defense of a village (rule 8).
+ * Defense of a village (rule 8): its wall protects it.
  *
- * @param upgrades - Number of building upgrades it made.
+ * @param wall - Level of the wall of the village.
  * @returns The defense.
  */
-export const villageDefense = (upgrades: number) => BASE_DEFENSE + DEFENSE_PER_UPGRADE * upgrades
+export const villageDefense = (wall: number) => BASE_DEFENSE + DEFENSE_PER_WALL_LEVEL * wall
+
+/**
+ * Levels reached by a building of a village, each with the time it was reached, as the
+ * fleet read model records them from the village events.
+ */
+export type LevelSteps = Array<[level: number, at: number]>
+
+/**
+ * Level of a building at a given time: its constructions complete by then.
+ *
+ * @param steps - Levels reached by the building, with their time.
+ * @param at - Time in milliseconds.
+ * @returns The level at `at`; 0 if the building was not built yet.
+ */
+export const levelAt = (steps: LevelSteps, at: number) =>
+  steps.reduce((level, [reached, when]) => (when <= at ? Math.max(level, reached) : level), 0)
+
+/** What the shipyard of a player allows their fleets. */
+export interface FleetLimits {
+  /** Largest number of triremes in a raid. */
+  maxShips: number
+  /** Largest number of raids at sea at once. */
+  maxRaids: number
+  /** Factor applied to every crossing time, 1 without shipyard. */
+  speed: number
+}
+
+/**
+ * Limits of the fleets of a player, set by the level of their shipyard (rules 1, 3, 5).
+ *
+ * @param shipyard - Level of the shipyard.
+ * @returns The limits.
+ */
+export const fleetLimits = (shipyard: number): FleetLimits => ({
+  maxShips: MAX_SHIPS + SHIPS_PER_SHIPYARD_LEVEL * shipyard,
+  maxRaids: MAX_RAIDS_AT_SEA + Math.floor(shipyard / SHIPYARD_LEVELS_PER_RAID),
+  speed: 1 - SHIPYARD_SPEEDUP * shipyard,
+})
+
+/**
+ * Crossing time of a fleet, shortened by the shipyard of its owner.
+ *
+ * @param minutes - Crossing time without shipyard, in minutes.
+ * @param limits - Limits of the attacker's fleets.
+ * @returns The crossing time in milliseconds.
+ */
+export const crossingMs = (minutes: number, limits: FleetLimits) =>
+  Math.round(minutes * 60_000 * limits.speed)
 
 /**
  * Multiplier of the attack, from the tactic triangle (rule 7).
