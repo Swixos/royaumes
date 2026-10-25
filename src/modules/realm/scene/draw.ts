@@ -1458,7 +1458,7 @@ export function mountain(): Graphics {
   )
   const peaks = [
     { at: { u: -0.7, v: -0.5 }, r: 1.25, top: 132, seed: 5 },
-    { at: { u: 0.8, v: -0.7 }, r: 1, top: 108, seed: 9 },
+    { at: { u: 0.5, v: -0.35 }, r: 0.72, top: 104, seed: 9 },
     { at: { u: 0.2, v: 0.5 }, r: 0.8, top: 84, seed: 4 },
   ]
   for (const peak of peaks) {
