@@ -38,7 +38,7 @@ flowchart TB
 
 | Conteneur | Technologies | Responsabilités |
 | --- | --- | --- |
-| Interface web | React, composants des modules (`ui.tsx`) | Affichage des vues, envoi des actions du joueur, abonnement aux canaux temps réel |
+| Interface web | React, composants des modules (`ui.tsx`), scènes PixiJS (`scene/`) | Affichage des vues, envoi des actions du joueur, abonnement aux canaux temps réel |
 | Application serveur | Next.js, Hono, Better Auth, Drizzle | Contrôle d'accès, règles du jeu, enregistrement des événements, diffusion des flux |
 | Base de données | PostgreSQL (Neon en production, PGlite en local et en test) | Conservation du journal d'événements, des comptes et des sessions ; modèles de lecture des modules |
 
@@ -188,7 +188,8 @@ dependency-cruiser (`.dependency-cruiser.cjs`) à chaque exécution de `pnpm ver
 - un module n'est accessible que par ses entrées publiques (`index.ts`, `contracts.ts`, `ui.tsx`) ;
 - le domaine d'un module ne dépend d'aucune bibliothèque technique ;
 - la couche application d'un module ne dépend pas de sa couche infrastructure ;
-- le code destiné au navigateur ne dépend d'aucun code serveur ;
+- le code destiné au navigateur (`ui.tsx`, les scènes `scene/` des modules et `src/ui`) ne
+  dépend d'aucun code serveur ;
 - aucune dépendance circulaire n'est admise ;
 - un module n'importe jamais les tables de la plateforme : il passe par ses fonctions.
 

@@ -22,3 +22,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0014](0014-jeton-signe-services.md) | Jeton signé, à durée de vie courte, pour les échanges entre l'application et un service | Accepté |
 | [0015](0015-droit-rectification.md) | Droit de rectification du nom, par la réécriture ciblée du journal | Accepté |
 | [0016](0016-scene-village-pixi.md) | Scène du village dessinée avec PixiJS, à côté des contrôles de la page | Accepté |
+| [0017](0017-carte-mers-pixi.md) | Carte des mers dessinée avec PixiJS, et briques communes aux scènes du jeu | Accepté |

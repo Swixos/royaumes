@@ -246,7 +246,11 @@ la scierie au bord de la forêt, la carrière taillée dans la falaise et la min
 montagne. Chaque bâtiment change d'allure tous les trois niveaux, l'hôtel de ville se dote de
 tours puis de remparts à mesure que le village grandit, et la scène s'anime : fumées,
 villageois sur les routes, ressources produites, vagues et oiseaux. Un clic sur un bâtiment
-ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. Les
+ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. La carte des
+mers de la Flotte est rendue de la même façon (ADR 0017) : chaque île est dessinée selon son
+type (votre port, les ports des autres joueurs, les repaires pirates), et les flottes voguent
+sur leur route avec leur sillage et leur heure d'arrivée. Les briques communes aux deux
+scènes (palette, dessins, mise en place du canvas) sont dans `src/ui/pixi/`. Les
 animations de l'interface (rapport de bataille, compteurs, sélecteurs) utilisent la
 bibliothèque Motion, et toutes respectent le réglage système de réduction des animations.
 

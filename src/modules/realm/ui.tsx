@@ -227,12 +227,12 @@ function VillageStage({
   children: ReactNode
 }) {
   const state = useMemo(
-    () => ({ name: view.name, levels: view.levels, rates: view.ratesPerMinute }),
-    [view.name, view.levels, view.ratesPerMinute],
+    () => ({ name: view.name, levels: view.levels, rates: view.ratesPerMinute, selected }),
+    [view.name, view.levels, view.ratesPerMinute, selected],
   )
   return (
     <section className="village-stage" aria-label="Vue du village">
-      <VillageMap state={state} selected={selected} onSelect={onSelect} />
+      <VillageMap state={state} handlers={{ onSelect }} />
       {children}
     </section>
   )
