@@ -55,7 +55,7 @@ export interface Stage {
    * @param paused - True to stop the animation.
    */
   pause(paused: boolean): void
-  /** Stops the application and frees its resources. */
+  /** Stops the application, forgets the gestures of the camera and frees its resources. */
   destroy(): void
 }
 
@@ -156,6 +156,8 @@ export async function createStage(
     apply(view)
   })
 
+  const gestures = new AbortController()
+  const { signal } = gestures
   const pointers = new Map<number, { x: number; y: number }>()
   let travelled = 0
   let moved = false
@@ -184,38 +186,46 @@ export async function createStage(
     }
   }
 
-  host.addEventListener('pointerdown', (event) => {
-    if (pointers.size === 0) {
-      travelled = 0
-      moved = false
-    }
-    pointers.set(event.pointerId, at(event))
-  })
+  host.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (pointers.size === 0) {
+        travelled = 0
+        moved = false
+      }
+      pointers.set(event.pointerId, at(event))
+    },
+    { signal },
+  )
 
-  host.addEventListener('pointermove', (event) => {
-    const before = pointers.get(event.pointerId)
-    if (!before) return
-    const now = at(event)
-    if (pointers.size >= 2) {
-      const old = spread()
+  host.addEventListener(
+    'pointermove',
+    (event) => {
+      const before = pointers.get(event.pointerId)
+      if (!before) return
+      const now = at(event)
+      if (pointers.size >= 2) {
+        const old = spread()
+        pointers.set(event.pointerId, now)
+        const next = spread()
+        moved = true
+        const zoomed = zoomAround(view, old.span > 0 ? next.span / old.span : 1, next.mid)
+        apply({
+          ...zoomed,
+          x: zoomed.x + next.mid.x - old.mid.x,
+          y: zoomed.y + next.mid.y - old.mid.y,
+        })
+        return
+      }
       pointers.set(event.pointerId, now)
-      const next = spread()
+      travelled += Math.hypot(now.x - before.x, now.y - before.y)
+      if (!moved && travelled < DRAG_THRESHOLD) return
+      if (!moved) host.setPointerCapture(event.pointerId)
       moved = true
-      const zoomed = zoomAround(view, old.span > 0 ? next.span / old.span : 1, next.mid)
-      apply({
-        ...zoomed,
-        x: zoomed.x + next.mid.x - old.mid.x,
-        y: zoomed.y + next.mid.y - old.mid.y,
-      })
-      return
-    }
-    pointers.set(event.pointerId, now)
-    travelled += Math.hypot(now.x - before.x, now.y - before.y)
-    if (!moved && travelled < DRAG_THRESHOLD) return
-    if (!moved) host.setPointerCapture(event.pointerId)
-    moved = true
-    apply({ ...view, x: view.x + now.x - before.x, y: view.y + now.y - before.y })
-  })
+      apply({ ...view, x: view.x + now.x - before.x, y: view.y + now.y - before.y })
+    },
+    { signal },
+  )
 
   /**
    * Forgets a pointer lifted or lost.
@@ -225,8 +235,8 @@ export async function createStage(
   const release = (event: PointerEvent) => {
     pointers.delete(event.pointerId)
   }
-  host.addEventListener('pointerup', release)
-  host.addEventListener('pointercancel', release)
+  host.addEventListener('pointerup', release, { signal })
+  host.addEventListener('pointercancel', release, { signal })
 
   host.addEventListener(
     'click',
@@ -235,7 +245,7 @@ export async function createStage(
       event.stopPropagation()
       event.preventDefault()
     },
-    true,
+    { capture: true, signal },
   )
 
   host.addEventListener(
@@ -244,7 +254,7 @@ export async function createStage(
       event.preventDefault()
       apply(zoomAround(view, Math.exp(-event.deltaY * 0.0015), at(event)))
     },
-    { passive: false },
+    { passive: false, signal },
   )
 
   const camera: Camera = {
@@ -268,7 +278,11 @@ export async function createStage(
     camera,
     calm: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     pause: (paused) => (paused ? app.ticker.stop() : app.ticker.start()),
-    destroy: () => app.destroy({ removeView: true }, { children: true }),
+    destroy: () => {
+      gestures.abort()
+      listeners.length = 0
+      app.destroy({ removeView: true }, { children: true })
+    },
   }
 }
 

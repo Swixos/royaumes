@@ -1,24 +1,18 @@
 /**
- * Village scene rendered with PixiJS: the island, the senate, the buildings at their
- * level, their constructions under way, and the life of the village (smoke, villagers, waves, birds). The scene
- * only shows the state it is given; the screen keeps the game logic and the accessible
- * controls.
+ * Village scene rendered with PixiJS: the island seen at one isometric angle, the walled
+ * town with its square and streets, its houses multiplying as the village grows, the
+ * buildings at their level with their constructions under way, the fields and roads of
+ * the country around, and the life of the village (smoke, villagers, waves, birds). The
+ * scene only shows the state it is given; the screen keeps the game logic and the
+ * accessible controls.
  *
  * @packageDocumentation
  */
 import { Container, Graphics, Text } from 'pixi.js'
-import {
-  bird,
-  cloud,
-  DISPLAY,
-  easeOutBack,
-  makePlaque,
-  PALETTE,
-  ship,
-  tree,
-} from '@/ui/pixi/drawing'
+import { bird, cloud, DISPLAY, easeOutBack, makePlaque, PALETTE } from '@/ui/pixi/drawing'
 import type { LiveScene } from '@/ui/pixi/scene-host'
 import { createStage, driftWaves, scatterWaves } from '@/ui/pixi/stage'
+import { scaleRange } from '@/ui/pixi/view'
 import {
   BUILDINGS,
   type Building,
@@ -33,30 +27,51 @@ import {
   type BuildingDrawing,
   buildingDrawing,
   cliff,
-  field,
+  fieldDrawing,
+  garden,
   harbor,
+  iso,
+  isoTree,
+  mooredShip,
   mountain,
   resourceToken,
   scaffold,
+  stall,
+  TONES,
+  tint,
+  townHouse,
   villager,
-  wallDrawing,
+  wallPiece,
+  wallTower,
+  well,
 } from './draw'
 import {
+  lots as allLots,
   CLIFF,
   contains,
+  FIELDS,
+  FOOTPRINTS,
   HARBOR,
+  housesFor,
   islandOutline,
+  type Lot,
   MOUNTAIN,
   PLACES,
   type Point,
   pathLength,
   pointAlong,
+  project,
   roads,
+  SQUARE_SIZE,
+  STREET_WIDTH,
   seeded,
   stageOf,
-  TOWN_HALL,
+  type Tile,
+  TOWN,
+  TOWN_SIZE,
   totalLevel,
   trees,
+  type Wall,
   WORLD_HEIGHT,
   WORLD_WIDTH,
   wallOf,
@@ -64,7 +79,7 @@ import {
 
 /** State of the village shown by the scene. */
 export interface VillageSceneState {
-  /** Name of the village, written on the town hall banner. */
+  /** Name of the village, written on the banner above the senate. */
   name: string
   /** Level of each building. */
   levels: Levels
@@ -97,11 +112,14 @@ const NAMES: Record<Building, string> = {
   shipyard: 'Chantier naval',
 }
 
-/** Scale of the buildings in the world, larger than their drawing so they lead the scene. */
-const GROWTH = 1.3
+/** Zoom, as a multiple of the scale filling the screen, from which every plaque shows. */
+const LABEL_ZOOM = 1.45
 
-/** Mooring of the trireme, west of the pier. */
-const BOAT: Point = { x: 700, y: 835 }
+/** Size of the plaques on screen, whatever the zoom, as a share of their drawn size. */
+const LABEL_SIZE = 0.72
+
+/** Mooring of the trireme, alongside the pier. */
+const BOAT: Point = { x: HARBOR.x + iso(1.9, 0.95).x, y: HARBOR.y + iso(1.9, 0.95).y }
 
 /** Colors of the villagers' tunics. */
 const TUNICS = [0x8c2a1c, 0x1f5f92, 0x4a7428, 0xb9761a, 0x6a4a7e, 0x7a3a1e]
@@ -127,11 +145,13 @@ interface Site {
   holder: Container
   drawing: BuildingDrawing
   level: number
+  look: string
   plaque: Container
   levelText: Text
   paint: (color: number) => void
   ring: Graphics
   scaffold: Graphics | null
+  busy: boolean
   timer: Container
   timerText: Text
   pop: number
@@ -139,25 +159,60 @@ interface Site {
   tokenClock: number
 }
 
+/** A house of the town, rising on its lot. */
+interface Home {
+  root: Graphics
+  chimney: Point | null
+  pop: number
+  smokeClock: number
+}
+
 /**
- * Turns a list of points into the flat list of coordinates Pixi expects, scaled around a
- * center.
+ * Turns a list of points into the flat list of coordinates Pixi expects, scaled around the
+ * center of the island.
  *
  * @param points - Points to convert.
  * @param factor - Scale factor around the center.
- * @param center - Center of the scaling.
  * @returns The flat list of coordinates.
  */
-function flat(points: Point[], factor = 1, center: Point = { x: 800, y: 470 }) {
-  return points.flatMap((p) => [
-    center.x + (p.x - center.x) * factor,
-    center.y + (p.y - center.y) * factor,
-  ])
+function flat(points: Point[], factor = 1) {
+  return points.flatMap((p) => [800 + (p.x - 800) * factor, 470 + (p.y - 470) * factor])
+}
+
+/**
+ * Flat list of the corners of a rectangle of ground, projected on screen.
+ *
+ * @param at - Center of the rectangle, in tiles.
+ * @param size - Size of the rectangle, in tiles.
+ * @returns The flat list of coordinates.
+ */
+function quad(at: Tile, size: Tile) {
+  const { u, v } = at
+  const du = size.u / 2
+  const dv = size.v / 2
+  return [
+    project({ u: u - du, v: v - dv }),
+    project({ u: u + du, v: v - dv }),
+    project({ u: u + du, v: v + dv }),
+    project({ u: u - du, v: v + dv }),
+  ].flatMap((p) => [p.x, p.y])
+}
+
+/**
+ * Look of a building: its size stage, or the kind of wall for the gate. The drawing is
+ * rebuilt when it changes.
+ *
+ * @param building - Building shown.
+ * @param level - Level of the building.
+ * @returns A key naming its look.
+ */
+function lookOf(building: Building, level: number) {
+  return building === 'wall' ? wallOf(level) : String(stageOf(level))
 }
 
 /**
  * Creates the village scene in an element of the page. The world keeps its proportions
- * and scales to the width of the element.
+ * and scales to the size of the element.
  *
  * @param host - Element receiving the canvas; its size is the size of the scene.
  * @param initial - State of the village to show first.
@@ -173,12 +228,14 @@ export async function createVillageScene(
     host,
     WORLD_WIDTH,
     WORLD_HEIGHT,
-    TOWN_HALL,
+    TOWN,
   )
   const random = seeded(11)
   let state = initial
   let selected = initial.selected
   let hovered: Building | null = null
+  let zoomed = false
+  let labelScale = LABEL_SIZE
   let time = 0
 
   const sea = new Container()
@@ -196,28 +253,42 @@ export async function createVillageScene(
   const land = new Graphics()
   land.poly(flat(coast, 1.09)).fill(PALETTE.shallow)
   land.poly(flat(coast, 1.035)).fill(PALETTE.foam)
-  land.poly(flat(coast, 1.0)).fill(PALETTE.sand).stroke({ width: 3, color: PALETTE.sandDark })
-  land.poly(flat(coast, 0.93)).fill(PALETTE.grass).stroke({ width: 3, color: PALETTE.grassDark })
-  for (let i = 0; i < 140; i++) {
-    const x = 220 + random() * 1160
-    const y = 230 + random() * 480
-    if (!contains({ x, y }, coast)) continue
-    land
-      .moveTo(x - 4, y)
-      .lineTo(x - 2, y - 6)
-      .moveTo(x + 2, y)
-      .lineTo(x + 4, y - 7)
+  land.poly(flat(coast, 1.0)).fill(PALETTE.sand)
+  land.poly(flat(coast, 0.93)).fill(PALETTE.grass).stroke({ width: 2, color: PALETTE.sandDark })
+  const meadow = coast.map((p) => ({ x: 800 + (p.x - 800) * 0.9, y: 470 + (p.y - 470) * 0.9 }))
+  for (let i = 0; i < 260; i++) {
+    const x = 180 + random() * 1240
+    const y = 170 + random() * 580
+    if (!contains({ x, y }, meadow)) continue
+    const r = 14 + random() * 46
+    land.ellipse(x, y, r, r / 2).fill({
+      color: random() > 0.5 ? PALETTE.grassLight : PALETTE.grassDark,
+      alpha: 0.22,
+    })
   }
-  land.stroke({ width: 2, color: PALETTE.grassDark })
+  for (let i = 0; i < 160; i++) {
+    const x = 180 + random() * 1240
+    const y = 170 + random() * 580
+    if (!contains({ x, y }, meadow)) continue
+    land
+      .moveTo(x - 3, y)
+      .lineTo(x - 1.5, y - 4)
+      .moveTo(x + 1, y)
+      .lineTo(x + 2.5, y - 5)
+  }
+  land.stroke({ width: 1.2, color: PALETTE.grassDark, alpha: 0.7 })
+  for (let i = 0; i < 40; i++) {
+    const angle = random() * Math.PI * 2
+    const p = { x: 800 + Math.cos(angle) * 640, y: 470 + Math.sin(angle) * 290 }
+    const r = 3 + random() * 5
+    land.ellipse(p.x, p.y, r, r * 0.6).fill(tint(PALETTE.stone, 0.9 + random() * 0.2))
+  }
   ground.addChild(land)
 
-  for (const [x, y, w, h] of [
-    [560, 610, 120, 60],
-    [1110, 650, 120, 50],
-  ]) {
-    const plot = field(w, h)
-    plot.position.set(x, y)
-    ground.addChild(plot)
+  for (const field of FIELDS) {
+    const view = fieldDrawing(field.size, field.crop)
+    view.position.copyFrom(project(field.at))
+    ground.addChild(view)
   }
 
   const paths = roads()
@@ -225,19 +296,43 @@ export async function createVillageScene(
   for (const path of paths) {
     road
       .poly(flat(path), false)
-      .stroke({ width: 30, color: PALETTE.roadEdge, join: 'round', cap: 'round' })
+      .stroke({ width: 22, color: PALETTE.roadEdge, join: 'round', cap: 'round' })
   }
   for (const path of paths) {
     road
       .poly(flat(path), false)
-      .stroke({ width: 22, color: PALETTE.road, join: 'round', cap: 'round' })
+      .stroke({ width: 15, color: PALETTE.road, join: 'round', cap: 'round' })
   }
-  road
-    .ellipse(TOWN_HALL.x, TOWN_HALL.y + 30, 150, 60)
-    .fill(PALETTE.road)
-    .stroke({ width: 4, color: PALETTE.roadEdge })
   ground.addChild(road)
 
+  const town = new Graphics()
+  const side = TOWN_SIZE * 2 + 0.3
+  town.poly(quad({ u: 0, v: 0 }, { u: side, v: side })).fill(TONES.yard)
+  town
+    .poly(quad({ u: 0, v: 0 }, { u: side + 0.2, v: side + 0.2 }))
+    .stroke({ width: 7, color: TONES.bank, alpha: 0.8, join: 'round' })
+  const street = TOWN_SIZE * 2 + 0.6
+  const lanes = [
+    quad({ u: 0, v: 0 }, { u: street, v: STREET_WIDTH * 2 }),
+    quad({ u: 0, v: 0 }, { u: STREET_WIDTH * 2, v: street }),
+    quad({ u: 0, v: 0 }, { u: SQUARE_SIZE * 2, v: SQUARE_SIZE * 2 }),
+  ]
+  for (const lane of lanes) town.poly(lane).fill(TONES.cobble)
+  for (let k = -TOWN_SIZE; k <= TOWN_SIZE; k += 0.3) {
+    const across = Math.abs(k) <= SQUARE_SIZE ? SQUARE_SIZE : STREET_WIDTH
+    for (const [a, b] of [
+      [project({ u: k, v: -across }), project({ u: k, v: across })],
+      [project({ u: -across, v: k }), project({ u: across, v: k })],
+    ]) {
+      town.moveTo(a.x, a.y).lineTo(b.x, b.y)
+    }
+  }
+  town.stroke({ width: 1, color: TONES.cobbleLine, alpha: 0.45 })
+  town.poly(lanes[2]).stroke({ width: 2, color: TONES.cobbleLine })
+  ground.addChild(town)
+
+  const gardens = new Container()
+  ground.addChild(gardens)
   const rings = new Container()
   ground.addChild(rings)
 
@@ -254,44 +349,147 @@ export async function createVillageScene(
     objects.addChild(view)
   }
 
-  const peak = mountain()
-  place(peak, MOUNTAIN, MOUNTAIN.y - 60)
-  const rocks = cliff()
-  place(rocks, CLIFF, CLIFF.y - 40)
+  place(mountain(), MOUNTAIN)
+  place(cliff(), CLIFF)
 
-  const forest = trees().map((spot, i) => {
-    const view = tree(spot.size, i % 3 === 0)
+  const forest = trees().map((spot) => {
+    const view = isoTree(spot.size, spot.pine)
     place(view, spot)
     return view
   })
 
   const port = harbor()
   place(port.root, HARBOR)
-  const boat = ship()
-  boat.scale.set(0.8)
+  const boat = mooredShip()
   place(boat, BOAT)
 
-  const wallBack = new Container()
-  const wallFront = new Container()
-  place(wallBack, TOWN_HALL, TOWN_HALL.y - 110)
-  place(wallFront, TOWN_HALL, TOWN_HALL.y + 140)
-  let wall = wallOf(state.levels.wall)
-  wallBack.addChild(wallDrawing(wall, 'back'))
-  wallFront.addChild(wallDrawing(wall, 'front'))
+  place(well(), project({ u: -0.95, v: -0.95 }))
+  for (const [u, v, color] of [
+    [0.95, 0.95, TONES.cloths[0]],
+    [-0.95, 0.95, TONES.cloths[1]],
+    [0.95, -0.95, TONES.cloths[2]],
+  ]) {
+    place(stall(color), project({ u, v }))
+  }
+
+  let wall: Wall = wallOf(state.levels.wall)
+  let wallParts: Container[] = []
+
+  /**
+   * Builds the town wall: its pieces between the corners and the gates, its corner towers
+   * and the posts of its small gates. The main gate is the wall building itself.
+   *
+   * @param kind - Kind of wall.
+   */
+  function raiseWall(kind: Wall) {
+    for (const part of wallParts) part.destroy()
+    wallParts = []
+    if (kind === 'none') return
+    const s = TOWN_SIZE
+    const cuts = [
+      [-s, -3],
+      [-3, -2],
+      [-2, -1],
+      [-1, -0.6],
+      [0.6, 1],
+      [1, 2],
+      [2, 3],
+      [3, s],
+    ]
+    const sides: Array<(t: number) => Tile> = [
+      (t) => ({ u: s, v: t }),
+      (t) => ({ u: t, v: s }),
+      (t) => ({ u: -s, v: t }),
+      (t) => ({ u: t, v: -s }),
+    ]
+    sides.forEach((along, index) => {
+      for (const [t0, t1] of cuts) {
+        const from = along(t0)
+        const to = along(t1)
+        const mid = { u: (from.u + to.u) / 2, v: (from.v + to.v) / 2 }
+        const piece = wallPiece(
+          kind,
+          { u: from.u - mid.u, v: from.v - mid.v },
+          { u: to.u - mid.u, v: to.v - mid.v },
+        )
+        place(piece, project(mid))
+        wallParts.push(piece)
+      }
+      if (index === 0) return
+      for (const t of [-0.6, 0.6]) {
+        const post = wallTower(kind, true)
+        place(post, project(along(t)), project(along(t)).y + 1)
+        wallParts.push(post)
+      }
+    })
+    for (const [u, v] of [
+      [-s, -s],
+      [s, -s],
+      [-s, s],
+      [s, s],
+    ]) {
+      const corner = wallTower(kind, false)
+      place(corner, project({ u, v }), project({ u, v }).y + 1)
+      wallParts.push(corner)
+    }
+  }
+  raiseWall(wall)
+
+  const homes: Home[] = []
+  let banner: Container | null = null
+
+  /**
+   * Adds the houses the village has earned, each rising on its lot.
+   *
+   * @param levels - Level of each building.
+   * @param grow - True to make the new houses rise, false to show them at once.
+   */
+  function settle(levels: Levels, grow: boolean) {
+    const lots: Lot[] = housesFor(levels)
+    for (const child of gardens.removeChildren()) child.destroy()
+    for (const lot of allLots().slice(lots.length)) {
+      if (!lot.inside) continue
+      const patch = garden(lot)
+      patch.position.copyFrom(project(lot.at))
+      gardens.addChild(patch)
+    }
+    while (homes.length > lots.length) homes.pop()?.root.destroy()
+    for (const lot of lots.slice(homes.length)) {
+      const { root, chimney } = townHouse(lot)
+      const at = project(lot.at)
+      place(root, at)
+      homes.push({
+        root,
+        chimney: chimney && { x: at.x + chimney.x, y: at.y + chimney.y },
+        pop: grow && !calm ? 0 : 1,
+        smokeClock: 1 + random() * 4,
+      })
+    }
+  }
+  settle(state.levels, false)
 
   const sites = BUILDINGS.map((building): Site => {
     const at = PLACES[building]
     const holder = new Container()
     holder.eventMode = 'static'
     holder.cursor = 'pointer'
-    holder.scale.set(GROWTH)
-    place(holder, at, building === 'wall' ? TOWN_HALL.y + 150 : at.y)
     const level = state.levels[building]
-    const drawing = buildingDrawing(building, stageOf(level))
+    const drawing = buildingDrawing(building, stageOf(level), FOOTPRINTS[building].size, wall)
     holder.addChild(drawing.root)
+    place(holder, at)
+    const { size } = FOOTPRINTS[building]
     const ring = new Graphics()
-    ring.ellipse(0, 0, 110 * GROWTH, 38 * GROWTH).stroke({ width: 5, color: PALETTE.gold })
-    ring.position.set(at.x + 10, at.y + 6)
+    const outline = [
+      iso(-size.u / 2 - 0.2, -size.v / 2 - 0.2),
+      iso(size.u / 2 + 0.2, -size.v / 2 - 0.2),
+      iso(size.u / 2 + 0.2, size.v / 2 + 0.2),
+      iso(-size.u / 2 - 0.2, size.v / 2 + 0.2),
+    ]
+    ring
+      .poly(outline.flatMap((p) => [p.x, p.y]))
+      .fill({ color: PALETTE.gold, alpha: 0.18 })
+      .stroke({ width: 3, color: PALETTE.gold, join: 'round' })
+    ring.position.set(at.x, at.y)
     ring.visible = false
     rings.addChild(ring)
 
@@ -303,7 +501,7 @@ export async function createVillageScene(
     const timerText = new Text({
       text: '',
       resolution: 2,
-      style: { fontFamily: DISPLAY, fontWeight: '700', fontSize: 15, fill: PALETTE.parchment },
+      style: { fontFamily: DISPLAY, fontWeight: '700', fontSize: 13, fill: PALETTE.parchment },
     })
     timerText.anchor.set(0.5)
     const timer = new Container()
@@ -316,11 +514,13 @@ export async function createVillageScene(
       holder,
       drawing,
       level,
+      look: lookOf(building, level),
       plaque,
       levelText,
       paint,
       ring,
       scaffold: null,
+      busy: false,
       timer,
       timerText,
       pop: 1,
@@ -344,8 +544,8 @@ export async function createVillageScene(
     return site
   })
 
+  for (const site of sites) paintSite(site)
   const senate = sites.find((site) => site.building === 'senate') as Site
-  let banner = new Container()
 
   /**
    * Writes the name of the village on the gold banner above the senate.
@@ -353,28 +553,60 @@ export async function createVillageScene(
    * @param name - Name of the village.
    */
   function hangBanner(name: string) {
-    banner.destroy({ children: true })
+    banner?.destroy({ children: true })
     const made = makePlaque(name, false)
     made.paint(PALETTE.gold)
     banner = made.plaque
-    banner.position.set(senate.plaque.x, senate.plaque.y - 42)
     labels.addChild(banner)
+    placePlaque(senate)
   }
   hangBanner(state.name)
 
   /**
-   * Puts the plaque of a building above its drawing.
+   * Puts the plaque of a building above its drawing; the senate's goes under its banner.
    *
    * @param site - Building shown.
    */
   function placePlaque(site: Site) {
-    const y =
-      site.building === 'wall'
-        ? site.place.y + 36
-        : site.place.y - site.drawing.height * GROWTH - 26
+    const top = site.place.y - site.drawing.height
+    const y = site.building === 'senate' ? top + 10 * labelScale : top - 24 * labelScale
+    site.plaque.scale.set(labelScale)
+    site.timer.scale.set(labelScale)
     site.plaque.position.set(site.place.x, y)
-    site.timer.position.set(site.place.x, y + 30)
+    site.timer.position.set(site.place.x, y + 32 * labelScale)
+    if (site.building === 'senate' && banner) {
+      banner.scale.set(labelScale)
+      banner.position.set(site.place.x, top - 26 * labelScale)
+    }
   }
+
+  /**
+   * Repaints the plaque and the ground ring of a building after a hover, a selection, a
+   * zoom or a construction. The plaque only shows when it tells something: the building
+   * is pointed at, picked, being built, or the player zoomed in to read the village.
+   *
+   * @param site - Building shown.
+   */
+  function paintSite(site: Site) {
+    const active = selected === site.building || hovered === site.building
+    site.paint(active ? PALETTE.gold : PALETTE.parchment)
+    site.plaque.visible = zoomed || active || site.busy
+    site.ring.visible = selected === site.building
+    site.holder.scale.set(hovered === site.building ? 1.03 : 1)
+  }
+
+  camera.onChange((view) => {
+    const { cover } = scaleRange(
+      { width: app.screen.width, height: app.screen.height },
+      { width: WORLD_WIDTH, height: WORLD_HEIGHT },
+    )
+    const next = view.scale >= cover * LABEL_ZOOM
+    labelScale = LABEL_SIZE / view.scale
+    for (const site of sites) placePlaque(site)
+    if (next === zoomed) return
+    zoomed = next
+    for (const site of sites) paintSite(site)
+  })
 
   /**
    * Shows or hides the scaffolding and the countdown of a building, from the queue of
@@ -389,13 +621,17 @@ export async function createVillageScene(
     )
     const busy = index >= 0
     if (busy && !site.scaffold) {
-      site.scaffold = scaffold(150, site.drawing.height)
+      site.scaffold = scaffold(FOOTPRINTS[site.building].size, site.drawing.height)
       site.holder.addChild(site.scaffold)
     } else if (!busy && site.scaffold) {
       site.scaffold.destroy()
       site.scaffold = null
     }
-    site.timer.visible = busy
+    if (busy !== site.busy) {
+      site.busy = busy
+      site.timer.visible = busy
+      paintSite(site)
+    }
     if (!busy) return
     const first = index === 0 || state.queue[0].completesAt <= now
     const left = Math.max(0, Math.ceil((state.queue[index].completesAt - now) / 1000))
@@ -405,24 +641,12 @@ export async function createVillageScene(
     if (site.timerText.text === text) return
     site.timerText.text = text
     const back = site.timer.children[0] as Graphics
-    const width = site.timerText.width + 22
+    const width = site.timerText.width + 18
     back.clear()
     back
-      .roundRect(-width / 2, -12, width, 24, 12)
+      .roundRect(-width / 2, -10, width, 20, 10)
       .fill(PALETTE.ink)
-      .stroke({ width: 2, color: PALETTE.goldDark })
-  }
-
-  /**
-   * Repaints the plaque and the ground ring of a building after a hover or a selection.
-   *
-   * @param site - Building shown.
-   */
-  function paintSite(site: Site) {
-    const active = selected === site.building || hovered === site.building
-    site.paint(active ? PALETTE.gold : PALETTE.parchment)
-    site.ring.visible = selected === site.building
-    site.holder.scale.set(hovered === site.building ? GROWTH * 1.04 : GROWTH)
+      .stroke({ width: 1.5, color: PALETTE.goldDark })
   }
 
   const villagers: Array<{
@@ -440,7 +664,7 @@ export async function createVillageScene(
    * @param levels - Level of each building.
    */
   function populate(levels: Levels) {
-    const wanted = Math.min(14, 3 + totalLevel(levels))
+    const wanted = Math.min(18, 4 + totalLevel(levels))
     while (villagers.length < wanted) {
       const index = villagers.length
       const path = paths[index % paths.length]
@@ -452,26 +676,27 @@ export async function createVillageScene(
         path,
         length: pathLength(path),
         progress: random() * 2,
-        speed: 28 + random() * 18,
+        speed: 14 + random() * 10,
       })
     }
   }
   populate(state.levels)
 
-  const clouds = Array.from({ length: 5 }, (_, i) => {
-    const view = cloud(120 + random() * 90)
-    view.alpha = 0.92
+  const clouds = Array.from({ length: 4 }, (_, i) => {
+    const view = cloud(110 + random() * 70)
+    view.alpha = 0.88
     view.position.set(
       random() * WORLD_WIDTH,
-      i % 2 === 0 ? 40 + random() * 70 : WORLD_HEIGHT - 50 - random() * 40,
+      i % 2 === 0 ? 50 + random() * 50 : WORLD_HEIGHT - 40 - random() * 40,
     )
     sky.addChild(view)
-    return { view, speed: 6 + random() * 8 }
+    return { view, speed: 5 + random() * 6 }
   })
 
   const birds = Array.from({ length: 3 }, (_, i) => {
     const view = bird()
-    view.position.set(200 + i * 60, 160 + i * 24)
+    view.scale.set(0.6)
+    view.position.set(200 + i * 50, 140 + i * 20)
     sky.addChild(view)
     return { view, offset: i * 0.7 }
   })
@@ -497,14 +722,14 @@ export async function createVillageScene(
    */
   function puff(at: Point) {
     const view = new Graphics()
-    view.circle(0, 0, 7).fill(PALETTE.smoke).stroke({ width: 2, color: PALETTE.ink, alpha: 0.25 })
+    view.circle(0, 0, 4).fill(PALETTE.smoke)
     view.position.set(at.x, at.y)
-    const drift = 6 + random() * 8
-    spawn(view, 3.2, (share, dt) => {
-      view.y -= 22 * dt
+    const drift = 5 + random() * 6
+    spawn(view, 3, (share, dt) => {
+      view.y -= 16 * dt
       view.x += drift * dt
-      view.scale.set(0.6 + share * 1.6)
-      view.alpha = 0.85 * (1 - share)
+      view.scale.set(0.6 + share * 1.8)
+      view.alpha = 0.7 * (1 - share)
     })
   }
 
@@ -519,24 +744,24 @@ export async function createVillageScene(
     for (let i = 0; i < 12; i++) {
       const angle = (i / 12) * Math.PI * 2
       const dust = new Graphics()
-      dust.circle(0, 0, 12).fill(PALETTE.sand).stroke({ width: 2, color: PALETTE.sandDark })
+      dust.circle(0, 0, 7).fill({ color: PALETTE.sand, alpha: 0.9 })
       dust.position.set(site.place.x, site.place.y)
       spawn(dust, 0.9, (share) => {
-        dust.x = site.place.x + Math.cos(angle) * 120 * share
-        dust.y = site.place.y + Math.sin(angle) * 40 * share
+        dust.x = site.place.x + Math.cos(angle) * 70 * share
+        dust.y = site.place.y + Math.sin(angle) * 35 * share
         dust.scale.set(1 + share)
         dust.alpha = 1 - share
       })
     }
     for (let i = 0; i < 8; i++) {
       const spark = new Graphics()
-      spark.star(0, 0, 4, 10, 4).fill(PALETTE.gold).stroke({ width: 2, color: PALETTE.ink })
-      const vx = (random() - 0.5) * 260
-      const vy = -180 - random() * 160
-      spark.position.set(site.place.x, site.place.y - (site.drawing.height * GROWTH) / 2)
+      spark.star(0, 0, 4, 7, 3).fill(PALETTE.gold).stroke({ width: 1.2, color: PALETTE.ink })
+      const vx = (random() - 0.5) * 200
+      const vy = -140 - random() * 120
+      spark.position.set(site.place.x, site.place.y - site.drawing.height / 2)
       spawn(spark, 1.2, (share, dt) => {
         spark.x += vx * dt
-        spark.y += (vy + 420 * share) * dt
+        spark.y += (vy + 340 * share) * dt
         spark.rotation += dt * 6
         spark.alpha = 1 - share * share
       })
@@ -547,15 +772,16 @@ export async function createVillageScene(
       style: {
         fontFamily: DISPLAY,
         fontWeight: '900',
-        fontSize: 34,
+        fontSize: 26,
         fill: PALETTE.gold,
-        stroke: { color: PALETTE.ink, width: 6, join: 'round' },
+        stroke: { color: PALETTE.ink, width: 5, join: 'round' },
       },
     })
     text.anchor.set(0.5)
-    text.position.set(site.place.x, site.place.y - site.drawing.height * GROWTH - 70)
+    const from = site.place.y - site.drawing.height - 50
+    text.position.set(site.place.x, from)
     spawn(text, 1.8, (share) => {
-      text.y = site.place.y - site.drawing.height * GROWTH - 70 - share * 50
+      text.y = from - share * 40
       text.scale.set(share < 0.15 ? share / 0.15 : 1)
       text.alpha = share > 0.7 ? (1 - share) / 0.3 : 1
     })
@@ -568,20 +794,17 @@ export async function createVillageScene(
    */
   function produce(site: Site) {
     const token = resourceToken(PRODUCTION[site.building as Producer].produces)
-    const from = {
-      x: site.place.x + 50 * GROWTH,
-      y: site.place.y - site.drawing.height * GROWTH + 10,
-    }
+    const from = { x: site.place.x + 30, y: site.place.y - site.drawing.height * 0.7 }
     token.position.set(from.x, from.y)
     spawn(token, 1.6, (share) => {
-      token.y = from.y - share * 60
+      token.y = from.y - share * 45
       token.alpha = share > 0.6 ? (1 - share) / 0.4 : 1
       token.scale.set(share < 0.12 ? share / 0.12 : 1)
     })
   }
 
   /**
-   * Rebuilds a building whose stage changed.
+   * Rebuilds a building whose look changed.
    *
    * @param site - Building shown.
    */
@@ -589,7 +812,12 @@ export async function createVillageScene(
     site.holder.removeChildren().forEach((child) => {
       child.destroy({ children: true })
     })
-    site.drawing = buildingDrawing(site.building, stageOf(site.level))
+    site.drawing = buildingDrawing(
+      site.building,
+      stageOf(site.level),
+      FOOTPRINTS[site.building].size,
+      wall,
+    )
     site.holder.addChild(site.drawing.root)
     site.scaffold = null
     placePlaque(site)
@@ -605,10 +833,14 @@ export async function createVillageScene(
       showWorks(site, now)
       if (site.pop < 1) {
         site.pop = Math.min(1, site.pop + dt / 0.7)
-        const s = 0.4 + 0.6 * easeOutBack(site.pop)
-        site.drawing.root.scale.set(s)
+        site.drawing.root.scale.set(0.4 + 0.6 * easeOutBack(site.pop))
       }
       site.ring.alpha = 0.6 + 0.4 * Math.sin(time * 4)
+    }
+    for (const home of homes) {
+      if (home.pop >= 1) continue
+      home.pop = Math.min(1, home.pop + dt / 0.8)
+      home.root.scale.set(0.3 + 0.7 * easeOutBack(home.pop))
     }
     for (let i = particles.length - 1; i >= 0; i--) {
       const particle = particles[i]
@@ -624,25 +856,28 @@ export async function createVillageScene(
 
     driftWaves(waves, WORLD_WIDTH, time, dt)
     forest.forEach((view, i) => {
-      view.skew.x = Math.sin(time * 1.2 + i * 0.7) * 0.025
+      view.skew.x = Math.sin(time * 1.2 + i * 0.7) * 0.02
     })
-    boat.y = BOAT.y + Math.sin(time * 1.6) * 3
-    boat.rotation = Math.sin(time * 1.1) * 0.025
+    boat.y = BOAT.y + Math.sin(time * 1.6) * 1.5
+    boat.rotation = Math.sin(time * 1.1) * 0.012
 
     for (const site of sites) {
-      const { moving, motion } = site.drawing
+      const { moving, motion, track } = site.drawing
       if (moving && motion === 'spin') moving.rotation += dt * (3 + site.level * 0.6)
-      if (moving && motion === 'swing') moving.rotation = Math.sin(time * 1.4) * 0.22
-      if (moving && motion === 'roll') {
+      if (moving && motion === 'swing') moving.rotation = Math.sin(time * 1.4) * 0.18
+      if (moving && motion === 'roll' && track) {
         const s = (Math.sin(time * 0.7) + 1) / 2
-        moving.position.set(-6 + s * 34, 10 + s * 26)
+        moving.position.set(
+          track[0].x + (track[1].x - track[0].x) * s,
+          track[0].y + (track[1].y - track[0].y) * s,
+        )
       }
       if (site.level === 0) continue
       site.smokeClock -= dt
       if (site.smokeClock <= 0) {
-        site.smokeClock = 0.9
+        site.smokeClock = 1.1
         for (const chimney of site.drawing.chimneys) {
-          puff({ x: site.place.x + chimney.x * GROWTH, y: site.place.y + chimney.y * GROWTH })
+          puff({ x: site.place.x + chimney.x, y: site.place.y + chimney.y })
         }
       }
       if (!(site.building in PRODUCTION)) continue
@@ -653,7 +888,14 @@ export async function createVillageScene(
         produce(site)
       }
     }
-    if (Math.floor(time / 1.1) !== Math.floor((time - dt) / 1.1)) {
+    for (const home of homes) {
+      if (!home.chimney) continue
+      home.smokeClock -= dt
+      if (home.smokeClock > 0) continue
+      home.smokeClock = 1.6 + random() * 2.5
+      puff(home.chimney)
+    }
+    if (Math.floor(time / 1.3) !== Math.floor((time - dt) / 1.3)) {
       for (const chimney of port.chimneys) {
         puff({ x: HARBOR.x + chimney.x, y: HARBOR.y + chimney.y })
       }
@@ -664,10 +906,10 @@ export async function createVillageScene(
       const outward = walker.progress < 1
       const share = outward ? walker.progress : 2 - walker.progress
       const at = pointAlong(walker.path, share)
-      walker.root.position.set(at.x, at.y - Math.abs(Math.sin(time * 9 + walker.speed)) * 2)
+      walker.root.position.set(at.x, at.y - Math.abs(Math.sin(time * 9 + walker.speed)) * 1.5)
       walker.root.zIndex = at.y
-      walker.root.scale.x =
-        walker.path[walker.path.length - 1].x > walker.path[0].x === outward ? 1 : -1
+      const ahead = pointAlong(walker.path, Math.min(1, share + 0.01))
+      walker.root.scale.x = ahead.x >= at.x === outward ? 1 : -1
       walker.load.visible = !outward
     }
 
@@ -676,10 +918,10 @@ export async function createVillageScene(
       if (view.x > WORLD_WIDTH + 200) view.x = -200
     }
     for (const { view, offset } of birds) {
-      view.x += 60 * dt
-      view.y += Math.sin(time + offset) * 8 * dt
+      view.x += 50 * dt
+      view.y += Math.sin(time + offset) * 6 * dt
       if (view.x > WORLD_WIDTH + 40) view.x = -40
-      view.scale.y = 0.6 + 0.4 * Math.abs(Math.sin(time * 7 + offset))
+      view.scale.y = 0.6 * (0.6 + 0.4 * Math.abs(Math.sin(time * 7 + offset)))
     }
   })
 
@@ -687,28 +929,26 @@ export async function createVillageScene(
     update(next) {
       const renamed = next.name !== state.name
       state = next
+      const nextWall = wallOf(next.levels.wall)
+      if (nextWall !== wall) {
+        wall = nextWall
+        raiseWall(nextWall)
+      }
       for (const site of sites) {
         const level = next.levels[site.building]
         if (level === site.level) continue
         const grew = level > site.level
-        const restage = stageOf(level) !== stageOf(site.level)
+        const look = lookOf(site.building, level)
         site.level = level
         site.levelText.text = String(level)
-        if (restage) rebuild(site)
+        if (look !== site.look) {
+          site.look = look
+          rebuild(site)
+        }
         if (grew && !calm) celebrate(site)
       }
       if (renamed) hangBanner(next.name)
-      const nextWall = wallOf(next.levels.wall)
-      if (nextWall !== wall) {
-        wall = nextWall
-        for (const [holder, half] of [
-          [wallBack, 'back'],
-          [wallFront, 'front'],
-        ] as const) {
-          for (const child of holder.removeChildren()) child.destroy()
-          holder.addChild(wallDrawing(nextWall, half))
-        }
-      }
+      settle(next.levels, true)
       populate(next.levels)
       if (next.selected !== selected) {
         selected = next.selected
