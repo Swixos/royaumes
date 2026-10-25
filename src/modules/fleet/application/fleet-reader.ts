@@ -1,5 +1,5 @@
 import type { RaidsList, TargetsList } from '../contracts'
-import type { Tactic } from '../domain/naval'
+import type { LevelSteps, Tactic } from '../domain/naval'
 
 /** Read port of the fleet read model, owned by the application layer. */
 export interface FleetReader {
@@ -26,9 +26,12 @@ export interface FleetReader {
    * Reads a village that may be raided.
    *
    * @param playerId - Owner of the village.
-   * @returns Its name and number of building upgrades, or null if it is not a target.
+   * @returns Its name and the levels reached by its wall and its shipyard, or null if it
+   *   is not a target.
    */
-  village(playerId: string): Promise<{ name: string; upgrades: number } | null>
+  village(
+    playerId: string,
+  ): Promise<{ name: string; wall: LevelSteps; shipyard: LevelSteps } | null>
 
   /**
    * Counts the raids of a player whose fleet is still out.

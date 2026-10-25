@@ -7,18 +7,35 @@
  * @packageDocumentation
  */
 import {
+  BASE_COSTS,
   BUILDINGS,
   type Building,
-  CATALOG,
+  buildDuration,
   COST_EXPONENT,
+  hiddenAmount,
   type Levels,
   MAX_LEVEL,
+  PRODUCERS,
+  PRODUCTION,
+  QUEUE_SLOTS,
+  REQUIREMENTS,
   RESOURCES,
   type Resource,
   STARTING_LEVELS,
   STARTING_STOCK,
   type Stock,
+  warehouseCapacity,
 } from './catalog'
+
+/** Upgrade ordered and paid, whose building rises a level once it is complete. */
+export interface Construction {
+  /** Building under construction. */
+  building: Building
+  /** Level reached once complete. */
+  toLevel: number
+  /** Time in milliseconds at which the construction is complete. */
+  completesAt: number
+}
 
 /** State of a village, rebuilt from its events. */
 export interface VillageState {
@@ -28,8 +45,10 @@ export interface VillageState {
   name: string
   /** Stock computed at `asOf`, decimals kept. */
   stock: Stock
-  /** Level of each building. */
+  /** Level of each building, constructions complete at `asOf` included. */
   levels: Levels
+  /** Constructions not complete at `asOf`, in order of completion. */
+  queue: Construction[]
   /** Time in milliseconds at which the stock was last computed. */
   asOf: number
   /**
@@ -47,7 +66,8 @@ export const initialState: VillageState = {
   founded: false,
   name: '',
   stock: { wood: 0, stone: 0, gold: 0 },
-  levels: { sawmill: 0, quarry: 0, mine: 0 },
+  levels: Object.fromEntries(BUILDINGS.map((building) => [building, 0])) as Levels,
+  queue: [],
   asOf: 0,
   transfers: {},
 }
@@ -55,9 +75,19 @@ export const initialState: VillageState = {
 /** Facts recorded for a village. */
 export type VillageEvent =
   | { type: 'VillageFounded'; data: { name: string; at: number } }
+  /**
+   * Upgrade ordered and paid at `at`. The building rises a level at `completesAt`; an
+   * event recorded before construction times existed has none, and rose at once.
+   */
   | {
       type: 'BuildingUpgraded'
-      data: { building: Building; toLevel: number; cost: Partial<Stock>; at: number }
+      data: {
+        building: Building
+        toLevel: number
+        cost: Partial<Stock>
+        at: number
+        completesAt?: number
+      }
     }
   /**
    * Resource transfers requested by another module. Each one carries the transfer
@@ -84,7 +114,13 @@ export type VillageCommand =
 
 /** Resource transfer commands, sent by another module rather than by the player. */
 export type TransferCommand =
-  | { type: 'WithdrawResources'; transferId: string; resources: Partial<Stock> }
+  | {
+      type: 'WithdrawResources'
+      transferId: string
+      resources: Partial<Stock>
+      /** True for a plunder: the resources hidden by the warehouse cannot be taken. */
+      plunder?: boolean
+    }
   | { type: 'DepositResources'; transferId: string; resources: Partial<Stock> }
 
 /** Business reasons for refusing a command. */
@@ -93,6 +129,8 @@ export type DomainError =
   | { code: 'NOT_FOUNDED' }
   | { code: 'MAX_LEVEL_REACHED'; building: Building }
   | { code: 'INSUFFICIENT_RESOURCES'; missing: Partial<Stock> }
+  | { code: 'REQUIREMENTS_NOT_MET'; building: Building; missing: Partial<Levels> }
+  | { code: 'QUEUE_FULL'; slots: number }
 
 /** Outcome of {@link decide}: the events to record, or the refusal. */
 export type Decision = { ok: true; events: VillageEvent[] } | { ok: false; error: DomainError }
@@ -105,29 +143,103 @@ export type Decision = { ok: true; events: VillageEvent[] } | { ok: false; error
  */
 export function productionPerMinute(levels: Levels): Stock {
   const rates: Stock = { wood: 0, stone: 0, gold: 0 }
-  for (const building of BUILDINGS) {
-    const { produces, perMinute } = CATALOG[building]
-    rates[produces] += perMinute * levels[building]
+  for (const producer of PRODUCERS) {
+    const { produces, perMinute } = PRODUCTION[producer]
+    rates[produces] += perMinute * levels[producer]
   }
   return rates
 }
 
 /**
- * Adds the production accumulated between `state.asOf` and `at` to the stock.
- * The given state is never modified.
+ * Adds the production of a period to a stock, up to the capacity of the warehouse. A
+ * stock already above the capacity, after a delivery, is kept but no longer grows.
+ *
+ * @param stock - Stock at the start of the period.
+ * @param rates - Production per minute of each resource.
+ * @param minutes - Length of the period, in minutes.
+ * @param capacity - Capacity of the warehouse, per resource.
+ * @returns The stock at the end of the period.
+ */
+export function produce(stock: Stock, rates: Stock, minutes: number, capacity: number): Stock {
+  const result = { ...stock }
+  for (const resource of RESOURCES) {
+    if (result[resource] >= capacity) continue
+    result[resource] = Math.min(capacity, result[resource] + rates[resource] * minutes)
+  }
+  return result
+}
+
+/**
+ * Adds to the stock the production accumulated until `at`, without completing any
+ * construction.
  *
  * @param state - Current village state.
  * @param at - Time in milliseconds to compute the stock at.
- * @returns A new state whose stock is computed at `at`, or the same state if
- *   the village is not founded or `at` is not later than `state.asOf`.
+ * @returns The state computed at `at`.
+ */
+function produceUntil(state: VillageState, at: number): VillageState {
+  if (at <= state.asOf) return state
+  const minutes = (at - state.asOf) / 60_000
+  const capacity = warehouseCapacity(state.levels.warehouse)
+  return {
+    ...state,
+    stock: produce(state.stock, productionPerMinute(state.levels), minutes, capacity),
+    asOf: at,
+  }
+}
+
+/**
+ * Brings a village to time `at`: each construction complete by then raises its building
+ * at its own time of completion, so the production and the capacity change exactly when
+ * it is complete. The given state is never modified.
+ *
+ * @param state - Current village state.
+ * @param at - Time in milliseconds to compute the village at.
+ * @returns A new state computed at `at`, or the same state if the village is not founded
+ *   or `at` is not later than `state.asOf`.
  */
 export function accrue(state: VillageState, at: number): VillageState {
   if (!state.founded || at <= state.asOf) return state
-  const minutes = (at - state.asOf) / 60_000
-  const rates = productionPerMinute(state.levels)
-  const stock = { ...state.stock }
-  for (const resource of RESOURCES) stock[resource] += rates[resource] * minutes
-  return { ...state, stock, asOf: at }
+  let current = state
+  while (current.queue.length > 0 && current.queue[0].completesAt <= at) {
+    const [done, ...rest] = current.queue
+    current = produceUntil(current, done.completesAt)
+    current = {
+      ...current,
+      levels: { ...current.levels, [done.building]: done.toLevel },
+      queue: rest,
+    }
+  }
+  return produceUntil(current, at)
+}
+
+/**
+ * Level a building will have once its constructions under way are complete.
+ *
+ * @param state - Current village state.
+ * @param building - Building concerned.
+ * @returns The planned level.
+ */
+export function plannedLevel(state: VillageState, building: Building): number {
+  return state.queue.reduce(
+    (level, item) => (item.building === building ? Math.max(level, item.toLevel) : level),
+    state.levels[building],
+  )
+}
+
+/**
+ * Lists the levels a building still needs before its first construction.
+ *
+ * @param levels - Current building levels.
+ * @param building - Building to build.
+ * @returns The missing levels, by building; empty if the building can be built.
+ */
+export function missingRequirements(levels: Levels, building: Building): Partial<Levels> {
+  const missing: Partial<Levels> = {}
+  for (const [needed, level] of Object.entries(REQUIREMENTS[building])) {
+    if (levels[needed as Building] < (level ?? 0)) missing[needed as Building] = level
+  }
+  return missing
 }
 
 /**
@@ -155,16 +267,14 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
       }
 
     case 'BuildingUpgraded': {
-      const current = accrue(state, event.data.at)
-      const stock = { ...current.stock }
-      for (const [resource, amount] of Object.entries(event.data.cost)) {
-        stock[resource as Resource] -= amount ?? 0
+      const { building, toLevel, cost, at } = event.data
+      const current = accrue(state, at)
+      const stock = addTo(current.stock, cost, -1)
+      const completesAt = event.data.completesAt ?? at
+      if (completesAt <= at) {
+        return { ...current, stock, levels: { ...current.levels, [building]: toLevel } }
       }
-      return {
-        ...current,
-        stock,
-        levels: { ...current.levels, [event.data.building]: event.data.toLevel },
-      }
+      return { ...current, stock, queue: [...current.queue, { building, toLevel, completesAt }] }
     }
     case 'ResourcesWithdrawn': {
       const current = accrue(state, event.data.at)
@@ -225,7 +335,7 @@ export function replay(events: VillageEvent[]): VillageState {
 export function upgradeCost(building: Building, level: number): Partial<Stock> {
   const factor = (level + 1) ** COST_EXPONENT
   const cost: Partial<Stock> = {}
-  for (const [resource, amount] of Object.entries(CATALOG[building].baseCost)) {
+  for (const [resource, amount] of Object.entries(BASE_COSTS[building])) {
     cost[resource as Resource] = Math.round((amount ?? 0) * factor)
   }
   return cost
@@ -251,7 +361,9 @@ function missingFor(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
  * Decides whether a command is accepted. Transfer commands are idempotent: a transfer
  * already processed produces no new event. The stock is evaluated at the time of the
  * withdrawal, production included; a village not founded has an empty stock, so a
- * withdrawal there is simply refused. A refusal is recorded as an event, not returned
+ * withdrawal there is simply refused. A plunder cannot take what the warehouse hides. An
+ * upgrade is paid when ordered and completes later: it waits for the constructions
+ * already under way, and its building rises a level once its time has passed. A refusal is recorded as an event, not returned
  * as a domain error.
  *
  * @param state - Current village state.
@@ -270,29 +382,42 @@ export function decide(state: VillageState, command: VillageCommand, now: number
 
     case 'UpgradeBuilding': {
       if (!state.founded) return { ok: false, error: { code: 'NOT_FOUNDED' } }
-      const level = state.levels[command.building]
-      if (level >= MAX_LEVEL) {
-        return { ok: false, error: { code: 'MAX_LEVEL_REACHED', building: command.building } }
-      }
+      const { building } = command
       const current = accrue(state, now)
-      const cost = upgradeCost(command.building, level)
+      const level = plannedLevel(current, building)
+      if (level >= MAX_LEVEL) {
+        return { ok: false, error: { code: 'MAX_LEVEL_REACHED', building } }
+      }
+      const lacking = missingRequirements(current.levels, building)
+      if (level === 0 && Object.keys(lacking).length > 0) {
+        return { ok: false, error: { code: 'REQUIREMENTS_NOT_MET', building, missing: lacking } }
+      }
+      if (current.queue.length >= QUEUE_SLOTS) {
+        return { ok: false, error: { code: 'QUEUE_FULL', slots: QUEUE_SLOTS } }
+      }
+      const cost = upgradeCost(building, level)
       const missing = missingFor(current.stock, cost)
       if (Object.keys(missing).length > 0) {
         return { ok: false, error: { code: 'INSUFFICIENT_RESOURCES', missing } }
       }
+      const start = Math.max(now, current.queue.at(-1)?.completesAt ?? now)
+      const completesAt = start + buildDuration(building, level, current.levels.senate)
       return {
         ok: true,
         events: [
           {
             type: 'BuildingUpgraded',
-            data: { building: command.building, toLevel: level + 1, cost, at: now },
+            data: { building, toLevel: level + 1, cost, at: now, completesAt },
           },
         ],
       }
     }
     case 'WithdrawResources': {
       if (command.transferId in state.transfers) return { ok: true, events: [] }
-      const missing = missingFor(accrue(state, now).stock, command.resources)
+      const current = accrue(state, now)
+      const hidden = command.plunder ? hiddenAmount(current.levels.warehouse) : 0
+      const takeable = addTo(current.stock, { wood: hidden, stone: hidden, gold: hidden }, -1)
+      const missing = missingFor(takeable, command.resources)
       const { transferId, resources } = command
       return {
         ok: true,
@@ -327,10 +452,22 @@ export interface VillageView {
   stock: Stock
   /** Level of each building. */
   levels: Levels
+  /** Constructions under way or waiting, in order of completion. */
+  queue: Construction[]
+  /** Number of constructions the queue can hold. */
+  queueSlots: number
+  /** Capacity of the warehouse, per resource. */
+  capacity: number
+  /** Amount of each resource hidden from plunderers. */
+  hidden: number
   /** Production per minute of each resource. */
   ratesPerMinute: Stock
-  /** Cost of the next upgrade of each building; `null` at max level. */
+  /** Cost of the next upgrade of each building, after the queue; `null` at max level. */
   nextCosts: Record<Building, Partial<Stock> | null>
+  /** Duration of the next upgrade of each building, in milliseconds; `null` at max level. */
+  nextDurations: Record<Building, number | null>
+  /** Levels each building not yet built still needs; empty when it can be built. */
+  requirements: Record<Building, Partial<Levels>>
   /** Time in milliseconds at which the view was computed. */
   asOf: number
 }
@@ -345,16 +482,27 @@ export interface VillageView {
 export function toView(state: VillageState, now: number): VillageView {
   const current = accrue(state, now)
   const nextCosts = {} as Record<Building, Partial<Stock> | null>
+  const nextDurations = {} as Record<Building, number | null>
+  const requirements = {} as Record<Building, Partial<Levels>>
   for (const building of BUILDINGS) {
-    const level = current.levels[building]
-    nextCosts[building] = level >= MAX_LEVEL ? null : upgradeCost(building, level)
+    const level = plannedLevel(current, building)
+    const maxed = level >= MAX_LEVEL
+    nextCosts[building] = maxed ? null : upgradeCost(building, level)
+    nextDurations[building] = maxed ? null : buildDuration(building, level, current.levels.senate)
+    requirements[building] = level === 0 ? missingRequirements(current.levels, building) : {}
   }
   return {
     name: current.name,
     stock: current.stock,
     levels: current.levels,
+    queue: current.queue,
+    queueSlots: QUEUE_SLOTS,
+    capacity: warehouseCapacity(current.levels.warehouse),
+    hidden: hiddenAmount(current.levels.warehouse),
     ratesPerMinute: productionPerMinute(current.levels),
     nextCosts,
+    nextDurations,
+    requirements,
     asOf: now,
   }
 }
@@ -369,7 +517,5 @@ export function toView(state: VillageState, now: number): VillageView {
  */
 export function stockAt(view: VillageView, at: number): Stock {
   const minutes = Math.max(0, at - view.asOf) / 60_000
-  const stock = { ...view.stock }
-  for (const resource of RESOURCES) stock[resource] += view.ratesPerMinute[resource] * minutes
-  return stock
+  return produce(view.stock, view.ratesPerMinute, minutes, view.capacity)
 }

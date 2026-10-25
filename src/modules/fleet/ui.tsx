@@ -52,8 +52,13 @@ const NO_HANDLERS = {}
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<FleetApi>('/api/fleet')
 
-/** Possible fleet sizes, from one trireme to the largest fleet. */
-const FLEET_SIZES = Array.from({ length: MAX_SHIPS }, (_, i) => i + 1)
+/**
+ * Possible fleet sizes, from one trireme to the largest fleet the shipyard allows.
+ *
+ * @param maxShips - Largest number of triremes in a raid.
+ * @returns The sizes.
+ */
+const fleetSizes = (maxShips: number) => Array.from({ length: maxShips }, (_, i) => i + 1)
 
 /** Flat colors of the ships of the battle report. */
 const SEA = {
@@ -735,7 +740,7 @@ export function FleetScreen({ userId }: { userId: string }) {
         <div>
           <dt>Flottes en mer</dt>
           <dd>
-            {out} / {MAX_RAIDS_AT_SEA}
+            {out} / {targets?.home?.limits.maxRaids ?? MAX_RAIDS_AT_SEA}
           </dd>
         </div>
         <div>
@@ -947,7 +952,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                 <fieldset className={styles.sizes}>
                   <legend>Trirèmes</legend>
                   <div>
-                    {FLEET_SIZES.map((size) => (
+                    {fleetSizes(targets?.home?.limits.maxShips ?? MAX_SHIPS).map((size) => (
                       <button
                         key={size}
                         type="button"

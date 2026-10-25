@@ -35,7 +35,12 @@ function play(state: RaidState, command: RaidCommand, now = T0) {
   return { state: current, events: decision.events, requests }
 }
 
-const calm: LaunchContext = { raidsOut: 0, targetHasVillage: true, islandRaidDays: [] }
+const calm: LaunchContext = {
+  raidsOut: 0,
+  targetHasVillage: true,
+  islandRaidDays: [],
+  shipyard: 0,
+}
 
 /**
  * Builds the launch of a raid by Alice.
@@ -79,11 +84,11 @@ const arrival = atSea.arrivesAt
  * Plays the arrival of the fleet at a village.
  *
  * @param posture - Posture of the defender.
- * @param upgrades - Building upgrades of the defender.
+ * @param wall - Level of the defender's wall.
  * @returns The outcome of the arrival.
  */
-const arriveAtVillage = (posture: 'ram' | 'board' | 'blockade' | null, upgrades = 0) =>
-  play(atSea, { type: 'ResolveArrival', context: { kind: 'village', posture, upgrades } }, arrival)
+const arriveAtVillage = (posture: 'ram' | 'board' | 'blockade' | null, wall = 0) =>
+  play(atSea, { type: 'ResolveArrival', context: { kind: 'village', posture, wall } }, arrival)
 
 /**
  * Builds a refusal of a command.
@@ -121,6 +126,20 @@ describe("Flotte - lancement d'un raid", () => {
       'TOO_MANY_RAIDS',
     )
     expect(refusal(initialState, launch({ context: { ...calm, raidsOut: 1 } }))).toBeNull()
+  })
+
+  it('chantier naval : plus de trirèmes, plus de flottes en mer et des traversées plus courtes', () => {
+    const yard = (level: number) => ({ ...calm, shipyard: level })
+    expect(refusal(initialState, launch({ ships: 11 }))).toBe('INVALID_FLEET')
+    expect(refusal(initialState, launch({ ships: 14, context: yard(2) }))).toBeNull()
+    expect(refusal(initialState, launch({ context: { ...yard(4), raidsOut: 2 } }))).toBeNull()
+
+    const slow = play(initialState, launch({ target: { kind: 'pirates', islandId: 'misty-reef' } }))
+    const fast = play(
+      initialState,
+      launch({ target: { kind: 'pirates', islandId: 'misty-reef' }, context: yard(5) }),
+    )
+    expect(fast.state.travelMs).toBe(slow.state.travelMs * 0.8)
   })
 
   it("règle 4 : prélève l'équipement avant le départ, et annule le raid s'il n'est pas payé", () => {
@@ -212,7 +231,7 @@ describe('Flotte - bataille et pillage', () => {
 
   it('règle 8 : une flotte dont la force ne dépasse pas la défense est perdue, et les deux ports reçoivent le rapport', () => {
     const { state, requests } = arriveAtVillage('blockade', 1)
-    expect(state.battle).toEqual({ attack: 15, defense: 25, posture: 'blockade', victory: false })
+    expect(state.battle).toEqual({ attack: 15, defense: 32, posture: 'blockade', victory: false })
     expect(state.status).toBe('sunk')
     expect(requests).toEqual([
       { kind: 'notice', playerId: 'alice', raidId: 'r1', notice: 'report' },
@@ -253,6 +272,7 @@ describe('Flotte - bataille et pillage', () => {
         transferId: 'r1:plunder-1',
         playerId: 'bob',
         resources: { wood: 30, stone: 15, gold: 6 },
+        plunder: true,
       },
     ])
 
@@ -276,6 +296,7 @@ describe('Flotte - bataille et pillage', () => {
         transferId: 'r1:plunder-2',
         playerId: 'bob',
         resources: { wood: 30, stone: 10 },
+        plunder: true,
       },
     ])
     const empty = play(reduced.state, reply('r1:plunder-2', 'refused', { wood: 1 }))

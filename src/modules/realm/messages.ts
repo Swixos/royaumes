@@ -23,8 +23,14 @@ export function createRealmHandlers(service: VillageService): Record<string, Mes
   const handle =
     (type: TransferCommand['type']): MessageHandler =>
     async (message) => {
-      const { transferId, playerId, resources, replyTo } = TransferRequest.parse(message.payload)
-      await service.transfer(playerId, { type, transferId, resources }, replyTo)
+      const { transferId, playerId, resources, plunder, replyTo } = TransferRequest.parse(
+        message.payload,
+      )
+      const command: TransferCommand =
+        type === 'WithdrawResources'
+          ? { type, transferId, resources, plunder }
+          : { type, transferId, resources }
+      await service.transfer(playerId, command, replyTo)
     }
 
   return {

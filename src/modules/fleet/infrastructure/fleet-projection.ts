@@ -16,6 +16,18 @@ interface VillageFoundedData {
   name: string
 }
 
+/** Data of a village `BuildingUpgraded` event, in the published language of the realm module. */
+interface BuildingUpgradedData {
+  /** Upgraded building. */
+  building: string
+  /** Level reached. */
+  toLevel: number
+  /** Time of the order. */
+  at: number
+  /** Time the construction completes; missing on events recorded before construction times. */
+  completesAt?: number
+}
+
 /**
  * Extracts an identifier from a stream name: "raid-7f3a" gives "7f3a".
  *
@@ -33,7 +45,7 @@ const idFrom = (event: StoredEvent, prefix: string) => event.stream.slice(prefix
  */
 export const fleetProjection: Projection = {
   name: 'fleet',
-  version: 1,
+  version: 2,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
@@ -57,9 +69,13 @@ export const fleetProjection: Projection = {
           .values({ playerId, villageName: name })
           .onConflictDoUpdate({ target: harbors.playerId, set: { villageName: name } })
       } else if (stored.type === 'BuildingUpgraded') {
+        const { building, toLevel, at, completesAt } =
+          stored.data as unknown as BuildingUpgradedData
+        if (building !== 'wall' && building !== 'shipyard') return
+        const step = JSON.stringify([[toLevel, completesAt ?? at]])
         await tx
           .update(harbors)
-          .set({ upgrades: sql`${harbors.upgrades} + 1` })
+          .set({ [building]: sql`${harbors[building]} || ${step}::jsonb` })
           .where(eq(harbors.playerId, playerId))
       }
       return

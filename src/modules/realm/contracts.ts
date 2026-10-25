@@ -8,9 +8,18 @@
 import { z } from 'zod'
 import { BUILDINGS, type Stock } from './domain/catalog'
 
-export type { Building, Levels, Resource, Stock } from './domain/catalog'
-export { BUILDINGS, CATALOG, MAX_LEVEL, RESOURCES } from './domain/catalog'
-export type { DomainError, VillageView } from './domain/village'
+export type { Building, Levels, Producer, Resource, Stock } from './domain/catalog'
+export {
+  BUILDINGS,
+  hiddenAmount,
+  MAX_LEVEL,
+  PRODUCERS,
+  PRODUCTION,
+  REQUIREMENTS,
+  RESOURCES,
+  warehouseCapacity,
+} from './domain/catalog'
+export type { Construction, DomainError, VillageView } from './domain/village'
 export { stockAt } from './domain/village'
 
 /** Expected body to found a village. */
@@ -68,6 +77,8 @@ export const TransferRequest = z.object({
   playerId: z.string().min(1),
   /** Resources to move. */
   resources: ResourceAmounts,
+  /** True for a plunder, which cannot take the resources hidden by the warehouse. */
+  plunder: z.boolean().optional(),
   /** Topic of the reply message; missing if the requester expects no reply. */
   replyTo: z.string().min(1).optional(),
 })

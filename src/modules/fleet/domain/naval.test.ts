@@ -53,9 +53,9 @@ describe('Flotte - règles navales', () => {
     expect(fight(3, 'ram', 'board', 0).attack).toBe(15)
   })
 
-  it("règle 8 : la défense vaut 20 plus 5 par amélioration, et l'attaque doit la dépasser strictement", () => {
+  it("règle 8 : la défense vaut 20 plus 12 par niveau de rempart, et l'attaque doit la dépasser strictement", () => {
     expect(villageDefense(0)).toBe(20)
-    expect(villageDefense(4)).toBe(40)
+    expect(villageDefense(4)).toBe(68)
     expect(fight(4, 'board', 'board', 40).victory).toBe(false)
     expect(fight(5, 'board', 'board', 40).victory).toBe(true)
   })
