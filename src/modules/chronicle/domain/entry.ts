@@ -12,6 +12,41 @@ export type Amounts = Partial<Record<'wood' | 'stone' | 'gold', number>>
 /** Fleet tactic, as copied from the events. */
 export type Tactic = 'ram' | 'board' | 'blockade'
 
+/**
+ * Detail of a battle, as the report tells it: the forces met, the tactic triangle, the
+ * sums that decided the outcome, and what each side lost.
+ */
+export interface BattleDetail {
+  /** Number of attacking triremes. */
+  ships: number
+  /** Tactic of the attacking fleet. */
+  tactic: Tactic
+  /** Posture held by the defender. */
+  posture: Tactic
+  /** Posture that beats the tactic of the fleet. */
+  counter: Tactic
+  /** Attack of one trireme. */
+  perShip: number
+  /** Factor of the tactic triangle: 1.5, 1 or 0.5. */
+  multiplier: number
+  /** Attack strength of the fleet. */
+  attack: number
+  /** Defense of the target. */
+  defense: number
+  /** True for a pirate island, false for a village. */
+  pirates: boolean
+  /** Level of the wall of the village; null for a pirate island. */
+  wall: number | null
+  /** Defense added by each level of the wall. */
+  perWallLevel: number
+  /** Smallest number of triremes that would have won with the same tactic. */
+  neededShips: number
+  /** Equipment of the fleet, lost with it if it sinks. */
+  cost: Amounts
+  /** Hold of the fleet: the most it brings back. */
+  hold: Amounts
+}
+
 /** Fact told by an entry, with the data it needs. */
 export type Fact =
   | { type: 'village-founded'; name: string }
@@ -34,6 +69,8 @@ export type Fact =
       won: boolean
       opponent: string
       loot: Amounts
+      /** Detail of the battle; missing when its raid was not read. */
+      report?: BattleDetail
     }
   | { type: 'posture-chosen'; posture: Tactic }
   | { type: 'expedition-created' }
@@ -236,4 +273,127 @@ export function tell(fact: Fact, now: number): Told {
       }
     }
   }
+}
+
+/** A line of a battle report: a label, and what it says. */
+export interface ReportLine {
+  /** Label of the line. */
+  label: string
+  /** Content of the line. */
+  value: string
+  /** `good` or `bad` to stress the line, `plain` otherwise. */
+  tone: 'good' | 'bad' | 'plain'
+}
+
+/**
+ * Writes a number the French way: "1,5".
+ *
+ * @param value - Number to write.
+ * @returns The number, with a decimal comma.
+ */
+const french = (value: number) => String(value).replace('.', ',')
+
+/**
+ * Plural of "trirème".
+ *
+ * @param count - Number of triremes.
+ * @returns The count and the word.
+ */
+const triremes = (count: number) => `${count} trirème${count > 1 ? 's' : ''}`
+
+/**
+ * Explains a battle line by line, from the side of the player: the forces, the tactic
+ * triangle, the sums of the attack and of the defense, the outcome, the losses and the
+ * plunder, then what would have changed the outcome.
+ *
+ * @param fact - Battle told by the entry.
+ * @param report - Detail of the battle.
+ * @returns The lines of the report.
+ */
+export function explainBattle(
+  fact: Extract<Fact, { type: 'battle' }>,
+  report: BattleDetail,
+): ReportLine[] {
+  const attacking = fact.role === 'attacker'
+  const fleetWon = attacking ? fact.won : !fact.won
+  const fleet = `${triremes(report.ships)} en ${TACTIC_NAMES[report.tactic]}`
+  const triangle =
+    report.multiplier > 1
+      ? `${capital(TACTIC_NAMES[report.tactic])} bat ${TACTIC_NAMES[report.posture]} : attaque ×${french(report.multiplier)}`
+      : report.multiplier < 1
+        ? `${capital(TACTIC_NAMES[report.posture])} bat ${TACTIC_NAMES[report.tactic]} : attaque ×${french(report.multiplier)}`
+        : `Aucune tactique ne domine : attaque ×1`
+  const base = report.defense - (report.wall ?? 0) * report.perWallLevel
+  const defense = report.pirates
+    ? `Défense de l'île : ${report.defense}`
+    : `${base} de base + rempart niveau ${report.wall} (${(report.wall ?? 0) * report.perWallLevel}) = ${report.defense}`
+  const lines: ReportLine[] = [
+    { label: attacking ? 'Votre flotte' : 'Flotte ennemie', value: fleet, tone: 'plain' },
+    {
+      label: attacking ? 'Défense adverse' : 'Votre posture',
+      value: `${report.pirates ? 'Pirates, en ' : ''}${report.pirates ? TACTIC_NAMES[report.posture] : capital(TACTIC_NAMES[report.posture])}`,
+      tone: 'plain',
+    },
+    {
+      label: 'Tactique',
+      value: triangle,
+      tone:
+        report.multiplier > 1 === attacking && report.multiplier !== 1
+          ? 'good'
+          : report.multiplier === 1
+            ? 'plain'
+            : 'bad',
+    },
+    {
+      label: "Force d'attaque",
+      value: `${report.ships} × ${report.perShip} × ${french(report.multiplier)} = ${french(report.attack)}`,
+      tone: 'plain',
+    },
+    { label: 'Défense', value: defense, tone: 'plain' },
+    {
+      label: 'Issue',
+      value: fleetWon
+        ? `${french(report.attack)} > ${report.defense} : la flotte l'emporte`
+        : `${french(report.attack)} ≤ ${report.defense} : la flotte est repoussée`,
+      tone: fact.won ? 'good' : 'bad',
+    },
+    {
+      label: 'Pertes',
+      value: fleetWon
+        ? attacking
+          ? 'Aucune trirème perdue'
+          : `Ressources pillées : ${tellAmounts(fact.loot)}`
+        : attacking
+          ? `${triremes(report.ships)} coulée${report.ships > 1 ? 's' : ''}, équipement perdu : ${tellAmounts(report.cost)}`
+          : `Flotte ennemie coulée : ${triremes(report.ships)}`,
+      tone: fact.won ? (attacking ? 'good' : 'plain') : 'bad',
+    },
+  ]
+  if (fleetWon) {
+    lines.push({
+      label: 'Butin',
+      value: `${tellAmounts(fact.loot)}, pour une cale de ${tellAmounts(report.hold)}`,
+      tone: attacking ? 'good' : 'bad',
+    })
+  }
+  if (!fact.won) {
+    lines.push({
+      label: 'Conseil',
+      value: attacking
+        ? `Il fallait au moins ${triremes(report.neededShips)} en ${TACTIC_NAMES[report.tactic]}, ou une tactique qui bat ${TACTIC_NAMES[report.posture]}.`
+        : `La posture ${TACTIC_NAMES[report.counter]} aurait affaibli cette attaque ; chaque niveau de rempart ajoute ${report.perWallLevel} de défense.`,
+      tone: 'plain',
+    })
+  }
+  return lines
+}
+
+/**
+ * Writes a word with a capital first letter.
+ *
+ * @param word - Word to write.
+ * @returns The word, capitalized.
+ */
+function capital(word: string) {
+  return word.charAt(0).toUpperCase() + word.slice(1)
 }

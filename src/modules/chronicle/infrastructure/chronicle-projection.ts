@@ -1,11 +1,20 @@
 import { eq } from 'drizzle-orm'
 import { GAME_CHANNEL_PREFIX } from '@/modules/dungeon/contracts'
-import { HARBOR_CHANNEL_PREFIX, RAID_STREAM_PREFIX } from '@/modules/fleet/contracts'
+import {
+  ATTACK_PER_SHIP,
+  BEATS,
+  DEFENSE_PER_WALL_LEVEL,
+  HARBOR_CHANNEL_PREFIX,
+  holdOf,
+  RAID_STREAM_PREFIX,
+  TACTICS,
+  villageDefense,
+} from '@/modules/fleet/contracts'
 import { OFFER_STREAM_PREFIX } from '@/modules/market/contracts'
 import { VILLAGE_CHANNEL_PREFIX } from '@/modules/realm/contracts'
 import type { StoredEvent } from '@/platform/event-store/event-store'
 import type { DbTransaction, Projection } from '@/platform/projection/projection'
-import type { Amounts, Fact, Tactic } from '../domain/entry'
+import type { Amounts, BattleDetail, Fact, Tactic } from '../domain/entry'
 import { entries, expeditions, offers, raids } from './schema'
 
 /**
@@ -101,6 +110,39 @@ async function applyVillage(event: StoredEvent, tx: DbTransaction) {
 }
 
 /**
+ * Builds the detail of the battle of a raid, from its fleet and its battle, with the rules
+ * of the fleet published by its module: attack of a trireme, defense of a village and
+ * tactic triangle.
+ *
+ * @param raid - Raid known from its launch, with its battle.
+ * @returns The detail, or null before the battle.
+ */
+function detailOf(raid: typeof raids.$inferSelect): BattleDetail | null {
+  if (!raid.battle || raid.ships === 0) return null
+  const { attack, defense, posture } = raid.battle
+  const multiplier = attack / (raid.ships * ATTACK_PER_SHIP)
+  const wall = raid.pirates
+    ? null
+    : Math.round((defense - villageDefense(0)) / DEFENSE_PER_WALL_LEVEL)
+  return {
+    ships: raid.ships,
+    tactic: raid.tactic,
+    posture,
+    counter: TACTICS.find((t) => BEATS[t] === raid.tactic) ?? posture,
+    perShip: ATTACK_PER_SHIP,
+    multiplier,
+    attack,
+    defense,
+    pirates: raid.pirates,
+    wall,
+    perWallLevel: DEFENSE_PER_WALL_LEVEL,
+    neededShips: Math.floor(defense / (ATTACK_PER_SHIP * multiplier)) + 1,
+    cost: raid.cost,
+    hold: holdOf(raid.ships),
+  }
+}
+
+/**
  * Tells the events of a raid to its attacker: its launch, and how it ended before a
  * battle. The battle itself is told by the harbors.
  *
@@ -121,6 +163,10 @@ async function applyRaid(event: StoredEvent, tx: DbTransaction) {
         attackerId,
         attackerName: String(data.attackerName),
         targetName: target.name,
+        pirates: target.kind === 'pirates',
+        ships: Number(data.ships),
+        tactic: data.tactic as Tactic,
+        cost: (data.cost ?? {}) as Amounts,
       })
       .onConflictDoUpdate({
         target: raids.raidId,
@@ -137,6 +183,19 @@ async function applyRaid(event: StoredEvent, tx: DbTransaction) {
   }
   const raid = await raidOf(tx, raidId)
   if (!raid) return
+  if (event.type === 'BattleFought') {
+    await tx
+      .update(raids)
+      .set({
+        battle: {
+          attack: Number(data.attack),
+          defense: Number(data.defense),
+          posture: data.posture as Tactic,
+        },
+      })
+      .where(eq(raids.raidId, raidId))
+    return
+  }
   const types = {
     RaidCancelled: 'raid-cancelled',
     FleetRecalled: 'fleet-recalled',
@@ -177,15 +236,19 @@ async function applyHarbor(event: StoredEvent, tx: DbTransaction) {
       })
       return
     }
-    case 'BattleReported':
+    case 'BattleReported': {
+      const raid = await raidOf(tx, String(data.raidId))
+      const report = raid ? detailOf(raid) : null
       await write(tx, event, playerId, {
         type: 'battle',
         role: data.role as 'attacker' | 'defender',
         won: Boolean(data.won),
         opponent: String(data.opponentName),
         loot: (data.loot ?? {}) as Amounts,
+        ...(report ? { report } : {}),
       })
       return
+    }
   }
 }
 
@@ -300,10 +363,12 @@ async function applyOffer(event: StoredEvent, tx: DbTransaction) {
  * Chronicle projection: writes, for every player, an entry for each event of the game
  * that concerns them, whatever the module that recorded it. Each stream prefix sends the
  * event to the rules of its module.
+ *
+ * Version 2: keeps the fleet and the battle of each raid, for the battle reports.
  */
 export const chronicleProjection: Projection = {
   name: 'chronicle',
-  version: 1,
+  version: 2,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
@@ -311,6 +376,7 @@ export const chronicleProjection: Projection = {
     'RaidCancelled',
     'FleetRecalled',
     'RaidAborted',
+    'BattleFought',
     'PostureChosen',
     'FleetSighted',
     'FleetTurnedBack',
