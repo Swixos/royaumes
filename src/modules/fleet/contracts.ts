@@ -5,19 +5,30 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
-import { type Amounts, MAX_SHIPS, MIN_SHIPS, TACTICS, type Tactic } from './domain/naval'
+import { MAX_LEVEL } from '@/modules/realm/contracts'
+import {
+  type Amounts,
+  type FleetLimits,
+  fleetLimits,
+  MIN_SHIPS,
+  TACTICS,
+  type Tactic,
+} from './domain/naval'
 import type { RaidStatus } from './domain/raid'
 
 export type { HarborEvent } from './domain/harbor'
-export type { Amounts, Battle, PirateIsland, Tactic } from './domain/naval'
+export type { Amounts, Battle, FleetLimits, LevelSteps, PirateIsland, Tactic } from './domain/naval'
 export {
   ATTACK_PER_SHIP,
   BEATS,
   DEFAULT_POSTURE,
+  DEFENSE_PER_WALL_LEVEL,
   equipmentCost,
   fight,
+  fleetLimits,
   hash,
   holdOf,
+  levelAt,
   MAX_RAIDS_AT_SEA,
   MAX_SHIPS,
   MIN_SHIPS,
@@ -27,6 +38,7 @@ export {
   SHIP_HOLD,
   TACTICS,
   travelMinutes,
+  villageDefense,
 } from './domain/naval'
 export type { RaidError, RaidStatus, Target } from './domain/raid'
 export type { RaidView } from './domain/view'
@@ -37,7 +49,7 @@ export const LaunchRaidInput = z.object({
     z.object({ kind: z.literal('village'), playerId: z.string().min(1).max(100) }),
     z.object({ kind: z.literal('pirates'), islandId: z.string().min(1).max(50) }),
   ]),
-  ships: z.number().int().min(MIN_SHIPS).max(MAX_SHIPS),
+  ships: z.number().int().min(MIN_SHIPS).max(fleetLimits(MAX_LEVEL).maxShips),
   tactic: z.enum(TACTICS),
 })
 
@@ -96,7 +108,7 @@ export interface VillageTarget {
   name: string
   /** Defense of the village, without its posture. */
   defense: number
-  /** Crossing time from the viewer's village, in minutes. */
+  /** Crossing time from the viewer's village, shipyard included, in minutes. */
   travelMinutes: number
   /** Position on the sea map. */
   map: MapPoint
@@ -110,7 +122,7 @@ export interface IslandTarget {
   name: string
   /** Defense of the island. */
   defense: number
-  /** Crossing time, in minutes. */
+  /** Crossing time from the viewer's village, shipyard included, in minutes. */
   travelMinutes: number
   /** Treasure of the day. */
   treasure: Amounts
@@ -124,8 +136,11 @@ export interface IslandTarget {
 export interface TargetsList {
   /** Position of the log up to which the list is up to date. */
   position: number
-  /** Village of the viewer, or null if they have none. */
-  home: { name: string; defense: number; map: MapPoint } | null
+  /**
+   * Village of the viewer, or null if they have none: its defense, and the limits its
+   * shipyard gives to its fleets.
+   */
+  home: { name: string; defense: number; limits: FleetLimits; map: MapPoint } | null
   /** Villages of the other players. */
   villages: VillageTarget[]
   /** Pirate islands. */

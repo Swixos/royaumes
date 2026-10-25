@@ -110,7 +110,7 @@ describe('API du module Flotte - accès et validation', () => {
   it('valide le corps des commandes (400)', async () => {
     const api = await seaWithVillages()
     const village = { kind: 'village', playerId: 'bob' }
-    expect((await launch(api, { target: village, ships: 11, tactic: 'ram' })).status).toBe(400)
+    expect((await launch(api, { target: village, ships: 31, tactic: 'ram' })).status).toBe(400)
     expect((await launch(api, { target: village, ships: 3, tactic: 'canon' })).status).toBe(400)
     expect(
       (await launch(api, { target: { kind: 'kraken' }, ships: 3, tactic: 'ram' })).status,
@@ -157,11 +157,36 @@ describe('API du module Flotte - cibles', () => {
     expect((await api.get(`/api/fleet/targets?search=${'x'.repeat(31)}`)).status).toBe(400)
   })
 
-  it('compte les améliorations du village dans sa défense, par le langage publié du Village', async () => {
+  it('compte le rempart du village dans sa défense une fois achevé, par le langage publié du Village', async () => {
     const api = await seaWithVillages()
-    await api.post('/api/realm/village/upgrade', { building: 'sawmill' }, 'bob')
-    const targets = (await (await api.get('/api/fleet/targets')).json()) as TargetsList
-    expect(targets.villages.find((v) => v.playerId === 'bob')?.defense).toBe(25)
+    /**
+     * Orders an upgrade for Bob, then lets time pass.
+     *
+     * @param building - Building to upgrade.
+     * @param wait - Minutes to let pass after the order.
+     */
+    const build = async (building: string, wait: number) => {
+      expect((await api.post('/api/realm/village/upgrade', { building }, 'bob')).status).toBe(200)
+      api.advance(wait)
+    }
+    /**
+     * Reads the defense of Bob's village, as Alice sees it.
+     *
+     * @returns The defense.
+     */
+    const defense = async () => {
+      const targets = (await (await api.get('/api/fleet/targets')).json()) as TargetsList
+      return targets.villages.find((v) => v.playerId === 'bob')?.defense
+    }
+    api.advance(30)
+    await build('sawmill', 0)
+    expect(await defense()).toBe(20)
+    await build('senate', 60)
+    await build('senate', 30)
+    await build('wall', 0)
+    expect(await defense()).toBe(20)
+    api.advance(10)
+    expect(await defense()).toBe(32)
   })
 })
 

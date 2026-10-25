@@ -42,14 +42,35 @@ describe('API du module Village', () => {
     const { post, advance } = await createTestApi()
     await post('/api/realm/village', { name: 'Valombre' })
 
-    const tooEarly = await post('/api/realm/village/upgrade', { building: 'mine' })
+    const tooEarly = await post('/api/realm/village/upgrade', { building: 'warehouse' })
     expect(tooEarly.status).toBe(422)
-    expect((await tooEarly.json()).error.missing).toEqual({ stone: 10 })
+    expect((await tooEarly.json()).error.missing).toEqual({ wood: 23, stone: 24 })
 
-    advance(2)
-    const later = await post('/api/realm/village/upgrade', { building: 'mine' })
+    advance(4)
+    const later = await post('/api/realm/village/upgrade', { building: 'warehouse' })
     expect(later.status).toBe(200)
-    expect((await later.json()).view.levels.mine).toBe(1)
+    const { view } = await later.json()
+    expect(view.levels.warehouse).toBe(1)
+    expect(view.queue).toEqual([expect.objectContaining({ building: 'warehouse', toLevel: 2 })])
+  })
+
+  it('refuse un bâtiment sans ses prérequis, et une file de construction pleine (409)', async () => {
+    const { post, advance } = await createTestApi()
+    await post('/api/realm/village', { name: 'Valombre' })
+    advance(30)
+
+    const wall = await post('/api/realm/village/upgrade', { building: 'wall' })
+    expect(wall.status).toBe(409)
+    expect((await wall.json()).error).toMatchObject({
+      code: 'REQUIREMENTS_NOT_MET',
+      missing: { senate: 3 },
+    })
+
+    await post('/api/realm/village/upgrade', { building: 'sawmill' })
+    await post('/api/realm/village/upgrade', { building: 'quarry' })
+    const full = await post('/api/realm/village/upgrade', { building: 'sawmill' })
+    expect(full.status).toBe(409)
+    expect((await full.json()).error.code).toBe('QUEUE_FULL')
   })
 })
 

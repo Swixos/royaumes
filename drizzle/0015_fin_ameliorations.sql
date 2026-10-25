@@ -1,0 +1,1 @@
+ALTER TABLE "fleet"."harbors" DROP COLUMN "upgrades";

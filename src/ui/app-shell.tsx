@@ -71,6 +71,7 @@ function ResourceBar() {
           resource={resource}
           amount={Math.floor(stock[resource])}
           rate={view.ratesPerMinute[resource]}
+          full={stock[resource] >= view.capacity}
         />
       ))}
     </ul>
@@ -85,16 +86,19 @@ function ResourceBar() {
  * @param props.resource - Resource shown.
  * @param props.amount - Current stock.
  * @param props.rate - Production per minute.
+ * @param props.full - True when the warehouse is full for this resource.
  * @returns The counter.
  */
 function ResourceCounter({
   resource,
   amount,
   rate,
+  full,
 }: {
   resource: Resource
   amount: number
   rate: number
+  full: boolean
 }) {
   const [badge, animateBadge] = useAnimate()
   const [gains, setGains] = useState<{ id: number; gain: number }[]>([])
@@ -112,7 +116,7 @@ function ResourceCounter({
   )
 
   return (
-    <li>
+    <li data-full={full} title={full ? 'Entrepôt plein' : undefined}>
       <span ref={badge} className="resource-badge">
         <Entity kind={resource} />
       </span>

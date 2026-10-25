@@ -1,6 +1,6 @@
 /**
- * Village scene rendered with PixiJS: the island, the town hall, the production buildings
- * at their level, and the life of the village (smoke, villagers, waves, birds). The scene
+ * Village scene rendered with PixiJS: the island, the senate, the buildings at their
+ * level, their constructions under way, and the life of the village (smoke, villagers, waves, birds). The scene
  * only shows the state it is given; the screen keeps the game logic and the accessible
  * controls.
  *
@@ -19,7 +19,16 @@ import {
 } from '@/ui/pixi/drawing'
 import type { LiveScene } from '@/ui/pixi/scene-host'
 import { createStage, driftWaves, scatterWaves } from '@/ui/pixi/stage'
-import { BUILDINGS, type Building, CATALOG, type Levels, MAX_LEVEL, type Stock } from '../contracts'
+import {
+  BUILDINGS,
+  type Building,
+  type Construction,
+  type Levels,
+  MAX_LEVEL,
+  PRODUCTION,
+  type Producer,
+  type Stock,
+} from '../contracts'
 import {
   type BuildingDrawing,
   buildingDrawing,
@@ -28,7 +37,7 @@ import {
   harbor,
   mountain,
   resourceToken,
-  townHall,
+  scaffold,
   villager,
   wallDrawing,
 } from './draw'
@@ -47,7 +56,6 @@ import {
   stageOf,
   TOWN_HALL,
   totalLevel,
-  townHallStage,
   trees,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -62,6 +70,8 @@ export interface VillageSceneState {
   levels: Levels
   /** Production of each resource per minute. */
   rates: Stock
+  /** Constructions under way or waiting, in order of completion. */
+  queue: Construction[]
   /** Building highlighted for the player, or null. */
   selected: Building | null
 }
@@ -77,7 +87,15 @@ export interface VillageSceneHandlers {
 }
 
 /** French name of each building, written on its plaque. */
-const NAMES: Record<Building, string> = { sawmill: 'Scierie', quarry: 'Carrière', mine: 'Mine' }
+const NAMES: Record<Building, string> = {
+  senate: 'Sénat',
+  sawmill: 'Scierie',
+  quarry: 'Carrière',
+  mine: 'Mine',
+  warehouse: 'Entrepôt',
+  wall: 'Rempart',
+  shipyard: 'Chantier naval',
+}
 
 /** Scale of the buildings in the world, larger than their drawing so they lead the scene. */
 const GROWTH = 1.3
@@ -113,6 +131,9 @@ interface Site {
   levelText: Text
   paint: (color: number) => void
   ring: Graphics
+  scaffold: Graphics | null
+  timer: Container
+  timerText: Text
   pop: number
   smokeClock: number
   tokenClock: number
@@ -186,9 +207,8 @@ export async function createVillageScene(
   ground.addChild(land)
 
   for (const [x, y, w, h] of [
-    [600, 600, 120, 60],
-    [990, 560, 110, 54],
-    [1040, 640, 130, 50],
+    [560, 610, 120, 60],
+    [1110, 650, 120, 50],
   ]) {
     const plot = field(w, h)
     plot.position.set(x, y)
@@ -246,36 +266,13 @@ export async function createVillageScene(
   boat.scale.set(0.8)
   place(boat, BOAT)
 
-  const hallHolder = new Container()
-  hallHolder.scale.set(GROWTH)
-  place(hallHolder, TOWN_HALL)
   const wallBack = new Container()
   const wallFront = new Container()
   place(wallBack, TOWN_HALL, TOWN_HALL.y - 110)
   place(wallFront, TOWN_HALL, TOWN_HALL.y + 140)
-  let hall = townHall(townHallStage(state.levels))
-  hallHolder.addChild(hall.root)
-  let hallStage = townHallStage(state.levels)
-  let wall = wallOf(state.levels)
+  let wall = wallOf(state.levels.wall)
   wallBack.addChild(wallDrawing(wall, 'back'))
   wallFront.addChild(wallDrawing(wall, 'front'))
-
-  let banner = new Container()
-
-  /**
-   * Writes the name of the village on the gold banner above the town hall.
-   *
-   * @param name - Name of the village.
-   */
-  function hangBanner(name: string) {
-    banner.destroy({ children: true })
-    const made = makePlaque(name, false)
-    made.paint(PALETTE.gold)
-    banner = made.plaque
-    banner.position.set(TOWN_HALL.x, TOWN_HALL.y - hall.height * GROWTH - 30)
-    labels.addChild(banner)
-  }
-  hangBanner(state.name)
 
   const sites = BUILDINGS.map((building): Site => {
     const at = PLACES[building]
@@ -283,7 +280,7 @@ export async function createVillageScene(
     holder.eventMode = 'static'
     holder.cursor = 'pointer'
     holder.scale.set(GROWTH)
-    place(holder, at)
+    place(holder, at, building === 'wall' ? TOWN_HALL.y + 150 : at.y)
     const level = state.levels[building]
     const drawing = buildingDrawing(building, stageOf(level))
     holder.addChild(drawing.root)
@@ -298,6 +295,16 @@ export async function createVillageScene(
     plaque.eventMode = 'static'
     plaque.cursor = 'pointer'
     labels.addChild(plaque)
+    const timerText = new Text({
+      text: '',
+      resolution: 2,
+      style: { fontFamily: DISPLAY, fontWeight: '700', fontSize: 15, fill: PALETTE.parchment },
+    })
+    timerText.anchor.set(0.5)
+    const timer = new Container()
+    timer.addChild(new Graphics(), timerText)
+    timer.visible = false
+    labels.addChild(timer)
     const site: Site = {
       building,
       place: at,
@@ -308,6 +315,9 @@ export async function createVillageScene(
       levelText,
       paint,
       ring,
+      scaffold: null,
+      timer,
+      timerText,
       pop: 1,
       smokeClock: random() * 2,
       tokenClock: random() * 3,
@@ -327,13 +337,73 @@ export async function createVillageScene(
     return site
   })
 
+  const senate = sites.find((site) => site.building === 'senate') as Site
+  let banner = new Container()
+
+  /**
+   * Writes the name of the village on the gold banner above the senate.
+   *
+   * @param name - Name of the village.
+   */
+  function hangBanner(name: string) {
+    banner.destroy({ children: true })
+    const made = makePlaque(name, false)
+    made.paint(PALETTE.gold)
+    banner = made.plaque
+    banner.position.set(senate.plaque.x, senate.plaque.y - 42)
+    labels.addChild(banner)
+  }
+  hangBanner(state.name)
+
   /**
    * Puts the plaque of a building above its drawing.
    *
    * @param site - Building shown.
    */
   function placePlaque(site: Site) {
-    site.plaque.position.set(site.place.x, site.place.y - site.drawing.height * GROWTH - 26)
+    const y =
+      site.building === 'wall'
+        ? site.place.y + 36
+        : site.place.y - site.drawing.height * GROWTH - 26
+    site.plaque.position.set(site.place.x, y)
+    site.timer.position.set(site.place.x, y + 30)
+  }
+
+  /**
+   * Shows or hides the scaffolding and the countdown of a building, from the queue of
+   * constructions: the first one is under way, the next one waits for it.
+   *
+   * @param site - Building shown.
+   * @param now - Current time in milliseconds.
+   */
+  function showWorks(site: Site, now: number) {
+    const index = state.queue.findIndex(
+      (item) => item.building === site.building && item.completesAt > now,
+    )
+    const busy = index >= 0
+    if (busy && !site.scaffold) {
+      site.scaffold = scaffold(150, site.drawing.height)
+      site.holder.addChild(site.scaffold)
+    } else if (!busy && site.scaffold) {
+      site.scaffold.destroy()
+      site.scaffold = null
+    }
+    site.timer.visible = busy
+    if (!busy) return
+    const first = index === 0 || state.queue[0].completesAt <= now
+    const left = Math.max(0, Math.ceil((state.queue[index].completesAt - now) / 1000))
+    const text = first
+      ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`
+      : 'En attente'
+    if (site.timerText.text === text) return
+    site.timerText.text = text
+    const back = site.timer.children[0] as Graphics
+    const width = site.timerText.width + 22
+    back.clear()
+    back
+      .roundRect(-width / 2, -12, width, 24, 12)
+      .fill(PALETTE.ink)
+      .stroke({ width: 2, color: PALETTE.goldDark })
   }
 
   /**
@@ -490,7 +560,7 @@ export async function createVillageScene(
    * @param site - Producing building.
    */
   function produce(site: Site) {
-    const token = resourceToken(CATALOG[site.building].produces)
+    const token = resourceToken(PRODUCTION[site.building as Producer].produces)
     const from = {
       x: site.place.x + 50 * GROWTH,
       y: site.place.y - site.drawing.height * GROWTH + 10,
@@ -514,14 +584,18 @@ export async function createVillageScene(
     })
     site.drawing = buildingDrawing(site.building, stageOf(site.level))
     site.holder.addChild(site.drawing.root)
+    site.scaffold = null
     placePlaque(site)
+    if (site === senate) hangBanner(state.name)
   }
 
   app.ticker.add((ticker) => {
     const dt = Math.min(0.1, ticker.deltaMS / 1000)
     time += dt
 
+    const now = Date.now()
     for (const site of sites) {
+      showWorks(site, now)
       if (site.pop < 1) {
         site.pop = Math.min(1, site.pop + dt / 0.7)
         const s = 0.4 + 0.6 * easeOutBack(site.pop)
@@ -564,7 +638,8 @@ export async function createVillageScene(
           puff({ x: site.place.x + chimney.x * GROWTH, y: site.place.y + chimney.y * GROWTH })
         }
       }
-      const rate = state.rates[CATALOG[site.building].produces]
+      if (!(site.building in PRODUCTION)) continue
+      const rate = state.rates[PRODUCTION[site.building as Producer].produces]
       site.tokenClock -= dt
       if (site.tokenClock <= 0 && rate > 0) {
         site.tokenClock = Math.max(2.5, 60 / rate)
@@ -572,12 +647,8 @@ export async function createVillageScene(
       }
     }
     if (Math.floor(time / 1.1) !== Math.floor((time - dt) / 1.1)) {
-      for (const chimney of [...hall.chimneys, ...port.chimneys]) {
-        const base = hall.chimneys.includes(chimney) ? TOWN_HALL : HARBOR
-        puff({
-          x: base.x + chimney.x * (base === TOWN_HALL ? GROWTH : 1),
-          y: base.y + chimney.y * (base === TOWN_HALL ? GROWTH : 1),
-        })
+      for (const chimney of port.chimneys) {
+        puff({ x: HARBOR.x + chimney.x, y: HARBOR.y + chimney.y })
       }
     }
 
@@ -619,19 +690,8 @@ export async function createVillageScene(
         if (restage) rebuild(site)
         if (grew && !calm) celebrate(site)
       }
-      const nextHall = townHallStage(next.levels)
-      if (nextHall !== hallStage) {
-        hallStage = nextHall
-        hallHolder.removeChildren().forEach((child) => {
-          child.destroy({ children: true })
-        })
-        hall = townHall(nextHall)
-        hallHolder.addChild(hall.root)
-        hangBanner(next.name)
-      } else if (renamed) {
-        hangBanner(next.name)
-      }
-      const nextWall = wallOf(next.levels)
+      if (renamed) hangBanner(next.name)
+      const nextWall = wallOf(next.levels.wall)
       if (nextWall !== wall) {
         wall = nextWall
         for (const [holder, half] of [

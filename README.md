@@ -124,11 +124,27 @@ est garantie au moins une fois : les gestionnaires de messages sont idempotents.
 échoue dix fois est abandonné : la tâche quotidienne le signale, et le script
 `scripts/dead-letters.ts` permet de l'examiner, puis de le relancer une fois sa cause corrigée.
 
+## Le Village
+
+Comme dans Grepolis, le village compte sept bâtiments, du niveau 0 au niveau 10 (ADR 0018) :
+
+| Bâtiment | Effet | Prérequis |
+| --- | --- | --- |
+| Sénat | Chaque niveau raccourcit les chantiers de 5 % | - |
+| Scierie, Carrière, Mine | Produisent le bois, la pierre et l'or | Mine : Sénat 2 |
+| Entrepôt | Fixe la capacité de stockage de chaque ressource, et en cache une part aux pillards | - |
+| Rempart | Défense du port : 20, plus 12 par niveau | Sénat 3 |
+| Chantier naval | Trirèmes par raid, flottes en mer et vitesse des traversées | Sénat 2, Scierie 3 |
+
+Une amélioration est payée à la commande puis prend du temps : elle entre dans une file de
+deux chantiers, et le bâtiment monte de niveau à la fin de son chantier. La production s'arrête
+quand l'entrepôt est plein pour une ressource.
+
 ## La Flotte
 
 Inspirée des raids navals de Grepolis, la Flotte est le module de l'évaluation finale
 ([fiche de cadrage](docs/evaluation/fiche-cadrage.md), [rendu](docs/evaluation/rendu.md)).
-Un joueur arme de 1 à 10 trirèmes avec les ressources de son village, choisit une tactique
+Un joueur arme de 1 à 10 trirèmes (davantage avec un chantier naval) avec les ressources de son village, choisit une tactique
 (éperonnage, abordage ou blocus, qui se battent en triangle) et lance un raid contre le village
 d'un autre joueur ou contre une île pirate. La flotte traverse la mer pendant 2 à 6 minutes ; le
 défenseur est alerté en temps réel, et peut changer de posture. À l'arrivée, la bataille se

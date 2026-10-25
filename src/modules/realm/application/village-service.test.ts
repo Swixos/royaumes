@@ -33,12 +33,14 @@ describe('Service du Village', () => {
   it('enregistre les événements et fait évoluer la vue avec le temps', async () => {
     await service().execute('alice', { type: 'FoundVillage', name: 'Valombre' })
     advance(5)
-    await service().execute('alice', { type: 'UpgradeBuilding', building: 'mine' })
+    await service().execute('alice', { type: 'UpgradeBuilding', building: 'quarry' })
+    expect((await service().getView('alice'))?.queue).toHaveLength(1)
     advance(10)
 
     const view = await service().getView('alice')
-    expect(view?.levels.mine).toBe(1)
-    expect(view?.stock).toEqual({ wood: 170, stone: 80, gold: 20 })
+    expect(view?.levels.quarry).toBe(2)
+    expect(view?.queue).toEqual([])
+    expect(view?.stock.wood).toBe(102)
   })
 
   it("renvoie l'erreur métier sans rien enregistrer", async () => {
@@ -69,7 +71,8 @@ describe('Service du Village', () => {
       ok: false,
       error: { code: 'INSUFFICIENT_RESOURCES', missing: { wood: 115, stone: 52 } },
     })
-    expect((await service().getView('alice'))?.levels.sawmill).toBe(2)
+    const view = await service().getView('alice')
+    expect(view?.queue).toEqual([expect.objectContaining({ building: 'sawmill', toLevel: 2 })])
   })
 })
 

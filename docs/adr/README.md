@@ -23,3 +23,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0015](0015-droit-rectification.md) | Droit de rectification du nom, par la réécriture ciblée du journal | Accepté |
 | [0016](0016-scene-village-pixi.md) | Scène du village dessinée avec PixiJS, à côté des contrôles de la page | Accepté |
 | [0017](0017-carte-mers-pixi.md) | Carte des mers dessinée avec PixiJS, et briques communes aux scènes du jeu | Accepté |
+| [0018](0018-batiments-chantiers.md) | Bâtiments à effets et chantiers à durée, en fin de file plutôt qu'à la commande | Accepté |
