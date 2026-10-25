@@ -59,6 +59,7 @@ const ICONS: Record<string, string> = {
   chat: 'conversation',
   rank: 'rank-3',
   loot: 'swap-bag',
+  history: 'quill-ink',
 }
 
 const require = createRequire(import.meta.url)
