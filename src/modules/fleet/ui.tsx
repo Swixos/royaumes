@@ -7,6 +7,7 @@ import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
 import { Icon } from '@/ui/icons'
 import { DROP, SPRING } from '@/ui/motion'
+import { SceneHost, type SceneLoader } from '@/ui/pixi/scene-host'
 import { look } from '@/ui/theme'
 import type { FleetApi } from './api'
 import {
@@ -16,7 +17,6 @@ import {
   fight,
   type HarborView,
   harborChannel,
-  hash,
   holdOf,
   MAX_RAIDS_AT_SEA,
   MAX_SHIPS,
@@ -32,35 +32,34 @@ import {
   type TargetsList,
 } from './contracts'
 import styles from './fleet.module.css'
+import { clock, laneOf, relax, toWorld } from './scene/sea-layout'
+import type { SeaSceneState } from './scene/sea-scene'
+
+/**
+ * Loads the sea map, with PixiJS, once the page is on the client.
+ *
+ * @param host - Element receiving the canvas.
+ * @param state - First state to show.
+ * @returns The live scene.
+ */
+const loadSea: SceneLoader<SeaSceneState, object> = async (host, state) =>
+  (await import('./scene/sea-scene')).createSeaScene(host, state)
+
+/** Handlers of the sea map: the islands are picked through the buttons laid over it. */
+const NO_HANDLERS = {}
 
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<FleetApi>('/api/fleet')
 
-/** Width of the sea map, in SVG units. */
-const MAP_W = 1000
-/** Height of the sea map, in SVG units. */
-const MAP_H = 625
-
-/** Positions of the lines of the map grid, every 125 units. */
-const GRID = { rows: [125, 250, 375, 500], columns: [125, 250, 375, 500, 625, 750, 875] }
 /** Possible fleet sizes, from one trireme to the largest fleet. */
 const FLEET_SIZES = Array.from({ length: MAX_SHIPS }, (_, i) => i + 1)
 
-/** Flat colors of the sea map. */
+/** Flat colors of the ships of the battle report. */
 const SEA = {
-  water: '#2f86a8',
-  shallow: '#56a7c2',
-  grid: '#3a8fb0',
-  sand: '#e6d29a',
-  grass: '#7a9a45',
-  rock: '#5b5650',
-  rockTop: '#7a746b',
   gold: '#e8cd84',
-  label: '#f3e3bb',
   ink: '#2a170a',
   own: '#f3e3bb',
   enemy: '#a32a1a',
-  lane: '#f3e3bb',
 }
 
 /** Label shown for each state of the real-time connection. */
@@ -110,109 +109,6 @@ const DEFENSE_STATUS: Record<RaidStatus, string> = {
 
 /** Target selected on the map. */
 type Selection = { kind: 'village'; id: string } | { kind: 'pirates'; id: string } | null
-
-/**
- * Converts a map position, in percent, into SVG coordinates.
- *
- * @param point - Position in percent.
- * @returns The SVG coordinates.
- */
-const toSvg = (point: MapPoint) => ({ x: (point.x / 100) * MAP_W, y: (point.y / 100) * MAP_H })
-
-/**
- * Formats a duration as minutes and seconds.
- *
- * @param ms - Duration in milliseconds.
- * @returns The duration, such as "02:31".
- */
-function clock(ms: number) {
-  const total = Math.max(0, Math.ceil(ms / 1000))
-  const minutes = String(Math.floor(total / 60)).padStart(2, '0')
-  return `${minutes}:${String(total % 60).padStart(2, '0')}`
-}
-
-/**
- * Builds the outline of an island: a closed, smooth blob whose shape is drawn from the
- * island identifier, so it never changes.
- *
- * @param id - Identifier of the island or of the village owner.
- * @param cx - Horizontal center.
- * @param cy - Vertical center.
- * @param radius - Mean radius.
- * @returns The SVG path.
- */
-function islandPath(id: string, cx: number, cy: number, radius: number) {
-  const seed = hash(id)
-  const count = 9
-  const points = Array.from({ length: count }, (_, i) => {
-    const angle = (i / count) * Math.PI * 2
-    const wobble = 0.72 + (((seed >>> (i * 3)) & 7) / 7) * 0.5
-    return {
-      x: cx + Math.cos(angle) * radius * wobble,
-      y: cy + Math.sin(angle) * radius * wobble * 0.8,
-    }
-  })
-  const mid = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2,
-  })
-  const start = mid(points[count - 1], points[0])
-  let d = `M${start.x.toFixed(1)} ${start.y.toFixed(1)}`
-  for (let i = 0; i < count; i++) {
-    const end = mid(points[i], points[(i + 1) % count])
-    d += ` Q${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`
-  }
-  return `${d} Z`
-}
-
-/** Sea lane of a fleet: a curved route between two points. */
-interface Lane {
-  /** Departure point. */
-  from: { x: number; y: number }
-  /** Control point of the curve. */
-  bend: { x: number; y: number }
-  /** Arrival point. */
-  to: { x: number; y: number }
-}
-
-/**
- * Builds the curved sea lane of a fleet, bent to one side drawn from the raid identifier.
- *
- * @param raidId - Raid identifier.
- * @param from - Departure point.
- * @param to - Arrival point.
- * @returns The lane.
- */
-function laneOf(
-  raidId: string,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): Lane {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const side = hash(raidId) % 2 === 0 ? 1 : -1
-  return {
-    from,
-    to,
-    bend: { x: (from.x + to.x) / 2 - dy * 0.22 * side, y: (from.y + to.y) / 2 + dx * 0.22 * side },
-  }
-}
-
-/**
- * Finds the point and heading of a fleet along its lane.
- *
- * @param lane - Sea lane.
- * @param t - Progress, from 0 to 1.
- * @returns The point and the heading in degrees.
- */
-function along({ from, bend, to }: Lane, t: number) {
-  const u = 1 - t
-  const x = u * u * from.x + 2 * u * t * bend.x + t * t * to.x
-  const y = u * u * from.y + 2 * u * t * bend.y + t * t * to.y
-  const tx = 2 * u * (bend.x - from.x) + 2 * t * (to.x - bend.x)
-  const ty = 2 * u * (bend.y - from.y) + 2 * t * (to.y - bend.y)
-  return { x, y, heading: (Math.atan2(ty, tx) * 180) / Math.PI }
-}
 
 /**
  * Shows resource amounts, such as "30 bois, 15 pierre".
@@ -365,51 +261,17 @@ interface MapIsland {
 }
 
 /**
- * Moves the islands of the players apart, so that no two islands overlap on the map.
- * Pirate islands never move; the others are pushed away from each other, always the same
- * way for the same islands.
+ * Tells whether an island is the selected target.
  *
- * @param islands - Islands at their drawn position.
- * @returns The islands at their final position.
+ * @param island - Island of the map.
+ * @param selected - Selected target.
+ * @returns True if it is selected.
  */
-function relax(islands: MapIsland[]): MapIsland[] {
-  const points = islands.map((island) => ({
-    ...toSvg(island.point),
-    fixed: island.kind === 'pirates',
-  }))
-  const gap = 120
-  for (let round = 0; round < 60; round++) {
-    for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
-        const a = points[i]
-        const b = points[j]
-        const dx = b.x - a.x || 0.5
-        const dy = b.y - a.y || 0.5
-        const distance = Math.hypot(dx, dy)
-        if (distance >= gap) continue
-        const push = (gap - distance) / (a.fixed || b.fixed ? 1 : 2)
-        const ux = dx / distance
-        const uy = dy / distance
-        if (!a.fixed) {
-          a.x -= ux * push
-          a.y -= uy * push
-        }
-        if (!b.fixed) {
-          b.x += ux * push
-          b.y += uy * push
-        }
-      }
-    }
-    for (const point of points) {
-      point.x = Math.min(MAP_W - 70, Math.max(70, point.x))
-      point.y = Math.min(MAP_H - 70, Math.max(60, point.y))
-    }
-  }
-  return islands.map((island, i) => ({
-    ...island,
-    point: { x: (points[i].x / MAP_W) * 100, y: (points[i].y / MAP_H) * 100 },
-  }))
-}
+const isTarget = (island: MapIsland, selected: Selection) =>
+  island.selection !== null &&
+  selected !== null &&
+  island.selection.kind === selected.kind &&
+  island.selection.id === selected.id
 
 /**
  * Sea map: flat islands, sea lanes and fleets moving in real time. The islands are
@@ -436,183 +298,77 @@ function SeaMap({
   selected: Selection
   onSelect: (selection: Selection) => void
 }) {
-  const moving = raids.filter((raid) => raid.status === 'at-sea' || raid.status === 'provisioning')
-  const now = useNow(moving.length > 0)
+  const islands = useMemo(() => {
+    const placed: MapIsland[] = [
+      ...(targets.home
+        ? [
+            {
+              selection: null,
+              name: targets.home.name,
+              point: targets.home.map,
+              kind: 'home' as const,
+              shapeId: userId,
+            },
+          ]
+        : []),
+      ...targets.villages.map((village) => ({
+        selection: { kind: 'village' as const, id: village.playerId },
+        name: village.name,
+        point: village.map,
+        kind: 'village' as const,
+        shapeId: village.playerId,
+      })),
+      ...targets.islands.map((island) => ({
+        selection: { kind: 'pirates' as const, id: island.islandId },
+        name: island.name,
+        point: island.map,
+        kind: 'pirates' as const,
+        shapeId: island.islandId,
+      })),
+    ]
+    return relax(placed)
+  }, [targets, userId])
 
-  const placed: MapIsland[] = [
-    ...(targets.home
-      ? [
-          {
-            selection: null,
-            name: targets.home.name,
-            point: targets.home.map,
-            kind: 'home' as const,
-            shapeId: userId,
-          },
-        ]
-      : []),
-    ...targets.villages.map((village) => ({
-      selection: { kind: 'village' as const, id: village.playerId },
-      name: village.name,
-      point: village.map,
-      kind: 'village' as const,
-      shapeId: village.playerId,
-    })),
-    ...targets.islands.map((island) => ({
-      selection: { kind: 'pirates' as const, id: island.islandId },
-      name: island.name,
-      point: island.map,
-      kind: 'pirates' as const,
-      shapeId: island.islandId,
-    })),
-  ]
-  const islands = relax(placed)
-  const where = new Map(islands.map((island) => [island.shapeId, island.point]))
-
-  /**
-   * Tells whether an island is the selected target.
-   *
-   * @param island - Island of the map.
-   * @returns True if it is selected.
-   */
-  const isSelected = (island: MapIsland) =>
-    island.selection !== null &&
-    selected !== null &&
-    island.selection.kind === selected.kind &&
-    island.selection.id === selected.id
-
-  /**
-   * Finds where a raid sails from and to.
-   *
-   * @param raid - Raid at sea.
-   * @returns The lane in SVG coordinates.
-   */
-  const laneFor = (raid: RaidSummary) => {
+  const scene = useMemo((): SeaSceneState => {
+    const where = new Map(islands.map((island) => [island.shapeId, island.point]))
     const pointOf = (id: string) =>
-      where.get(id) ?? PIRATE_ISLANDS.find((i) => i.id === id)?.map ?? mapPositionOf(id)
-    const home = toSvg(pointOf(userId))
-    if (raid.role === 'defender') return laneOf(raid.raidId, toSvg(pointOf(raid.attackerId)), home)
-    return laneOf(raid.raidId, home, toSvg(pointOf(raid.targetId)))
-  }
+      toWorld(where.get(id) ?? PIRATE_ISLANDS.find((i) => i.id === id)?.map ?? mapPositionOf(id))
+    const home = pointOf(userId)
+    return {
+      islands: islands.map((island) => ({
+        id: island.shapeId,
+        kind: island.kind,
+        name: island.name,
+        at: toWorld(island.point),
+        selected: isTarget(island, selected),
+      })),
+      fleets: raids
+        .filter((raid) => raid.status === 'at-sea' || raid.status === 'provisioning')
+        .map((raid) => ({
+          id: raid.raidId,
+          lane:
+            raid.role === 'defender'
+              ? laneOf(raid.raidId, pointOf(raid.attackerId), home)
+              : laneOf(raid.raidId, home, pointOf(raid.targetId)),
+          enemy: raid.role === 'defender',
+          ships: raid.ships,
+          sailing: raid.status === 'at-sea',
+          sailedAt: raid.sailedAt,
+          arrivesAt: raid.arrivesAt,
+        })),
+    }
+  }, [islands, raids, selected, userId])
 
+  const atSea = scene.fleets.length
   return (
     <div className={styles.sea}>
-      <svg className={styles.map} viewBox={`0 0 ${MAP_W} ${MAP_H}`} aria-hidden="true">
-        <rect width={MAP_W} height={MAP_H} fill={SEA.water} />
-        {GRID.rows.map((y) => (
-          <rect key={`h${y}`} x={0} y={y} width={MAP_W} height={1.5} fill={SEA.grid} />
-        ))}
-        {GRID.columns.map((x) => (
-          <rect key={`v${x}`} x={x} y={0} width={1.5} height={MAP_H} fill={SEA.grid} />
-        ))}
-
-        <g transform="translate(70 560)">
-          <circle r={34} fill={SEA.shallow} />
-          <path d="M0 -30 L7 0 L0 30 L-7 0 Z" fill={SEA.label} />
-          <path d="M0 -30 L7 0 L-7 0 Z" fill={SEA.enemy} />
-          <text y={-38} textAnchor="middle" className={styles.compass}>
-            N
-          </text>
-        </g>
-
-        {islands.map((island) => {
-          const { x, y } = toSvg(island.point)
-          const radius = island.kind === 'pirates' ? 44 : 36
-          const top = island.kind === 'pirates' ? SEA.rockTop : SEA.grass
-          const base = island.kind === 'pirates' ? SEA.rock : SEA.sand
-          return (
-            <g key={`${island.kind}-${island.shapeId}`}>
-              <path d={islandPath(island.shapeId, x, y + 4, radius + 14)} fill={SEA.shallow} />
-              <path d={islandPath(island.shapeId, x, y, radius)} fill={base} />
-              <path d={islandPath(island.shapeId, x, y - 4, radius * 0.72)} fill={top} />
-              {island.kind === 'home' && (
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={radius + 20}
-                  fill="none"
-                  stroke={SEA.gold}
-                  strokeWidth={4}
-                />
-              )}
-              {isSelected(island) && (
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={radius + 22}
-                  fill="none"
-                  stroke={SEA.label}
-                  strokeWidth={4}
-                  strokeDasharray="14 10"
-                />
-              )}
-              <text className={styles.islandLabel} x={x} y={y + radius + 30} textAnchor="middle">
-                {island.name}
-              </text>
-            </g>
-          )
-        })}
-
-        {moving.map((raid) => {
-          const lane = laneFor(raid)
-          const enemy = raid.role === 'defender'
-          const span = raid.arrivesAt - raid.sailedAt
-          const t =
-            raid.status === 'at-sea' && span > 0
-              ? Math.min(1, Math.max(0, (now - raid.sailedAt) / span))
-              : 0
-          const ship = along(lane, t)
-          const d = `M${lane.from.x} ${lane.from.y} Q${lane.bend.x} ${lane.bend.y} ${lane.to.x} ${lane.to.y}`
-          const color = enemy ? SEA.enemy : SEA.lane
-          const label =
-            raid.status === 'at-sea'
-              ? `${raid.ships} navire${raid.ships > 1 ? 's' : ''} · ${clock(raid.arrivesAt - now)}`
-              : 'Armement'
-          return (
-            <g key={raid.raidId}>
-              <path
-                d={d}
-                fill="none"
-                stroke={color}
-                strokeWidth={3}
-                strokeDasharray="2 12"
-                strokeLinecap="round"
-              />
-              <path
-                d={d}
-                fill="none"
-                stroke={color}
-                strokeWidth={5}
-                strokeLinecap="round"
-                pathLength={1}
-                strokeDasharray={`${t} 1`}
-              />
-              <circle
-                cx={lane.to.x}
-                cy={lane.to.y}
-                r={60}
-                fill="none"
-                stroke={color}
-                strokeWidth={3}
-              />
-              <Trireme x={ship.x} y={ship.y} heading={ship.heading} enemy={enemy} />
-              <g transform={`translate(${ship.x} ${ship.y - 62})`}>
-                <rect
-                  x={-58}
-                  y={-15}
-                  width={116}
-                  height={26}
-                  rx={13}
-                  fill={enemy ? SEA.enemy : SEA.ink}
-                />
-                <text className={styles.eta} y={4} textAnchor="middle">
-                  {label}
-                </text>
-              </g>
-            </g>
-          )
-        })}
-      </svg>
+      <SceneHost
+        load={loadSea}
+        state={scene}
+        handlers={NO_HANDLERS}
+        className={styles.map}
+        label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
+      />
 
       {islands.map((island) => (
         <button
@@ -622,7 +378,7 @@ function SeaMap({
           data-kind={island.kind}
           style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
           disabled={!island.selection}
-          aria-pressed={isSelected(island)}
+          aria-pressed={isTarget(island, selected)}
           aria-label={
             island.kind === 'home' ? `Votre village : ${island.name}` : `Cibler ${island.name}`
           }
