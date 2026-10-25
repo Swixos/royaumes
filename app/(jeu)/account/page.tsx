@@ -1,4 +1,5 @@
 import { AccountScreen } from '@/ui/account-screen'
+import { GameWindow } from '@/ui/game-window'
 
 /**
  * "My data" page. Access is restricted to signed-in players by the game layout.
@@ -6,5 +7,9 @@ import { AccountScreen } from '@/ui/account-screen'
  * @returns The account screen.
  */
 export default function AccountPage() {
-  return <AccountScreen />
+  return (
+    <GameWindow label="Mes données">
+      <AccountScreen />
+    </GameWindow>
+  )
 }

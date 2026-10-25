@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { currentUser } from '@/bootstrap/server'
 import { RankingScreen } from '@/modules/ranking/ui'
+import { GameWindow } from '@/ui/game-window'
 
 /**
  * Ranking page, with the signed-in player highlighted.
@@ -9,5 +10,9 @@ import { RankingScreen } from '@/modules/ranking/ui'
  */
 export default async function RankingPage() {
   const user = await currentUser(await headers())
-  return <RankingScreen userId={user?.id ?? ''} />
+  return (
+    <GameWindow label="Classement">
+      <RankingScreen userId={user?.id ?? ''} />
+    </GameWindow>
+  )
 }

@@ -1,7 +1,14 @@
-import { type Browser, expect, type Page, test } from '@playwright/test'
+import { type Browser, type BrowserContext, expect, type Page, test } from '@playwright/test'
 
 /** Suffix making the e-mail addresses of a run unique. */
 const RUN = Date.now()
+
+/** Browser contexts opened by the current test, closed once it ends. */
+const contexts: BrowserContext[] = []
+
+test.afterEach(async () => {
+  for (const context of contexts.splice(0)) await context.close()
+})
 
 /**
  * Creates a player through the interface, then founds their village.
@@ -11,7 +18,9 @@ const RUN = Date.now()
  * @returns The page of the signed-in player, on their village.
  */
 async function newPlayer(browser: Browser, name: string): Promise<Page> {
-  const page = await (await browser.newContext()).newPage()
+  const context = await browser.newContext()
+  contexts.push(context)
+  const page = await context.newPage()
   await page.goto('/login')
   await page.getByText('Pas de compte ? En créer un').click()
   await page.fill('input[name=name]', name)

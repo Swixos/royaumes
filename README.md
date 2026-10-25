@@ -270,6 +270,13 @@ scènes (palette, dessins, mise en place du canvas) sont dans `src/ui/pixi/`. Le
 animations de l'interface (rapport de bataille, compteurs, sélecteurs) utilisent la
 bibliothèque Motion, et toutes respectent le réglage système de réduction des animations.
 
+Comme dans Grepolis, le jeu tient sur un seul écran : le village occupe tout l'écran et reste
+affiché, et le menu ouvre des fenêtres par-dessus (Flotte, Marché, Taverne, Donjon,
+Classement, Mes données). Chaque fenêtre garde sa propre adresse (`/fleet`, `/market`...),
+dessinée par la même mise en page (ADR 0019) : le village n'est jamais rechargé, et sa scène se met en
+pause tant qu'une fenêtre le couvre. Un bâtiment touché dans la scène ou dans la barre des
+bâtiments ouvre sa fiche ; celle du Sénat présente le plan de construction de tout le village.
+
 Le jeu est pensé d'abord pour le téléphone. Sur un petit écran, la barre du haut se réduit
 aux ressources et à deux boutons, et le menu devient une barre d'onglets fixée en bas de
 l'écran, qui respecte l'encoche et la barre d'accueil. Les cartes du village et des mers

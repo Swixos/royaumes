@@ -169,7 +169,7 @@ export async function createVillageScene(
   initial: VillageSceneState,
   handlers: VillageSceneHandlers,
 ): Promise<LiveScene<VillageSceneState>> {
-  const { app, world, calm, destroy } = await createStage(host, WORLD_WIDTH, WORLD_HEIGHT)
+  const { app, world, calm, pause, destroy } = await createStage(host, WORLD_WIDTH, WORLD_HEIGHT)
   const random = seeded(11)
   let state = initial
   let selected = initial.selected
@@ -708,6 +708,7 @@ export async function createVillageScene(
         for (const site of sites) paintSite(site)
       }
     },
+    pause,
     destroy,
   }
 }
