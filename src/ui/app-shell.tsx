@@ -153,16 +153,19 @@ function ResourceCounter({
  * @param props - Component props.
  * @param props.userName - Name of the signed-in player.
  * @param props.world - Village, drawn under every window.
+ * @param props.guide - Guide of the tutorial, laid over every screen.
  * @param props.children - Window of the current page, if any.
  * @returns The game screen.
  */
 export function AppShell({
   userName,
   world,
+  guide,
   children,
 }: {
   userName: string
   world: ReactNode
+  guide?: ReactNode
   children: ReactNode
 }) {
   const pathname = usePathname()
@@ -210,6 +213,7 @@ export function AppShell({
               key={item.href}
               href={item.href}
               className="menu-item"
+              data-guide={`nav-${item.kind}`}
               aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
             >
               <m.span
@@ -233,6 +237,7 @@ export function AppShell({
           </footer>
         </main>
         <div className="window-host">{children}</div>
+        {guide}
       </div>
     </GameMotion>
   )

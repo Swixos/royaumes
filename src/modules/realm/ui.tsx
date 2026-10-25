@@ -282,6 +282,7 @@ export function VillageScreen({ userId }: { userId: string }) {
           <button
             key={building}
             type="button"
+            data-guide={`building-${building}`}
             aria-pressed={selected === building}
             onClick={() => setSelected(building)}
           >
@@ -498,6 +499,7 @@ function BuildingCard({
           <button
             type="button"
             className="primary"
+            data-guide={`upgrade-${building}`}
             disabled={!affordable || blocked || full}
             onClick={() => onUpgrade(building)}
           >

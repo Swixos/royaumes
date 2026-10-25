@@ -235,7 +235,7 @@ export function MarketScreen() {
       <div className="panel row">
         {picker('Je cède', give, setGive)}
         {picker('contre', want, setWant)}
-        <button type="button" onClick={publish}>
+        <button type="button" data-guide="publish-offer" onClick={publish}>
           Publier l'offre
         </button>
       </div>

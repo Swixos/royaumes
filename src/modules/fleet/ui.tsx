@@ -218,19 +218,22 @@ function Trireme({
  * @param props.value - Selected tactic.
  * @param props.onChange - Called with the chosen tactic.
  * @param props.caption - Name of the choice, read by screen readers.
+ * @param props.guide - Name of the chooser for the tutorial guide, if any.
  * @returns The tactic chooser.
  */
 function TacticPicker({
   value,
   onChange,
   caption,
+  guide,
 }: {
   value: Tactic
   onChange: (tactic: Tactic) => void
   caption: string
+  guide?: string
 }) {
   return (
-    <fieldset className={styles.tactics}>
+    <fieldset className={styles.tactics} data-guide={guide}>
       <legend className="sr-only">{caption}</legend>
       {TACTICS.map((tactic) => (
         <button
@@ -399,6 +402,7 @@ function SeaMap({
                 type="button"
                 className={styles.hotspot}
                 data-kind={island.kind}
+                data-guide={island.kind === 'pirates' ? 'target-pirates' : undefined}
                 style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
                 disabled={!island.selection}
                 aria-pressed={isTarget(island, selected)}
@@ -952,6 +956,7 @@ export function FleetScreen({ userId }: { userId: string }) {
         </button>
         <button
           type="button"
+          data-guide="fleet-harbor"
           aria-pressed={panel === 'harbor'}
           onClick={() => setPanel(panel === 'harbor' ? null : 'harbor')}
         >
@@ -960,6 +965,7 @@ export function FleetScreen({ userId }: { userId: string }) {
         </button>
         <button
           type="button"
+          data-guide="fleet-council"
           aria-pressed={panel === 'council'}
           onClick={() => setPanel(panel === 'council' ? null : 'council')}
         >
@@ -1080,6 +1086,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                 <button
                   type="button"
                   className="primary"
+                  data-guide="launch-raid"
                   disabled={busy || !targets?.home}
                   onClick={launch}
                 >
@@ -1183,6 +1190,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                 value={harbor.holding}
                 onChange={choosePosture}
                 caption="Posture du port"
+                guide="posture"
               />
             )}
             <p className="muted">
