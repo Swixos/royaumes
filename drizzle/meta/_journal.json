@@ -127,6 +127,13 @@
       "when": 1792954703836,
       "tag": "0017_rapports_bataille",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792956779122,
+      "tag": "0018_tutoriel",
+      "breakpoints": true
     }
   ]
 }

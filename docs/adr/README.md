@@ -27,3 +27,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0019](0019-ecran-unique.md) | Un seul écran de jeu : le village dans la mise en page, les pages en fenêtres | Accepté |
 | [0020](0020-village-isometrique.md) | Village en perspective isométrique, sur une grille, avec une ville qui grandit | Accepté |
 | [0021](0021-historique.md) | Historique du joueur, projection du langage publié de quatre modules | Accepté |
+| [0022](0022-tutoriel.md) | Tutoriel en quêtes récompensées, guidé par une conseillère et une lumière sur l'interface | Accepté |

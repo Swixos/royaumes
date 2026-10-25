@@ -48,6 +48,12 @@ export const theme: Record<string, Look> = {
   board: { label: 'Abordage', color: '#4a5560' },
   blockade: { label: 'Blocus', color: '#4a5560' },
   history: { label: 'Historique', color: '#6b3f23' },
+  advisor: { label: 'Conseillère', color: '#6a4a7e' },
+  quest: { label: 'Quête', color: '#6b3f23' },
+  chest: { label: 'Récompense', color: '#c98a0b' },
+  done: { label: 'Terminée', color: '#4a7428' },
+  locked: { label: 'À venir', color: '#7a5f40' },
+  sparkle: { label: 'Prête', color: '#c98a0b' },
 }
 
 /**

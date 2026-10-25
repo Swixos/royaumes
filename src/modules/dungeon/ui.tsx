@@ -98,7 +98,7 @@ export function DungeonLobby() {
             </option>
           ))}
         </select>
-        <button type="button" onClick={open}>
+        <button type="button" data-guide="open-expedition" onClick={open}>
           Ouvrir une nouvelle expédition
         </button>
       </div>
