@@ -81,6 +81,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
+| `chronicle` | Historique de chaque joueur : constructions, raids et batailles, expéditions, échanges, construit à partir des événements des autres modules | `/api/chronicle` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
 | `fleet` | Flotte : raids navals contre les villages des autres joueurs et contre des îles pirates pilotées par l'ordinateur, saga avec le Village, posture défensive et alertes en temps réel | `/api/fleet` |

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { createChronicleModule } from '@/modules/chronicle'
 import { createDungeonModule } from '@/modules/dungeon'
 import { createFleetModule } from '@/modules/fleet'
 import { createMarketModule } from '@/modules/market'
@@ -100,6 +101,7 @@ export function createApi({
   const realm = remoteRealm ?? createRealmModule({ store, clock })
   const dungeon = createDungeonModule({ store, db, projections, clock })
   const ranking = createRankingModule({ db, projections })
+  const chronicle = createChronicleModule({ db, projections })
   const market = createMarketModule({
     store,
     db,
@@ -122,6 +124,7 @@ export function createApi({
       dungeon.personalData,
       market.personalData,
       ranking.personalData,
+      chronicle.personalData,
       tavern.personalData,
       fleet.personalData,
       createIdentityPersonalData(db),
@@ -182,6 +185,7 @@ export function createApi({
   app.use('/realm/*', requireUser(auth))
   app.use('/dungeon/*', requireUser(auth))
   app.use('/ranking/*', requireUser(auth))
+  app.use('/chronicle/*', requireUser(auth))
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
   app.use('/fleet/*', requireUser(auth))
@@ -194,6 +198,7 @@ export function createApi({
     .route('/realm', realm.api)
     .route('/dungeon', dungeon.api)
     .route('/ranking', ranking.api)
+    .route('/chronicle', chronicle.api)
     .route('/market', market.api)
     .route('/tavern', tavern.api)
     .route('/fleet', fleet.api)
