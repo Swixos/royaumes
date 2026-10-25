@@ -5,11 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
+import { GameWindow } from '@/ui/game-window'
 import { Icon } from '@/ui/icons'
 import { DROP, SPRING } from '@/ui/motion'
-import { SceneHost, type SceneLoader } from '@/ui/pixi/scene-host'
+import { SceneHost, type SceneLoader, useSceneControls } from '@/ui/pixi/scene-host'
+import { ZoomControls } from '@/ui/pixi/zoom-controls'
 import { look } from '@/ui/theme'
-import { useCenteredScroll } from '@/ui/use-centered-scroll'
 import type { FleetApi } from './api'
 import {
   type Amounts,
@@ -34,20 +35,18 @@ import {
 } from './contracts'
 import styles from './fleet.module.css'
 import { clock, laneOf, relax, toWorld } from './scene/sea-layout'
-import type { SeaSceneState } from './scene/sea-scene'
+import type { SeaSceneHandlers, SeaSceneState } from './scene/sea-scene'
 
 /**
  * Loads the sea map, with PixiJS, once the page is on the client.
  *
  * @param host - Element receiving the canvas.
  * @param state - First state to show.
+ * @param handlers - Handlers called back by the scene.
  * @returns The live scene.
  */
-const loadSea: SceneLoader<SeaSceneState, object> = async (host, state) =>
-  (await import('./scene/sea-scene')).createSeaScene(host, state)
-
-/** Handlers of the sea map: the islands are picked through the buttons laid over it. */
-const NO_HANDLERS = {}
+const loadSea: SceneLoader<SeaSceneState, SeaSceneHandlers> = async (host, state, handlers) =>
+  (await import('./scene/sea-scene')).createSeaScene(host, state, handlers)
 
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<FleetApi>('/api/fleet')
@@ -280,9 +279,10 @@ const isTarget = (island: MapIsland, selected: Selection) =>
   island.selection.id === selected.id
 
 /**
- * Sea map: flat islands, sea lanes and fleets moving in real time. The islands are
- * buttons laid over the drawing, so they can be reached with the keyboard. On a phone the
- * map keeps a readable size and slides under the finger, starting on the player's port.
+ * Sea map, filling the screen: islands, sea lanes and fleets moving in real time. The
+ * player zooms with the wheel, two fingers or the buttons, and slides the sea with the
+ * mouse or a finger; the map starts on their port. The islands are buttons laid over the
+ * drawing, following its camera, so they can be reached with the keyboard.
  *
  * @param props - Component props.
  * @param props.userId - Signed-in player.
@@ -366,51 +366,64 @@ function SeaMap({
     }
   }, [islands, raids, selected, userId])
 
-  const scroller = useRef<HTMLDivElement>(null)
-  const homeShare = islands.find((island) => island.kind === 'home')?.point.x
-  useCenteredScroll(scroller, homeShare === undefined ? 0.5 : homeShare / 100)
+  const controls = useSceneControls()
+  const plane = useRef<HTMLDivElement>(null)
+  const handlers = useMemo(
+    (): SeaSceneHandlers => ({
+      onCamera: (view) => {
+        if (plane.current) {
+          plane.current.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`
+        }
+      },
+    }),
+    [],
+  )
 
   const atSea = scene.fleets.length
   return (
     <div className={styles.chart}>
-      <div ref={scroller} className={styles.scroller}>
-        <div className={styles.sea}>
-          <SceneHost
-            load={loadSea}
-            state={scene}
-            handlers={NO_HANDLERS}
-            className={styles.map}
-            label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
-          />
-
-          {islands.map((island) => (
-            <button
-              key={`${island.kind}-${island.shapeId}`}
-              type="button"
-              className={styles.hotspot}
-              data-kind={island.kind}
-              style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
-              disabled={!island.selection}
-              aria-pressed={isTarget(island, selected)}
-              aria-label={
-                island.kind === 'home' ? `Votre village : ${island.name}` : `Cibler ${island.name}`
-              }
-              onClick={() => island.selection && onSelect(island.selection)}
-            >
-              <Icon
-                kind={
+      <SceneHost
+        load={loadSea}
+        state={scene}
+        handlers={handlers}
+        controls={controls}
+        className={styles.map}
+        label={`Carte des mers : ${islands.length} îles, ${atSea} flotte${atSea > 1 ? 's' : ''} en mer`}
+      >
+        <div className={styles.pins}>
+          <div ref={plane} className={styles.plane}>
+            {islands.map((island) => (
+              <button
+                key={`${island.kind}-${island.shapeId}`}
+                type="button"
+                className={styles.hotspot}
+                data-kind={island.kind}
+                style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
+                disabled={!island.selection}
+                aria-pressed={isTarget(island, selected)}
+                aria-label={
                   island.kind === 'home'
-                    ? 'village'
-                    : island.kind === 'pirates'
-                      ? 'pirates'
-                      : 'harbor'
+                    ? `Votre village : ${island.name}`
+                    : `Cibler ${island.name}`
                 }
-                size="68%"
-              />
-            </button>
-          ))}
+                onClick={() => island.selection && onSelect(island.selection)}
+              >
+                <Icon
+                  kind={
+                    island.kind === 'home'
+                      ? 'village'
+                      : island.kind === 'pirates'
+                        ? 'pirates'
+                        : 'harbor'
+                  }
+                  size="68%"
+                />
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </SceneHost>
+      <ZoomControls controls={controls} />
 
       <ul className={styles.legend} aria-hidden="true">
         <li>
@@ -566,26 +579,33 @@ export function FleetScreen({ userId }: { userId: string }) {
   const [harbor, setHarbor] = useState<HarborView | null>(null)
   const [selected, setSelected] = useState<Selection>(null)
 
+  const [panel, setPanel] = useState<'council' | 'log' | 'harbor' | null>(null)
+
   /**
-   * Targets an island. On a phone, where the war council sits under the map, the screen
-   * slides to the council so the player prepares the raid right away.
+   * Targets an island, and opens the war council beside the map to prepare the raid.
    *
    * @param selection - Targeted island.
    */
   const aim = useCallback((selection: Selection) => {
     setSelected(selection)
-    if (window.matchMedia('(max-width: 960px)').matches) {
-      requestAnimationFrame(() =>
-        document
-          .getElementById('council')
-          ?.closest('section')
-          ?.scrollIntoView({ behavior: 'smooth' }),
-      )
-    }
+    setPanel('council')
+  }, [])
+
+  /** Closes the open panel; closing the war council also lets go of the target. */
+  const closePanel = useCallback(() => {
+    setPanel((current) => {
+      if (current === 'council') setSelected(null)
+      return null
+    })
   }, [])
   const [ships, setShips] = useState(3)
   const [tactic, setTactic] = useState<Tactic>('ram')
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+  useEffect(() => {
+    if (!message) return
+    const timer = setTimeout(() => setMessage(null), 8000)
+    return () => clearTimeout(timer)
+  }, [message])
   const [report, setReport] = useState<Record<string, unknown> | null>(null)
   const [busy, setBusy] = useState(false)
   const closeReport = useCallback(() => setReport(null), [])
@@ -721,16 +741,71 @@ export function FleetScreen({ userId }: { userId: string }) {
   const cost = equipmentCost(ships)
   const hold = holdOf(ships)
 
+  const outCount = raids.filter(
+    (raid) => raid.status === 'at-sea' || raid.status === 'provisioning',
+  ).length
+
   return (
-    <>
-      <header className="row">
-        <h1>
-          <Entity kind="fleet" /> La Flotte
-        </h1>
-        <span className="status" data-status={status}>
-          {STATUS_LABELS[status]}
-        </span>
-      </header>
+    <div className={styles.screen}>
+      {targets ? (
+        <SeaMap
+          userId={userId}
+          targets={targets}
+          raids={raids}
+          selected={selected}
+          onSelect={aim}
+        />
+      ) : (
+        <div className={styles.chart} aria-busy="true" />
+      )}
+
+      <div className={styles.top}>
+        <header className="row">
+          <h1>
+            <Entity kind="fleet" /> La Flotte
+          </h1>
+          <span className="status" data-status={status}>
+            {STATUS_LABELS[status]}
+          </span>
+        </header>
+        <form
+          className={styles.search}
+          aria-label="Recherche de port"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const term = draft.trim()
+            if (term === search) refresh()
+            else setSearch(term)
+          }}
+        >
+          <label htmlFor="harbor-search" className="sr-only">
+            Rechercher un port
+          </label>
+          <input
+            id="harbor-search"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Rechercher un port par son nom"
+            maxLength={30}
+          />
+          <button type="submit">
+            <Icon kind="search" />
+            <span className={styles.searchLabel}>Scruter l'horizon</span>
+          </button>
+          {search && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setDraft('')
+                setSearch('')
+              }}
+            >
+              Ports voisins
+            </button>
+          )}
+        </form>
+      </div>
 
       <dl className={styles.figures}>
         <div>
@@ -761,168 +836,72 @@ export function FleetScreen({ userId }: { userId: string }) {
         </div>
       </dl>
 
-      <AnimatePresence initial={false}>
-        {incoming.map((raid) => (
-          <m.div
-            key={raid.raidId}
-            className={styles.alarm}
-            role="status"
-            initial={{ opacity: 0, y: -24, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1, x: [0, -12, 12, -8, 8, -4, 0] }}
-            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
-            transition={{ ...DROP, x: { duration: 0.6, delay: 0.25 } }}
-          >
-            <Icon kind="trireme" size={40} />
-            <div>
-              <strong>Flotte ennemie en approche</strong>
-              <span>
-                {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur votre
-                port. Changez de posture tant qu'il est temps.
-              </span>
-            </div>
-            <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
-          </m.div>
-        ))}
-      </AnimatePresence>
+      <div className={styles.alerts}>
+        {message && (
+          <p className={styles.notice} data-error={message.error} aria-live="polite">
+            {message.text}
+          </p>
+        )}
+        <AnimatePresence initial={false}>
+          {incoming.map((raid) => (
+            <m.div
+              key={raid.raidId}
+              className={styles.alarm}
+              role="status"
+              initial={{ opacity: 0, y: -24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1, x: [0, -12, 12, -8, 8, -4, 0] }}
+              exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
+              transition={{ ...DROP, x: { duration: 0.6, delay: 0.25 } }}
+            >
+              <Icon kind="trireme" size={40} />
+              <div>
+                <strong>Flotte ennemie en approche</strong>
+                <span>
+                  {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur
+                  votre port. Changez de posture tant qu'il est temps.
+                </span>
+              </div>
+              <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
+            </m.div>
+          ))}
+        </AnimatePresence>
+        {targets && !targets.home && (
+          <p className="error">
+            Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
+          </p>
+        )}
+      </div>
 
-      {targets && !targets.home && (
-        <p className="error">
-          Fondez d'abord votre village : sans port, aucune flotte ne peut appareiller.
-        </p>
-      )}
+      <nav className={styles.dock} aria-label="Menus de la flotte">
+        <button
+          type="button"
+          aria-pressed={panel === 'log'}
+          onClick={() => setPanel(panel === 'log' ? null : 'log')}
+        >
+          <Icon kind="sunk" />
+          <span>Journal de bord</span>
+          {outCount > 0 && <span className={styles.badge}>{outCount}</span>}
+        </button>
+        <button
+          type="button"
+          aria-pressed={panel === 'harbor'}
+          onClick={() => setPanel(panel === 'harbor' ? null : 'harbor')}
+        >
+          <Icon kind="harbor" />
+          <span>Votre port</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={panel === 'council'}
+          onClick={() => setPanel(panel === 'council' ? null : 'council')}
+        >
+          <Icon kind="swords" />
+          <span>Conseil de guerre</span>
+        </button>
+      </nav>
 
-      <div className={styles.layout}>
-        <div className={styles.column}>
-          <form
-            className={styles.search}
-            aria-label="Recherche de port"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const term = draft.trim()
-              if (term === search) refresh()
-              else setSearch(term)
-            }}
-          >
-            <label htmlFor="harbor-search" className="sr-only">
-              Rechercher un port
-            </label>
-            <input
-              id="harbor-search"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Rechercher un port par son nom"
-              maxLength={30}
-            />
-            <button type="submit">Scruter l'horizon</button>
-            {search && (
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  setDraft('')
-                  setSearch('')
-                }}
-              >
-                Ports voisins
-              </button>
-            )}
-          </form>
-
-          {targets ? (
-            <SeaMap
-              userId={userId}
-              targets={targets}
-              raids={raids}
-              selected={selected}
-              onSelect={aim}
-            />
-          ) : (
-            <div className={styles.chart} aria-busy="true">
-              <div className={styles.sea} />
-            </div>
-          )}
-
-          <section className="panel" aria-labelledby="logbook">
-            <h2 id="logbook">Journal de bord</h2>
-            {raids.length === 0 ? (
-              <p className="muted">Aucun raid pour l'instant. La mer est calme.</p>
-            ) : (
-              <ul className={styles.logbook}>
-                <AnimatePresence initial={false}>
-                  {raids.map((raid) => {
-                    const attacker = raid.role === 'attacker'
-                    const tone =
-                      raid.status === 'at-sea' || raid.status === 'provisioning'
-                        ? 'sea'
-                        : raid.victory === null
-                          ? 'none'
-                          : raid.victory === attacker
-                            ? 'win'
-                            : 'loss'
-                    return (
-                      <m.li
-                        key={raid.raidId}
-                        className={styles.entry}
-                        data-tone={tone}
-                        layout
-                        initial={{ opacity: 0, x: -40 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={SPRING}
-                      >
-                        <Icon
-                          kind={
-                            raid.targetKind === 'pirates'
-                              ? 'pirates'
-                              : attacker
-                                ? 'fleet'
-                                : 'harbor'
-                          }
-                          size={32}
-                        />
-                        <span>
-                          <strong>
-                            {attacker
-                              ? `Raid contre ${raid.targetName}`
-                              : `Raid de ${raid.attackerName}`}
-                          </strong>
-                          <span className={styles.meta}>
-                            {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
-                            {raid.tactic && ` · ${look(raid.tactic).label}`}
-                            {raid.status === 'at-sea' &&
-                              raid.arrivesAt > now &&
-                              ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
-                            {raid.loot && (
-                              <>
-                                {' · '}
-                                {attacker ? 'butin' : 'perte'} <AmountsText amounts={raid.loot} />
-                              </>
-                            )}
-                          </span>
-                        </span>
-                        {attacker && raid.status === 'at-sea' && raid.arrivesAt > Date.now() ? (
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => recall(raid.raidId)}
-                          >
-                            Rappeler
-                          </button>
-                        ) : (
-                          <span className={styles.chip} data-tone={tone}>
-                            {(attacker ? ATTACK_STATUS : DEFENSE_STATUS)[raid.status]}
-                          </span>
-                        )}
-                      </m.li>
-                    )
-                  })}
-                </AnimatePresence>
-              </ul>
-            )}
-          </section>
-        </div>
-
-        <div className={styles.column}>
+      {panel === 'council' && (
+        <GameWindow label="Conseil de guerre" size="side" onClose={closePanel}>
           <section className="panel" aria-labelledby="council">
             <h2 id="council">Conseil de guerre</h2>
             {target ? (
@@ -1042,13 +1021,93 @@ export function FleetScreen({ userId }: { userId: string }) {
             ) : (
               <p className="muted">Choisissez une île sur la carte pour préparer un raid.</p>
             )}
-            {message && (
-              <p className={message.error ? 'error' : 'ok'} aria-live="polite">
-                {message.text}
-              </p>
+          </section>
+        </GameWindow>
+      )}
+      {panel === 'log' && (
+        <GameWindow label="Journal de bord" size="side" onClose={closePanel}>
+          <section className="panel" aria-labelledby="logbook">
+            <h2 id="logbook">Journal de bord</h2>
+            {raids.length === 0 ? (
+              <p className="muted">Aucun raid pour l'instant. La mer est calme.</p>
+            ) : (
+              <ul className={styles.logbook}>
+                <AnimatePresence initial={false}>
+                  {raids.map((raid) => {
+                    const attacker = raid.role === 'attacker'
+                    const tone =
+                      raid.status === 'at-sea' || raid.status === 'provisioning'
+                        ? 'sea'
+                        : raid.victory === null
+                          ? 'none'
+                          : raid.victory === attacker
+                            ? 'win'
+                            : 'loss'
+                    return (
+                      <m.li
+                        key={raid.raidId}
+                        className={styles.entry}
+                        data-tone={tone}
+                        layout
+                        initial={{ opacity: 0, x: -40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={SPRING}
+                      >
+                        <Icon
+                          kind={
+                            raid.targetKind === 'pirates'
+                              ? 'pirates'
+                              : attacker
+                                ? 'fleet'
+                                : 'harbor'
+                          }
+                          size={32}
+                        />
+                        <span>
+                          <strong>
+                            {attacker
+                              ? `Raid contre ${raid.targetName}`
+                              : `Raid de ${raid.attackerName}`}
+                          </strong>
+                          <span className={styles.meta}>
+                            {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
+                            {raid.tactic && ` · ${look(raid.tactic).label}`}
+                            {raid.status === 'at-sea' &&
+                              raid.arrivesAt > now &&
+                              ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
+                            {raid.loot && (
+                              <>
+                                {' · '}
+                                {attacker ? 'butin' : 'perte'} <AmountsText amounts={raid.loot} />
+                              </>
+                            )}
+                          </span>
+                        </span>
+                        {attacker && raid.status === 'at-sea' && raid.arrivesAt > Date.now() ? (
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => recall(raid.raidId)}
+                          >
+                            Rappeler
+                          </button>
+                        ) : (
+                          <span className={styles.chip} data-tone={tone}>
+                            {(attacker ? ATTACK_STATUS : DEFENSE_STATUS)[raid.status]}
+                          </span>
+                        )}
+                      </m.li>
+                    )
+                  })}
+                </AnimatePresence>
+              </ul>
             )}
           </section>
-
+        </GameWindow>
+      )}
+      {panel === 'harbor' && (
+        <GameWindow label="Votre port" size="side" onClose={closePanel}>
           <section className="panel" aria-labelledby="harbor">
             <h2 id="harbor">Votre port</h2>
             {harbor && (
@@ -1059,16 +1118,16 @@ export function FleetScreen({ userId }: { userId: string }) {
               />
             )}
             <p className="muted">
-              Un village sans posture choisie défend en blocus. Chaque amélioration de bâtiment
-              ajoute 5 à sa défense.
+              Un village sans posture choisie défend en blocus. Le rempart du village renforce sa
+              défense.
             </p>
           </section>
-        </div>
-      </div>
+        </GameWindow>
+      )}
 
       <AnimatePresence>
         {report && <BattleOverlay key="report" report={report} onClose={closeReport} />}
       </AnimatePresence>
-    </>
+    </div>
   )
 }
