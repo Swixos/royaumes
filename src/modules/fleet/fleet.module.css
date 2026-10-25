@@ -52,7 +52,7 @@
 
 
 .alarm strong { display: block; font-family: var(--display); font-weight: 700; font-size: 1.35rem; text-shadow: 0 2px 0 #8f2a20; }
-.alarm .icon { background: var(--parchment); color: var(--wood-dark); border: 2px solid var(--wood-dark); border-radius: 12px; padding: 5px; }
+.alarm :global(.icon) { background: var(--parchment); color: var(--wood-dark); border: 2px solid var(--wood-dark); border-radius: 12px; padding: 5px; }
 
 .alarmClock {
   font-family: var(--display);
@@ -91,52 +91,41 @@
   box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 0 transparent, 0 5px 0 var(--sea-dark);
 }
 
-.map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-
-.compass { font-size: 18px; font-weight: 800; fill: #fbf9f4; font-family: var(--font); }
-
-.islandLabel {
-  font-family: var(--font);
-  font-weight: 800;
-  font-size: 21px;
-  fill: #fbf9f4;
-  paint-order: stroke;
-  stroke: #1f5e78;
-  stroke-width: 6px;
-  stroke-linejoin: round;
-  pointer-events: none;
-}
-
-.eta {
-  font-family: var(--display);
-  font-size: 15px;
-  fill: #ffffff;
-  font-variant-numeric: lining-nums tabular-nums;
-}
+.map { position: absolute; inset: 0; }
+.map canvas { display: block; }
 
 .hotspot {
   position: absolute;
-  width: 6.2%;
+  width: 9%;
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   margin: 0;
-  border-radius: 50%;
   padding: 0;
-  background: var(--parchment);
-  color: var(--brand-strong);
-  border: 3px solid var(--wood-dark);
-  box-shadow: 0 3px 0 var(--wood-dark);
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   text-shadow: none;
-  display: grid;
-  place-items: center;
+  color: var(--parchment);
 }
 
-.hotspot[data-kind='pirates'] { background: #2a1a10; color: var(--parchment); }
-.hotspot[data-kind='home'] { background: var(--gold); color: var(--wood-dark); }
-.hotspot:hover:not(:disabled) { background: var(--gold); color: var(--wood-dark); }
-.hotspot:disabled { cursor: default; }
-.hotspot[aria-pressed='true'] { background: var(--gold); color: var(--wood-dark); transform: translate(-50%, -50%) scale(1.15); }
-.hotspot:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.92); box-shadow: 0 0 0 2px var(--frame); }
+.hotspot :global(.icon) {
+  position: absolute;
+  right: -6%;
+  top: -6%;
+  width: 34%;
+  height: 34%;
+  padding: 4%;
+  border-radius: 50%;
+  background: var(--frame);
+  border: 2px solid var(--gold);
+}
+
+.hotspot[data-kind='home'] :global(.icon) { background: var(--gold); color: var(--wood-dark); border-color: var(--frame); }
+.hotspot[data-kind='pirates'] :global(.icon) { background: #2a1a10; }
+.hotspot:hover:not(:disabled) { background: rgb(243 227 187 / 0.18); }
+.hotspot:disabled { cursor: default; background: transparent; border: 0; }
+.hotspot:active:not(:disabled) { transform: translate(-50%, -50%) scale(0.94); box-shadow: none; }
 
 .legend {
   position: absolute;
@@ -172,7 +161,7 @@
   border: 2px solid var(--line);
 }
 
-.target > .icon { padding: 6px; border-radius: 12px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
+.target > :global(.icon) { padding: 6px; border-radius: 12px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
 .target strong { display: block; font-family: var(--display); font-weight: 700; font-size: 1.35rem; }
 .target > div > span { display: block; font-size: 0.875rem; }
 
@@ -219,7 +208,7 @@
   text-shadow: none;
 }
 
-.tactic .icon { width: 34px; height: 34px; }
+.tactic :global(.icon) { width: 34px; height: 34px; }
 .tactic strong { font-weight: 700; font-size: 1rem; }
 .tactic small { font-family: var(--font); font-weight: 700; font-size: 0.72rem; color: var(--muted); }
 .tactic[aria-pressed='true'] { color: var(--frame); }
@@ -263,7 +252,7 @@
 .entry[data-tone='win'] { border-left-color: var(--ok); }
 .entry[data-tone='loss'] { border-left-color: var(--warn); }
 .entry[data-tone='sea'] { border-left-color: var(--brand); }
-.entry > .icon { padding: 4px; border-radius: 10px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
+.entry > :global(.icon) { padding: 4px; border-radius: 10px; background: var(--parchment); border: 2px solid var(--wood-dark); color: var(--wood-dark); }
 .entry strong { display: block; font-weight: 800; }
 .meta { display: block; font-size: 0.82rem; color: var(--muted); font-variant-numeric: lining-nums tabular-nums; }
 
