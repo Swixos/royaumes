@@ -81,6 +81,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
+| `tutorial` | Tutoriel : introduction par une conseillère, chaîne de quinze quêtes récompensées, guide qui éclaire où toucher | `/api/tutorial` |
 | `chronicle` | Historique de chaque joueur : constructions, raids et batailles, expéditions, échanges, construit à partir des événements des autres modules | `/api/chronicle` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
@@ -267,7 +268,10 @@ Chaque bâtiment change d'allure tous les trois niveaux, le rempart passe du tal
 palissade puis à la muraille, et une maison s'élève pour chaque niveau gagné, dans les murs
 puis le long des routes. La scène s'anime : fumées, villageois sur les routes, ressources
 produites, vagues et oiseaux. Les noms des bâtiments n'apparaissent qu'au survol, à la
-sélection, pendant un chantier ou en zoomant. Un clic sur un bâtiment
+sélection, pendant un chantier ou en zoomant. Un nouveau joueur est accueilli par sa conseillère, qui lui présente le jeu puis lui confie
+une chaîne de quinze quêtes, du premier chantier au chantier naval (ADR 0022) : une
+lumière dorée montre à chaque étape où toucher, et chaque quête accomplie se réclame contre
+des ressources versées au village. Un clic sur un bâtiment
 ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. La carte des
 mers de la Flotte est rendue de la même façon (ADR 0017) : chaque île est dessinée selon son
 type (votre port, les ports des autres joueurs, les repaires pirates), et les flottes voguent

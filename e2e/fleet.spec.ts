@@ -11,7 +11,9 @@ test.afterEach(async () => {
 })
 
 /**
- * Creates a player through the interface, then founds their village.
+ * Creates a player through the interface, then founds their village. The guide of the
+ * tutorial is paused first, as a player can do from the quests window: these tests are
+ * about the fleet, and the advisor would introduce the game over it.
  *
  * @param browser - Browser of the test.
  * @param name - Name of the player.
@@ -28,6 +30,7 @@ async function newPlayer(browser: Browser, name: string): Promise<Page> {
   await page.fill('input[name=password]', 'motdepasse-solide')
   await page.click('button[type=submit]')
   await page.waitForURL('**/village')
+  await page.request.post('/api/tutorial/pause')
   await page.fill('#name', `Port ${name} ${RUN}`)
   await page.getByText('Fonder').click()
   await expect(page.getByRole('region', { name: 'Bâtiments' })).toBeVisible()

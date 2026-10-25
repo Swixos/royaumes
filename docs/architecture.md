@@ -120,6 +120,11 @@ Le module `chronicle` (l'historique) suit le même principe pour quatre modules 
 lit le langage publié du Village, de la Flotte, du Donjon et du Marché, et écrit pour chaque
 joueur une entrée par événement qui le concerne (ADR 0021). Il n'importe que leurs contrats.
 
+Le module `tutorial` lit le même langage publié pour suivre la progression de chaque joueur,
+et tient son propre journal (`tutorial-<joueur>`). Une récompense réclamée est versée au
+Village par un message `realm.deposit` de la boîte d'envoi, enregistré avec l'événement
+`QuestRewarded` dans la même transaction (ADR 0022).
+
 Le module `market` modifie les villages sans jamais importer le code du Village : il enregistre
 des messages dans la boîte d'envoi, que le distributeur remet aux gestionnaires du Village.
 La seule dépendance directe porte sur les contrats du Village (`REALM_TOPICS`, `ResourceAmounts`),

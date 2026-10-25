@@ -7,6 +7,7 @@ import { createRankingModule } from '@/modules/ranking'
 import { createRealmModule, createRemoteRealmModule } from '@/modules/realm'
 import { createSystemModule } from '@/modules/system'
 import { createTavernModule } from '@/modules/tavern'
+import { createTutorialModule } from '@/modules/tutorial'
 import { createIdentityPersonalData } from '@/platform/auth/personal-data'
 import type { AuthPort } from '@/platform/auth/port'
 import { createCronApi } from '@/platform/cron/cron-api'
@@ -117,6 +118,13 @@ export function createApi({
     dispatch: () => dispatcher.dispatch(),
     clock,
   })
+  const tutorial = createTutorialModule({
+    store,
+    db,
+    projections,
+    dispatch: () => dispatcher.dispatch(),
+    clock,
+  })
   const privacy = createPrivacyService(
     db,
     [
@@ -127,6 +135,7 @@ export function createApi({
       chronicle.personalData,
       tavern.personalData,
       fleet.personalData,
+      tutorial.personalData,
       createIdentityPersonalData(db),
     ],
     clock,
@@ -189,6 +198,8 @@ export function createApi({
   app.use('/market/*', requireUser(auth))
   app.use('/tavern/*', requireUser(auth))
   app.use('/fleet/*', requireUser(auth))
+  app.use('/tutorial', requireUser(auth))
+  app.use('/tutorial/*', requireUser(auth))
   app.use('/account', requireUser(auth))
   app.use('/account/*', requireUser(auth))
   app.use('/stream/*', requireUser(auth))
@@ -202,6 +213,7 @@ export function createApi({
     .route('/market', market.api)
     .route('/tavern', tavern.api)
     .route('/fleet', fleet.api)
+    .route('/tutorial', tutorial.api)
     .route('/account', createPrivacyApi(privacy))
     .route('/stream', createRealtimeApi({ store, policies, ...realtime }))
 }
