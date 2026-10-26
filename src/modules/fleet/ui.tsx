@@ -749,7 +749,11 @@ export function FleetScreen({ userId }: { userId: string }) {
       raid.role === 'attacker' && ['provisioning', 'at-sea', 'plundering'].includes(raid.status),
   ).length
 
-  /** Launches a raid against the selected target, and announces the equipment spent. */
+  /**
+   * Launches a raid against the selected target, and announces the equipment spent. On
+   * success the war council closes, so the fleet shows sailing on the map; a refusal is
+   * told in the council, next to the button.
+   */
   async function launch() {
     if (!selected) return
     setBusy(true)
@@ -777,6 +781,7 @@ export function FleetScreen({ userId }: { userId: string }) {
           ? { text: 'Armement impossible : votre village manque de ressources.', error: true }
           : { text: `La flotte a hissé les voiles vers ${view.target.name}.`, error: false },
       )
+      if (view.status !== 'cancelled') closePanel()
       window.dispatchEvent(new Event(VILLAGE_CHANGED))
     }
     refresh()
@@ -1083,11 +1088,21 @@ export function FleetScreen({ userId }: { userId: string }) {
                     : 'Selon la posture que tiendra le défenseur à votre arrivée.'}
                 </p>
 
+                {island?.raidedToday && (
+                  <p className={styles.notice} data-error="true">
+                    {ERRORS.TREASURE_TAKEN} Visez une autre île, ou revenez demain.
+                  </p>
+                )}
+                {message?.error && !island?.raidedToday && (
+                  <p className={styles.notice} data-error="true" role="alert">
+                    {message.text}
+                  </p>
+                )}
                 <button
                   type="button"
                   className="primary"
                   data-guide="launch-raid"
-                  disabled={busy || !targets?.home}
+                  disabled={busy || !targets?.home || !!island?.raidedToday}
                   onClick={launch}
                 >
                   Hisser les voiles
