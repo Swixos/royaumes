@@ -378,8 +378,8 @@ function Intro({ onStart, onLater }: { onStart: () => void; onLater: () => void 
  * It follows the element while the page moves, and lets every touch through. The bubble
  * stays inside the screen, and its arrow always points at the element; in a window, it
  * stands beside or under the element when there is room, so it hides no field above it.
- * A step further down a window is scrolled into view, and announced until it shows; a
- * building aside in the building bar is scrolled into view once.
+ * A step further down a window is scrolled into view, and announced at the foot of the
+ * window until it shows; a building aside in the building bar is scrolled into view once.
  *
  * @param props - Component props.
  * @param props.steps - Steps of the quest under way.
@@ -391,6 +391,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
     box: DOMRect | null
     hint: string
     inWindow?: boolean
+    down?: DOMRect
   } | null>(null)
   const tip = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -409,7 +410,8 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
     const scrolled = new Set<string>()
     /** Looks for the deepest step on screen, and moves the light onto it. */
     const look = () => {
-      let found: { box: DOMRect | null; hint: string; inWindow?: boolean } | null = null
+      let found: { box: DOMRect | null; hint: string; inWindow?: boolean; down?: DOMRect } | null =
+        null
       let away: string | null = null
       for (let i = steps.length - 1; i >= 0 && !found; i--) {
         const step = steps[i]
@@ -429,7 +431,11 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
             scrolled.add(step.target)
             element.scrollIntoView({ block: 'center', behavior: 'smooth' })
           }
-          found = { box: null, hint: `Descendez dans la fenêtre : ${step.hint.toLowerCase()}` }
+          found = {
+            box: null,
+            hint: `${step.hint} plus bas`,
+            down: element.closest('.game-window-body')?.getBoundingClientRect(),
+          }
         } else if (element && step.away && away === null) {
           away = step.away
         } else if (element && !scrolled.has(step.target) && element.closest('.village-bar')) {
@@ -460,13 +466,23 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
   if (!box) {
     return createPortal(
       <m.div
+        key="free"
         className={styles.tip}
         data-side="free"
+        data-down={!!spot.down}
         role="status"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        style={
+          spot.down && {
+            left: spot.down.left + 12,
+            right: window.innerWidth - spot.down.right + 12,
+            bottom: window.innerHeight - spot.down.bottom + 16,
+          }
+        }
       >
-        <Icon kind="advisor" /> {hint}
+        <Icon kind="advisor" />
+        <span className={styles.tipText}>{hint}</span>
       </m.div>,
       document.body,
     )
@@ -476,6 +492,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
     return createPortal(
       <>
         <m.div
+          key="ring"
           className={styles.ring}
           aria-hidden="true"
           initial={false}
@@ -488,6 +505,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
           transition={SPRING}
         />
         <m.div
+          key="tip"
           ref={tip}
           className={styles.tip}
           data-side="right"
@@ -496,7 +514,8 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
           animate={{ left: box.right + 16, top: box.top + box.height / 2 - size.height / 2 }}
           transition={SPRING}
         >
-          <Icon kind="advisor" /> {hint}
+          <Icon kind="advisor" />
+          <span className={styles.tipText}>{hint}</span>
         </m.div>
       </>,
       document.body,
@@ -515,6 +534,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
   return createPortal(
     <>
       <m.div
+        key="ring"
         className={styles.ring}
         aria-hidden="true"
         initial={false}
@@ -527,6 +547,7 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         transition={SPRING}
       />
       <m.div
+        key="tip"
         ref={tip}
         className={styles.tip}
         data-side={below ? 'below' : 'above'}
@@ -536,7 +557,8 @@ function Spotlight({ steps, pathname }: { steps: Step[]; pathname: string }) {
         transition={SPRING}
         style={{ '--arrow': `${arrow}px` } as CSSProperties}
       >
-        <Icon kind="advisor" /> {hint}
+        <Icon kind="advisor" />
+        <span className={styles.tipText}>{hint}</span>
       </m.div>
     </>,
     document.body,
