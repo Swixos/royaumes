@@ -504,6 +504,7 @@ button, a.button {
   justify-content: center;
   gap: 8px;
   margin: 2px;
+  vertical-align: middle;
   transition: transform 60ms ease;
 }
 
