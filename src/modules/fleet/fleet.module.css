@@ -410,3 +410,8 @@
   .tactic strong { font-size: 0.62rem; }
   .tactic small { font-size: 0.56rem; }
 }
+
+@media (min-width: 761px) {
+  .screen:has(:global(.game-window-layer[data-size='side'])) .figures { right: 442px; }
+  .screen:has(:global(.game-window-layer[data-size='side'])) :global(.zoom-controls) { right: 442px; }
+}
