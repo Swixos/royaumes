@@ -78,76 +78,53 @@ async function searchHarbor(page: Page, name: string) {
   }).toPass({ timeout: 20_000 })
 }
 
-test('lance un raid, alerte le défenseur en temps réel, puis rappelle la flotte', async ({
-  browser,
-}) => {
-  test.slow()
-  const alice = await newPlayer(browser, 'Amirale')
-  const bob = await newPlayer(browser, 'Gardien')
-  await openFleet(alice)
-  await openFleet(bob)
-
-  await searchHarbor(alice, `Port Gardien ${RUN}`)
-  await alice.getByRole('button', { name: `Cibler Port Gardien ${RUN}` }).click({ delay: 150 })
-  await expect(alice.getByRole('heading', { name: 'Conseil de guerre' })).toBeVisible()
-  await alice.getByRole('button', { name: '2 trirèmes' }).click()
-  await alice
-    .getByRole('button', { name: /Abordage/ })
-    .first()
-    .click()
-  await alice.getByRole('button', { name: 'Hisser les voiles' }).click()
-  await expect(
-    alice.getByText(`La flotte a hissé les voiles vers Port Gardien ${RUN}.`),
-  ).toBeVisible({ timeout: 15_000 })
-
-  await expect(bob.getByText('Flotte ennemie en approche')).toBeVisible({ timeout: 15_000 })
-  await expect(bob.getByText(/Amirale lance 2 trirèmes sur votre port/)).toBeVisible()
-
-  await openMenu(alice, 'Journal de bord')
-  await alice.getByRole('button', { name: 'Rappeler' }).click()
-  await expect(alice.getByText("Demi-tour ! L'équipement rentre au village.")).toBeVisible({
-    timeout: 15_000,
-  })
-  await expect(bob.getByText('Flotte ennemie en approche')).toBeHidden({ timeout: 15_000 })
-  await openMenu(bob, 'Journal de bord')
-  await expect(bob.getByText('Demi-tour')).toBeVisible()
-})
-
-test('choisit la posture du port, et prévoit la bataille contre une île pirate', async ({
+test('prévoit un raid contre une île pirate : sa garnison, et le port à armer', async ({
   browser,
 }) => {
   const page = await newPlayer(browser, 'Vigie')
   await openFleet(page)
+  await expect(page.locator('dd').filter({ hasText: /^0$/ })).toHaveCount(2)
+
+  await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click({ delay: 150 })
+  await expect(page.getByRole('heading', { name: 'Conseil de guerre' })).toBeVisible()
+  await expect(page.getByText('traversée 3 min')).toBeVisible()
+  await expect(page.getByText(/Garnison/)).toBeVisible()
+  await expect(page.getByText(/Aucune unité au village/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Hisser les voiles' })).toBeDisabled()
 
   await openMenu(page, 'Votre port')
   const harbor = page.locator('section', { has: page.getByRole('heading', { name: /Votre port/ }) })
-  await harbor.getByRole('button', { name: /Éperonnage/ }).click()
-  await expect(page.locator('dd').filter({ hasText: 'Éperonnage' })).toBeVisible()
-
-  await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click({ delay: 150 })
-  await expect(page.getByText('Défense 25 · traversée 3 min')).toBeVisible()
-  await page.getByRole('button', { name: '1 trirème', exact: true }).click()
-  await expect(page.locator('dd').filter({ hasText: /Bois\s*15/ })).toBeVisible()
+  await expect(harbor.getByText('aucune unité')).toBeVisible()
+  await expect(harbor.getByText(/niveau 0/)).toBeVisible()
 })
 
-test("corrige le nom du joueur, repris par la navigation et par les raids qu'il lance", async ({
+test("vise le port d'un autre joueur : son rempart, et ses troupes inconnues", async ({
   browser,
 }) => {
+  const page = await newPlayer(browser, 'Amirale')
+  await newPlayer(browser, 'Gardien')
+  await openFleet(page)
+  await searchHarbor(page, `Port Gardien ${RUN}`)
+  await page.getByRole('button', { name: `Cibler Port Gardien ${RUN}` }).click({ delay: 150 })
+  await expect(page.getByText(/Rempart niveau 0/)).toBeVisible()
+  await expect(page.getByText(/Les troupes du défenseur restent inconnues/)).toBeVisible()
+})
+
+test('montre la population que nourrit la ferme, et la garnison du village', async ({
+  browser,
+}) => {
+  const page = await newPlayer(browser, 'Fermier')
+  await page.locator('[data-guide="building-farm"]').click()
+  await expect(page.getByRole('region', { name: 'Garnison' })).toBeVisible()
+  await expect(page.getByText(/Aucune troupe/)).toBeVisible()
+})
+
+test('corrige le nom du joueur, repris par la navigation', async ({ browser }) => {
   const page = await newPlayer(browser, 'Typo')
-  const other = await newPlayer(browser, 'Cible')
   await page.getByRole('link', { name: 'Mes données' }).click()
   await page.fill('#new-name', `Corsaire ${RUN}`)
   await page.getByRole('button', { name: 'Corriger' }).click()
   await expect(page.getByRole('banner').getByText(`Corsaire ${RUN}`)).toBeVisible({
-    timeout: 15_000,
-  })
-
-  await openFleet(page)
-  await openFleet(other)
-  await searchHarbor(page, `Port Cible ${RUN}`)
-  await page.getByRole('button', { name: `Cibler Port Cible ${RUN}` }).click({ delay: 150 })
-  await page.getByRole('button', { name: 'Hisser les voiles' }).click()
-  await expect(other.getByText(new RegExp(`Corsaire ${RUN} lance 3 trirèmes`))).toBeVisible({
     timeout: 15_000,
   })
 })

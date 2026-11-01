@@ -797,7 +797,7 @@ function BattleOverlay({
         </m.p>
         <p className={styles.spoils}>
           {attacker
-            ? `Votre flotte contre ${String(report.opponentName)} : `
+            ? `${battle ? 'Votre armée' : 'Votre flotte'} contre ${String(report.opponentName)} : `
             : `${String(report.opponentName)} a attaqué votre port : `}
           {attacker ? (
             won ? (
