@@ -69,6 +69,7 @@ const ICONS: Record<string, string> = {
   barracks: 'barracks',
   farm: 'windmill',
   population: 'meeple',
+  warning: 'hazard-sign',
   troops: 'rally-the-troops',
   swordsman: 'broadsword',
   slinger: 'sling',
