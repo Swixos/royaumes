@@ -57,6 +57,7 @@ export const theme: Record<string, Look> = {
   barracks: { label: 'Caserne', color: '#8f2a20' },
   farm: { label: 'Ferme', color: '#4a7428' },
   population: { label: 'Population', color: '#6b3f23' },
+  warning: { label: 'Attention', color: '#a32a1a' },
   troops: { label: 'Troupes', color: '#8f2a20' },
   swordsman: { label: 'Épéiste', color: '#5b5650' },
   slinger: { label: 'Frondeur', color: '#7a5f40' },

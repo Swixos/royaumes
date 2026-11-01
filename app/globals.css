@@ -675,6 +675,9 @@ input.amount { width: 6em; }
 .building-card .error { margin: 0; font-size: 0.88rem; }
 .building-cost .amounts { display: inline-flex; gap: 12px; }
 .building-cost { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 800; }
+.building-cost .amounts [data-short='true'] { color: var(--warn); }
+.lack { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--warn-soft); border: 1px solid var(--warn); color: var(--warn); font-size: 0.85rem; font-weight: 700; line-height: 1.35; }
+.units .lack { display: block; margin-top: 4px; padding: 4px 8px; font-size: 0.78rem; }
 
 
 .works {
