@@ -16,7 +16,6 @@
   isolation: isolate;
   display: grid;
   gap: 14px;
-  min-height: calc(100% + 50px);
   margin: -22px -24px -28px;
   padding: 20px 24px 28px;
   color: var(--ash);
@@ -26,7 +25,7 @@
     repeating-linear-gradient(0deg, transparent 0 46px, rgba(0, 0, 0, 0.35) 46px 48px),
     repeating-linear-gradient(90deg, transparent 0 94px, rgba(0, 0, 0, 0.28) 94px 96px),
     linear-gradient(180deg, var(--stone-2), var(--stone));
-  overflow: hidden;
+  overflow: clip;
 }
 
 .dungeon::after {
