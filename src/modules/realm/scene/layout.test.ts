@@ -35,7 +35,9 @@ const STARTING_LEVELS: Levels = {
   sawmill: 1,
   quarry: 1,
   mine: 0,
+  farm: 1,
   warehouse: 1,
+  barracks: 0,
   wall: 0,
   shipyard: 0,
 }
@@ -87,7 +89,7 @@ describe('scène du village', () => {
   it('bâtit les maisons dans les murs, de la place vers les remparts, puis le long des routes', () => {
     const all = lots()
     const inside = all.filter((lot) => lot.inside)
-    expect(inside.length).toBeGreaterThan(10)
+    expect(inside.length).toBeGreaterThan(6)
     expect(all.slice(0, inside.length).every((lot) => lot.inside)).toBe(true)
     const reach = inside.map((lot) => Math.hypot(lot.at.u, lot.at.v))
     expect(reach).toEqual([...reach].sort((a, b) => a - b))

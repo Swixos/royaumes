@@ -2,16 +2,38 @@
  * Village domain, following the decider pattern:
  *   decide(state, command, now) -> events or domain error
  *   evolve(state, event)        -> new state
- * Pure TypeScript: it only imports the domain catalog.
+ * Pure TypeScript: it only imports the domain catalogs.
  *
  * @packageDocumentation
  */
+import {
+  type Army,
+  addArmy,
+  armyAt,
+  armySize,
+  MAX_ORDER,
+  missingUnits,
+  populationOf,
+  TRAINING_SLOTS,
+  type Training,
+  trainedAt,
+  trainingEnd,
+  trainingMs,
+  UNIT_COSTS,
+  UNIT_LEVELS,
+  UNIT_POPULATION,
+  UNITS,
+  type Unit,
+  unitAllowed,
+  unitsOf,
+} from './army'
 import {
   BASE_COSTS,
   BUILDINGS,
   type Building,
   buildDuration,
   COST_EXPONENT,
+  farmCapacity,
   hiddenAmount,
   type Levels,
   MAX_LEVEL,
@@ -56,6 +78,15 @@ export interface VillageState {
    * transfer commands idempotent: a known identifier is ignored.
    */
   transfers: Record<string, TransferOutcome>
+  /**
+   * Units at home, the orders still under way apart: a unit out of training joins them
+   * through {@link armyAt}. A count may go below zero while an order still feeds it.
+   */
+  garrison: Army
+  /** Orders of units not fully trained at `asOf`, in the order they were placed. */
+  trainings: Training[]
+  /** Units away from the village, on a raid. */
+  away: Army
 }
 
 /** Outcome of a resource transfer. */
@@ -70,6 +101,9 @@ export const initialState: VillageState = {
   queue: [],
   asOf: 0,
   transfers: {},
+  garrison: {},
+  trainings: [],
+  away: {},
 }
 
 /** Facts recorded for a village. */
@@ -99,17 +133,43 @@ export type VillageEvent =
     }
   | {
       type: 'WithdrawalRefused'
-      data: { transferId: string; missing: Partial<Stock>; at: number }
+      /** Missing resources, or missing units for a withdrawal of units. */
+      data: { transferId: string; missing: Record<string, number>; at: number }
     }
   | {
       type: 'ResourcesDeposited'
       data: { transferId: string; resources: Partial<Stock>; at: number }
     }
+  /**
+   * Units ordered and paid at `at`, at the barracks or the shipyard. They come out one
+   * after the other, every `each` milliseconds from `startsAt`.
+   */
+  | {
+      type: 'UnitsRecruited'
+      data: {
+        unit: Unit
+        count: number
+        cost: Partial<Stock>
+        at: number
+        startsAt: number
+        each: number
+      }
+    }
+  /** Units leaving the village for a raid, at the request of another module. */
+  | { type: 'UnitsWithdrawn'; data: { transferId: string; units: Army; at: number } }
+  /** Units coming home from a raid, and those lost on the way, no longer counted. */
+  | {
+      type: 'UnitsReturned'
+      data: { transferId: string; units: Army; lost: Army; at: number }
+    }
+  /** Units of the garrison killed defending the village. */
+  | { type: 'UnitsLost'; data: { transferId: string; units: Army; at: number } }
 
 /** Requests a player can make on their village. */
 export type VillageCommand =
   | { type: 'FoundVillage'; name: string }
   | { type: 'UpgradeBuilding'; building: Building }
+  | { type: 'RecruitUnits'; unit: Unit; count: number }
   | TransferCommand
 
 /** Resource transfer commands, sent by another module rather than by the player. */
@@ -122,6 +182,13 @@ export type TransferCommand =
       plunder?: boolean
     }
   | { type: 'DepositResources'; transferId: string; resources: Partial<Stock> }
+  /**
+   * Units leaving for a raid; refused if the garrison lacks them. Casualties of a defense
+   * are never refused: the garrison loses what it has, up to the units asked.
+   */
+  | { type: 'WithdrawUnits'; transferId: string; units: Army; casualties?: boolean }
+  /** Units coming home from a raid, with those lost on the way. */
+  | { type: 'ReturnUnits'; transferId: string; units: Army; lost: Army }
 
 /** Business reasons for refusing a command. */
 export type DomainError =
@@ -131,6 +198,9 @@ export type DomainError =
   | { code: 'INSUFFICIENT_RESOURCES'; missing: Partial<Stock> }
   | { code: 'REQUIREMENTS_NOT_MET'; building: Building; missing: Partial<Levels> }
   | { code: 'QUEUE_FULL'; slots: number }
+  | { code: 'UNIT_LOCKED'; unit: Unit; building: Building; level: number }
+  | { code: 'INVALID_ORDER' }
+  | { code: 'POPULATION_EXCEEDED'; free: number }
 
 /** Outcome of {@link decide}: the events to record, or the refusal. */
 export type Decision = { ok: true; events: VillageEvent[] } | { ok: false; error: DomainError }
@@ -210,7 +280,49 @@ export function accrue(state: VillageState, at: number): VillageState {
       queue: rest,
     }
   }
-  return produceUntil(current, at)
+  return foldTrainings(produceUntil(current, at), at)
+}
+
+/**
+ * Moves the orders fully trained by `at` into the garrison.
+ *
+ * @param state - Current village state.
+ * @param at - Time in milliseconds.
+ * @returns The state without the finished orders.
+ */
+function foldTrainings(state: VillageState, at: number): VillageState {
+  const done = state.trainings.filter((training) => trainingEnd(training) <= at)
+  if (done.length === 0) return state
+  return {
+    ...state,
+    garrison: armyAt(state.garrison, done, at),
+    trainings: state.trainings.filter((training) => trainingEnd(training) > at),
+  }
+}
+
+/**
+ * Units at home in a village at a given time, the orders under way included.
+ *
+ * @param state - Village state.
+ * @param at - Time in milliseconds.
+ * @returns The units at home.
+ */
+export function homeArmy(state: VillageState, at: number): Army {
+  return armyAt(state.garrison, state.trainings, at)
+}
+
+/**
+ * Population a village uses: its units at home, away and still in training.
+ *
+ * @param state - Village state.
+ * @returns The population used.
+ */
+export function populationUsed(state: VillageState): number {
+  const ordered = state.trainings.reduce(
+    (sum, training) => sum + UNIT_POPULATION[training.unit] * training.count,
+    0,
+  )
+  return populationOf(addArmy(state.garrison, state.away)) + ordered
 }
 
 /**
@@ -294,6 +406,46 @@ export function evolve(state: VillageState, event: VillageEvent): VillageState {
         ...current,
         stock: addTo(current.stock, event.data.resources, 1),
         transfers: { ...current.transfers, [event.data.transferId]: 'deposited' },
+      }
+    }
+
+    case 'UnitsRecruited': {
+      const { unit, count, cost, at, startsAt, each } = event.data
+      const current = accrue(state, at)
+      return {
+        ...current,
+        stock: addTo(current.stock, cost, -1),
+        trainings: [...current.trainings, { unit, count, startsAt, each }],
+      }
+    }
+
+    case 'UnitsWithdrawn': {
+      const current = accrue(state, event.data.at)
+      return {
+        ...current,
+        garrison: addArmy(current.garrison, event.data.units, -1),
+        away: addArmy(current.away, event.data.units),
+        transfers: { ...current.transfers, [event.data.transferId]: 'withdrawn' },
+      }
+    }
+
+    case 'UnitsReturned': {
+      const current = accrue(state, event.data.at)
+      const { units, lost } = event.data
+      return {
+        ...current,
+        garrison: addArmy(current.garrison, units),
+        away: addArmy(addArmy(current.away, units, -1), lost, -1),
+        transfers: { ...current.transfers, [event.data.transferId]: 'deposited' },
+      }
+    }
+
+    case 'UnitsLost': {
+      const current = accrue(state, event.data.at)
+      return {
+        ...current,
+        garrison: addArmy(current.garrison, event.data.units, -1),
+        transfers: { ...current.transfers, [event.data.transferId]: 'withdrawn' },
       }
     }
   }
@@ -412,6 +564,45 @@ export function decide(state: VillageState, command: VillageCommand, now: number
         ],
       }
     }
+    case 'RecruitUnits':
+      return recruit(state, command.unit, command.count, now)
+
+    case 'WithdrawUnits': {
+      if (command.transferId in state.transfers) return { ok: true, events: [] }
+      const current = accrue(state, now)
+      const home = current.founded ? homeArmy(current, now) : {}
+      const { transferId } = command
+      if (command.casualties) {
+        const lost: Army = {}
+        for (const [unit, count] of unitsOf(command.units)) {
+          const killed = Math.min(count, Math.max(0, home[unit] ?? 0))
+          if (killed > 0) lost[unit] = killed
+        }
+        return {
+          ok: true,
+          events: [{ type: 'UnitsLost', data: { transferId, units: lost, at: now } }],
+        }
+      }
+      const missing = missingUnits(home, command.units)
+      return {
+        ok: true,
+        events:
+          Object.keys(missing).length > 0 || armySize(command.units) === 0
+            ? [{ type: 'WithdrawalRefused', data: { transferId, missing, at: now } }]
+            : [{ type: 'UnitsWithdrawn', data: { transferId, units: command.units, at: now } }],
+      }
+    }
+
+    case 'ReturnUnits': {
+      if (command.transferId in state.transfers) return { ok: true, events: [] }
+      if (!state.founded) return { ok: false, error: { code: 'NOT_FOUNDED' } }
+      const { transferId, units, lost } = command
+      return {
+        ok: true,
+        events: [{ type: 'UnitsReturned', data: { transferId, units, lost, at: now } }],
+      }
+    }
+
     case 'WithdrawResources': {
       if (command.transferId in state.transfers) return { ok: true, events: [] }
       const current = accrue(state, now)
@@ -444,6 +635,54 @@ export function decide(state: VillageState, command: VillageCommand, now: number
   }
 }
 
+/**
+ * Decides on an order of units: the building must have the level the unit needs, the
+ * order must fit the population of the farm and the queue of its building, and the
+ * village must pay it. The order starts once the orders of the same building are done.
+ *
+ * @param state - Current village state.
+ * @param unit - Unit to train.
+ * @param count - Number of units.
+ * @param now - Current time in milliseconds.
+ * @returns The order event, or the domain error.
+ */
+function recruit(state: VillageState, unit: Unit, count: number, now: number): Decision {
+  if (!state.founded) return { ok: false, error: { code: 'NOT_FOUNDED' } }
+  if (!Number.isInteger(count) || count < 1 || count > MAX_ORDER) {
+    return { ok: false, error: { code: 'INVALID_ORDER' } }
+  }
+  const current = accrue(state, now)
+  const building = trainedAt(unit)
+  if (!unitAllowed(current.levels, unit)) {
+    return {
+      ok: false,
+      error: { code: 'UNIT_LOCKED', unit, building, level: UNIT_LEVELS[unit] },
+    }
+  }
+  const sameBuilding = current.trainings.filter((t) => trainedAt(t.unit) === building)
+  if (sameBuilding.length >= TRAINING_SLOTS) {
+    return { ok: false, error: { code: 'QUEUE_FULL', slots: TRAINING_SLOTS } }
+  }
+  const free = farmCapacity(current.levels.farm) - populationUsed(current)
+  if (UNIT_POPULATION[unit] * count > free) {
+    return { ok: false, error: { code: 'POPULATION_EXCEEDED', free: Math.max(0, free) } }
+  }
+  const cost: Partial<Stock> = {}
+  for (const [resource, amount] of Object.entries(UNIT_COSTS[unit])) {
+    cost[resource as Resource] = (amount ?? 0) * count
+  }
+  const missing = missingFor(current.stock, cost)
+  if (Object.keys(missing).length > 0) {
+    return { ok: false, error: { code: 'INSUFFICIENT_RESOURCES', missing } }
+  }
+  const startsAt = Math.max(now, ...sameBuilding.map(trainingEnd))
+  const each = trainingMs(unit, current.levels[building])
+  return {
+    ok: true,
+    events: [{ type: 'UnitsRecruited', data: { unit, count, cost, at: now, startsAt, each } }],
+  }
+}
+
 /** Snapshot of a village sent to the interface. */
 export interface VillageView {
   /** Village name. */
@@ -468,6 +707,16 @@ export interface VillageView {
   nextDurations: Record<Building, number | null>
   /** Levels each building not yet built still needs; empty when it can be built. */
   requirements: Record<Building, Partial<Levels>>
+  /** Units at home at `asOf`, orders out of training included. */
+  army: Army
+  /** Units away on a raid. */
+  away: Army
+  /** Orders of units under way or waiting, with their timing, to count them live. */
+  trainings: Training[]
+  /** Population used, and the population the farm feeds. */
+  population: { used: number; capacity: number }
+  /** Training time of one unit at the current level of its building, in milliseconds. */
+  trainingTimes: Record<Unit, number>
   /** Time in milliseconds at which the view was computed. */
   asOf: number
 }
@@ -503,6 +752,13 @@ export function toView(state: VillageState, now: number): VillageView {
     nextCosts,
     nextDurations,
     requirements,
+    army: homeArmy(current, now),
+    away: current.away,
+    trainings: current.trainings,
+    population: { used: populationUsed(current), capacity: farmCapacity(current.levels.farm) },
+    trainingTimes: Object.fromEntries(
+      UNITS.map((unit) => [unit, trainingMs(unit, current.levels[trainedAt(unit)])]),
+    ) as Record<Unit, number>,
     asOf: now,
   }
 }
