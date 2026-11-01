@@ -9,6 +9,7 @@ import {
   type RaidCommand,
   type RaidState,
 } from './raid'
+import { RULES } from './rules.fixture'
 import { noticeOf, requestsFor } from './saga'
 import { toView } from './view'
 
@@ -40,12 +41,16 @@ const calm: LaunchContext = {
   targetHasVillage: true,
   islandRaidDays: [],
   shipyard: 0,
+  rules: RULES,
 }
+
+/** Army of the raids of the tests: ten slingers in a transport. */
+const ARMY = { slinger: 10, transport: 1 }
 
 /**
  * Builds the launch of a raid by Alice.
  *
- * @param overrides - Fields replacing the defaults: 3 boarding triremes against Bob.
+ * @param overrides - Fields replacing the defaults: ten slingers against Bob.
  * @returns The command.
  */
 const launch = (
@@ -56,8 +61,7 @@ const launch = (
   attackerId: 'alice',
   attackerName: 'Alice',
   target: { kind: 'village', playerId: 'bob', name: 'Port de Bob' },
-  ships: 3,
-  tactic: 'board',
+  army: ARMY,
   context: calm,
   ...overrides,
 })
@@ -81,14 +85,21 @@ const atSea = play(launched, reply('r1:provision', 'withdrawn')).state
 const arrival = atSea.arrivesAt
 
 /**
- * Plays the arrival of the fleet at a village.
+ * Plays the arrival of the army at Bob's village.
  *
- * @param posture - Posture of the defender.
+ * @param garrison - Units defending the village.
  * @param wall - Level of the defender's wall.
  * @returns The outcome of the arrival.
  */
-const arriveAtVillage = (posture: 'ram' | 'board' | 'blockade' | null, wall = 0) =>
-  play(atSea, { type: 'ResolveArrival', context: { kind: 'village', posture, wall } }, arrival)
+const arriveAtVillage = (garrison: Record<string, number>, wall = 0) =>
+  play(
+    atSea,
+    {
+      type: 'ResolveArrival',
+      context: { kind: 'village', posture: null, wall, garrison, rules: RULES },
+    },
+    arrival,
+  )
 
 /**
  * Builds a refusal of a command.
@@ -104,11 +115,14 @@ function refusal(state: RaidState, command: RaidCommand, now = T0) {
 }
 
 describe("Flotte - lancement d'un raid", () => {
-  it('règle 1 : un raid engage de 1 à 10 trirèmes', () => {
-    expect(refusal(initialState, launch({ ships: 0 }))).toBe('INVALID_FLEET')
-    expect(refusal(initialState, launch({ ships: 11 }))).toBe('INVALID_FLEET')
-    expect(refusal(initialState, launch({ ships: 2.5 }))).toBe('INVALID_FLEET')
-    expect(refusal(initialState, launch({ ships: 10 }))).toBeNull()
+  it('règle 1 : une armée compte au moins un navire, et ses troupes tiennent dans les cales', () => {
+    expect(refusal(initialState, launch({ army: {} }))).toBe('INVALID_FLEET')
+    expect(refusal(initialState, launch({ army: { slinger: 3 } }))).toBe('NO_SHIP')
+    expect(refusal(initialState, launch({ army: { slinger: 11, transport: 1 } }))).toBe('NO_ROOM')
+    expect(refusal(initialState, launch({ army: { slinger: 2.5, transport: 1 } }))).toBe(
+      'INVALID_FLEET',
+    )
+    expect(refusal(initialState, launch())).toBeNull()
   })
 
   it('règle 2 : refuse un raid contre son propre village, ou contre un joueur sans village', () => {
@@ -121,45 +135,41 @@ describe("Flotte - lancement d'un raid", () => {
     ).toBe('UNKNOWN_TARGET')
   })
 
-  it('règle 3 : refuse un troisième raid en mer', () => {
+  it('règle 3 : refuse un troisième raid en mer, sauf avec un grand chantier naval', () => {
     expect(refusal(initialState, launch({ context: { ...calm, raidsOut: 2 } }))).toBe(
       'TOO_MANY_RAIDS',
     )
-    expect(refusal(initialState, launch({ context: { ...calm, raidsOut: 1 } }))).toBeNull()
+    expect(
+      refusal(initialState, launch({ context: { ...calm, raidsOut: 2, shipyard: 4 } })),
+    ).toBeNull()
   })
 
-  it('chantier naval : plus de trirèmes, plus de flottes en mer et des traversées plus courtes', () => {
-    const yard = (level: number) => ({ ...calm, shipyard: level })
-    expect(refusal(initialState, launch({ ships: 11 }))).toBe('INVALID_FLEET')
-    expect(refusal(initialState, launch({ ships: 14, context: yard(2) }))).toBeNull()
-    expect(refusal(initialState, launch({ context: { ...yard(4), raidsOut: 2 } }))).toBeNull()
-
-    const slow = play(initialState, launch({ target: { kind: 'pirates', islandId: 'misty-reef' } }))
-    const fast = play(
-      initialState,
-      launch({ target: { kind: 'pirates', islandId: 'misty-reef' }, context: yard(5) }),
-    )
-    expect(fast.state.travelMs).toBe(slow.state.travelMs * 0.8)
+  it('règle 5 : vogue au pas du navire le plus lent, plus vite avec le chantier naval', () => {
+    const minutes = travelMinutes('alice', 'bob') * 60_000
+    expect(launched.travelMs).toBe(minutes)
+    const fast = play(initialState, launch({ army: { lightShip: 1 } })).state
+    expect(fast.travelMs).toBe(Math.round((minutes * 8) / 13))
+    const yard = play(initialState, launch({ context: { ...calm, shipyard: 5 } })).state
+    expect(yard.travelMs).toBe(minutes * 0.8)
   })
 
-  it("règle 4 : prélève l'équipement avant le départ, et annule le raid s'il n'est pas payé", () => {
+  it("règle 4 : fait partir l'armée du village, et annule le raid si elle n'y est pas", () => {
     const { state, requests } = play(initialState, launch())
-    expect(state).toMatchObject({ status: 'provisioning', cost: { wood: 45, stone: 15 } })
+    expect(state).toMatchObject({
+      status: 'provisioning',
+      army: ARMY,
+      ships: 1,
+      damage: 'distance',
+    })
     expect(requests).toEqual([
-      {
-        kind: 'withdraw',
-        transferId: 'r1:provision',
-        playerId: 'alice',
-        resources: { wood: 45, stone: 15 },
-      },
+      { kind: 'withdraw-units', transferId: 'r1:provision', playerId: 'alice', units: ARMY },
     ])
-
-    const cancelled = play(state, reply('r1:provision', 'refused', { wood: 5 }))
-    expect(cancelled.state).toMatchObject({ status: 'cancelled', missing: { wood: 5 } })
+    const cancelled = play(state, reply('r1:provision', 'refused', { slinger: 4 }))
+    expect(cancelled.state).toMatchObject({ status: 'cancelled', missing: { slinger: 4 } })
     expect(cancelled.requests).toEqual([])
   })
 
-  it('règle 5 : la flotte part pour la durée de la traversée, se signale au défenseur et se rappelle à son arrivée', () => {
+  it('règle 5 : la flotte part, se signale au défenseur et se rappelle à son arrivée', () => {
     const { state, requests } = play(launched, reply('r1:provision', 'withdrawn'), T0 + 1_000)
     const arrivesAt = T0 + 1_000 + travelMinutes('alice', 'bob') * 60_000
     expect(state).toMatchObject({ status: 'at-sea', arrivesAt })
@@ -167,16 +177,8 @@ describe("Flotte - lancement d'un raid", () => {
       { kind: 'arrive', raidId: 'r1', at: arrivesAt },
       { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'sighted' },
     ])
-    expect(noticeOf(state, 'sighted', 'bob')).toEqual({
-      kind: 'sighted',
-      raidId: 'r1',
-      attackerId: 'alice',
-      attackerName: 'Alice',
-      ships: 3,
-      arrivesAt,
-    })
+    expect(noticeOf(state, 'sighted', 'bob')).toMatchObject({ attackerName: 'Alice', ships: 1 })
     expect(noticeOf(state, 'sighted', 'alice')).toBeNull()
-    expect(noticeOf(state, 'report', 'bob')).toBeNull()
   })
 
   it('ignore une réponse en double ou inattendue', () => {
@@ -185,36 +187,39 @@ describe("Flotte - lancement d'un raid", () => {
   })
 })
 
-describe('Flotte - rappel de la flotte (compensation)', () => {
-  it("règle 6 : seul l'attaquant rappelle sa flotte avant l'arrivée, et récupère tout son équipement", () => {
+describe('Flotte - rappel de la flotte', () => {
+  it("règle 6 : seul l'attaquant rappelle son armée, qui rentre après le temps déjà passé en mer", () => {
     expect(refusal(atSea, { type: 'RecallFleet', playerId: 'bob' })).toBe('NOT_ATTACKER')
     expect(refusal(atSea, { type: 'RecallFleet', playerId: 'alice' }, arrival)).toBe(
       'ALREADY_ARRIVED',
     )
-    expect(refusal(launched, { type: 'RecallFleet', playerId: 'alice' })).toBe('NOT_AT_SEA')
-
-    const { state, requests } = play(atSea, { type: 'RecallFleet', playerId: 'alice' })
-    expect(state.status).toBe('recalled')
+    const now = atSea.sailedAt + 30_000
+    const { state, requests } = play(atSea, { type: 'RecallFleet', playerId: 'alice' }, now)
+    expect(state).toMatchObject({ status: 'recalled', returnsAt: now + 30_000 })
     expect(requests).toEqual([
       {
-        kind: 'deposit',
-        transferId: 'r1:refund',
+        kind: 'return-units',
+        transferId: 'r1:return',
         playerId: 'alice',
-        resources: { wood: 45, stone: 15 },
+        units: ARMY,
+        lost: {},
+        at: now + 30_000,
       },
       { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'turned-back' },
     ])
   })
 
-  it("rend l'équipement lorsque le village visé a disparu pendant la traversée", () => {
+  it('ramène l’armée lorsque le village visé a disparu pendant la traversée', () => {
     const { state, requests } = play(atSea, { type: 'ResolveArrival', context: null }, arrival)
     expect(state.status).toBe('aborted')
     expect(requests).toEqual([
       {
-        kind: 'deposit',
-        transferId: 'r1:refund',
+        kind: 'return-units',
+        transferId: 'r1:return',
         playerId: 'alice',
-        resources: { wood: 45, stone: 15 },
+        units: ARMY,
+        lost: {},
+        at: arrival + atSea.travelMs,
       },
     ])
   })
@@ -229,121 +234,115 @@ describe('Flotte - bataille et pillage', () => {
     expect(play(recalled, { type: 'ResolveArrival', context: null }, arrival).events).toEqual([])
   })
 
-  it('règle 8 : une flotte dont la force ne dépasse pas la défense est perdue, et les deux ports reçoivent le rapport', () => {
-    const { state, requests } = arriveAtVillage('blockade', 1)
-    expect(state.battle).toEqual({ attack: 15, defense: 32, posture: 'blockade', victory: false })
+  it('règle 8 : une armée battue meurt, le défenseur compte ses morts, et les deux reçoivent le rapport', () => {
+    const { state, requests } = arriveAtVillage({ swordsman: 8 }, 1)
     expect(state.status).toBe('sunk')
+    expect(state.report?.land).toMatchObject({ attack: 230, won: false })
     expect(requests).toEqual([
+      {
+        kind: 'return-units',
+        transferId: 'r1:return',
+        playerId: 'alice',
+        units: { transport: 1 },
+        lost: { slinger: 10 },
+        at: arrival + atSea.travelMs,
+      },
+      {
+        kind: 'withdraw-units',
+        transferId: 'r1:casualties',
+        playerId: 'bob',
+        units: state.report?.defender.lost,
+        casualties: true,
+      },
       { kind: 'notice', playerId: 'alice', raidId: 'r1', notice: 'report' },
       { kind: 'notice', playerId: 'bob', raidId: 'r1', notice: 'report' },
     ])
-    expect(noticeOf(state, 'report', 'alice')).toEqual({
-      kind: 'report',
-      raidId: 'r1',
-      role: 'attacker',
-      won: false,
-      opponentId: 'bob',
-      opponentName: 'Port de Bob',
-      loot: {},
-    })
-    expect(noticeOf(state, 'report', 'bob')).toEqual({
-      kind: 'report',
-      raidId: 'r1',
+    expect(noticeOf(state, 'report', 'bob')).toMatchObject({
       role: 'defender',
       won: true,
-      opponentId: 'alice',
-      opponentName: 'Alice',
-      loot: {},
+      report: state.report,
     })
-    expect(noticeOf(state, 'report', 'carol')).toBeNull()
   })
 
-  it('règle 10 : un village sans posture choisie défend en blocus', () => {
-    expect(arriveAtVillage(null).state.battle?.posture).toBe('blockade')
-  })
-
-  it('règle 9 : une flotte victorieuse demande le butin de ses cales au village', () => {
-    const { state, requests } = arriveAtVillage('ram')
-    expect(state.battle).toMatchObject({ attack: 45, defense: 20, victory: true })
-    expect(state.status).toBe('plundering')
-    expect(requests).toEqual([
-      {
-        kind: 'withdraw',
-        transferId: 'r1:plunder-1',
-        playerId: 'bob',
-        resources: { wood: 30, stone: 15, gold: 6 },
-        plunder: true,
-      },
-    ])
-
+  it('règle 9 : une armée victorieuse demande au village le butin de ses survivants', () => {
+    const { state, requests } = arriveAtVillage({ swordsman: 2 }, 2)
+    expect(state).toMatchObject({
+      status: 'plundering',
+      plunderAsked: { wood: 25, stone: 25, gold: 12 },
+    })
+    expect(requests.map((r) => r.kind)).toEqual(['return-units', 'withdraw-units', 'withdraw'])
+    expect(requests[2]).toEqual({
+      kind: 'withdraw',
+      transferId: 'r1:plunder-1',
+      playerId: 'bob',
+      resources: { wood: 25, stone: 25, gold: 12 },
+      plunder: true,
+    })
     const done = play(state, reply('r1:plunder-1', 'withdrawn'))
-    expect(done.state).toMatchObject({ status: 'returned', loot: { wood: 30, stone: 15, gold: 6 } })
+    expect(done.state).toMatchObject({
+      status: 'returned',
+      loot: { wood: 25, stone: 25, gold: 12 },
+    })
     expect(done.requests[0]).toEqual({
       kind: 'deposit',
       transferId: 'r1:loot',
       playerId: 'alice',
-      resources: { wood: 30, stone: 15, gold: 6 },
+      resources: { wood: 25, stone: 25, gold: 12 },
+      at: arrival + atSea.travelMs,
     })
-    expect(done.requests).toHaveLength(3)
   })
 
   it('règle 9 : réduit le butin une seule fois à ce que possède le village', () => {
-    const fought = arriveAtVillage('ram').state
-    const reduced = play(fought, reply('r1:plunder-1', 'refused', { stone: 5, gold: 6 }))
+    const fought = arriveAtVillage({}).state
+    const reduced = play(fought, reply('r1:plunder-1', 'refused', { stone: 5, gold: 16 }))
     expect(reduced.requests).toEqual([
       {
         kind: 'withdraw',
         transferId: 'r1:plunder-2',
         playerId: 'bob',
-        resources: { wood: 30, stone: 10 },
+        resources: { wood: 32, stone: 27 },
         plunder: true,
       },
     ])
     const empty = play(reduced.state, reply('r1:plunder-2', 'refused', { wood: 1 }))
     expect(empty.state).toMatchObject({ status: 'returned', loot: {} })
-    expect(empty.requests.map((r) => r.kind)).toEqual(['notice', 'notice'])
-  })
-
-  it('règle 9 : rentre sans butin lorsque le village ne possède rien', () => {
-    const fought = arriveAtVillage('ram').state
-    const { state } = play(
-      fought,
-      reply('r1:plunder-1', 'refused', { wood: 30, stone: 15, gold: 6 }),
-    )
-    expect(state).toMatchObject({ status: 'returned', loot: {} })
   })
 })
 
 describe('Flotte - îles pirates', () => {
-  const pirates = launch({
-    target: { kind: 'pirates', islandId: 'misty-reef' },
-    ships: 4,
-    tactic: 'ram',
-  })
+  const pirates = launch({ target: { kind: 'pirates', islandId: 'misty-reef' } })
   const sailing = play(play(initialState, pirates).state, reply('r1:provision', 'withdrawn')).state
-
-  it("règle 11 : le capitaine contre la tactique favorite de l'attaquant", () => {
-    const { state } = play(
+  /**
+   * Plays the arrival at the island.
+   *
+   * @param damages - Main kind of damage of the previous armies of Alice.
+   * @returns The outcome of the arrival.
+   */
+  const land = (damages: Array<'blunt' | 'sharp' | 'distance'>) =>
+    play(
       sailing,
-      { type: 'ResolveArrival', context: { kind: 'pirates', history: ['ram', 'ram'] } },
+      { type: 'ResolveArrival', context: { kind: 'pirates', history: [], damages, rules: RULES } },
       sailing.arrivesAt,
     )
-    expect(state.battle).toEqual({ attack: 20, defense: 25, posture: 'board', victory: false })
+
+  it("règle 11 : le capitaine appelle en renfort l'unité qui pare l'arme favorite de l'attaquant", () => {
+    expect(land([]).state.report?.defender.present).toEqual({ swordsman: 4, slinger: 2 })
+    expect(land(['distance', 'distance']).state.report?.defender.present).toEqual({
+      swordsman: 7,
+      slinger: 2,
+    })
+    expect(land(['sharp']).state.report?.defender.present).toEqual({
+      swordsman: 4,
+      slinger: 2,
+      archer: 3,
+    })
   })
 
-  it("pille le trésor de l'île dès la victoire, sans passer par un village", () => {
-    const { state, requests } = play(
-      sailing,
-      { type: 'ResolveArrival', context: { kind: 'pirates', history: ['board'] } },
-      sailing.arrivesAt,
-    )
-    expect(state).toMatchObject({ status: 'returned', loot: { wood: 40, gold: 8 } })
-    expect(requests[0]).toMatchObject({
-      kind: 'deposit',
-      transferId: 'r1:loot',
-      resources: { wood: 40, gold: 8 },
-    })
-    expect(requests).toHaveLength(2)
+  it("pille le trésor de l'île dès la victoire, et le rapporte avec l'armée", () => {
+    const { state, requests } = land([])
+    expect(state).toMatchObject({ status: 'returned', loot: { wood: 38, gold: 10 } })
+    expect(requests.map((r) => r.kind)).toEqual(['return-units', 'deposit', 'notice'])
+    expect(requests[1]).toMatchObject({ resources: { wood: 38, gold: 10 }, at: state.returnsAt })
   })
 
   it("règle 12 : le trésor d'une île ne se pille qu'une fois par joueur et par jour", () => {
@@ -357,16 +356,42 @@ describe('Flotte - îles pirates', () => {
   })
 })
 
-describe("Flotte - vue d'un raid", () => {
-  it('cache au défenseur la tactique avant la bataille, et le raid à tout autre joueur', () => {
-    expect(toView(atSea, 'alice')).toMatchObject({
-      role: 'attacker',
-      tactic: 'board',
-      cost: { wood: 45 },
+describe('Flotte - raids de trirèmes enregistrés avant les armées', () => {
+  it('termine un raid de trirèmes selon ses règles, posture comprise', () => {
+    let state = evolve(initialState, {
+      type: 'RaidLaunched',
+      data: {
+        raidId: 'old',
+        attackerId: 'alice',
+        attackerName: 'Alice',
+        target: { kind: 'village', playerId: 'bob', name: 'Port de Bob' },
+        ships: 3,
+        tactic: 'board',
+        cost: { wood: 45, stone: 15 },
+        travelMs: 60_000,
+        at: T0,
+      },
     })
-    expect(toView(atSea, 'bob')).toMatchObject({ role: 'defender', tactic: null, cost: null })
+    state = evolve(state, { type: 'FleetSailed', data: { arrivesAt: T0 + 60_000, at: T0 } })
+    const { state: fought } = play(
+      state,
+      {
+        type: 'ResolveArrival',
+        context: { kind: 'village', posture: 'ram', wall: 0, garrison: {}, rules: RULES },
+      },
+      T0 + 60_000,
+    )
+    expect(fought.battle).toEqual({ attack: 45, defense: 20, posture: 'ram', victory: true })
+    expect(fought.plunderAsked).toEqual({ wood: 30, stone: 15, gold: 6 })
+  })
+})
+
+describe("Flotte - vue d'un raid", () => {
+  it("cache au défenseur l'armée avant la bataille, et le raid à tout autre joueur", () => {
+    expect(toView(atSea, 'alice')).toMatchObject({ role: 'attacker', army: ARMY })
+    expect(toView(atSea, 'bob')).toMatchObject({ role: 'defender', army: null })
     expect(toView(atSea, 'carol')).toBeNull()
-    expect(toView(arriveAtVillage('ram').state, 'bob')?.tactic).toBe('board')
+    expect(toView(arriveAtVillage({}).state, 'bob')?.army).toEqual(ARMY)
   })
 })
 

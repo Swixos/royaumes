@@ -55,8 +55,12 @@ export interface PirateIsland {
   id: string
   /** Name shown to players. */
   name: string
-  /** Defense of the island. */
+  /** Defense of the island, for the raids of triremes recorded before the armies. */
   defense: number
+  /** Units guarding the island, by unit identifier of the village module. */
+  garrison: Partial<Record<string, number>>
+  /** Units the captain adds against the kind of damage an attacker uses most. */
+  reserve: number
   /** Crossing time, in minutes. */
   travelMinutes: number
   /** Treasure of the day: the most a victorious fleet takes from the island. */
@@ -71,6 +75,8 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     id: 'misty-reef',
     name: 'Récif des Brumes',
     defense: 25,
+    garrison: { swordsman: 4, slinger: 2 },
+    reserve: 3,
     travelMinutes: 3,
     treasure: { wood: 40, gold: 10 },
     map: { x: 18, y: 26 },
@@ -79,6 +85,8 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     id: 'raven-cove',
     name: 'Crique du Corbeau',
     defense: 45,
+    garrison: { swordsman: 10, archer: 6, hoplite: 4, bireme: 1 },
+    reserve: 6,
     travelMinutes: 4,
     treasure: { stone: 30, gold: 20 },
     map: { x: 80, y: 20 },
@@ -87,6 +95,8 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     id: 'scarlet-atoll',
     name: 'Atoll Écarlate',
     defense: 70,
+    garrison: { swordsman: 18, archer: 14, hoplite: 12, slinger: 6, bireme: 3 },
+    reserve: 10,
     travelMinutes: 6,
     treasure: { wood: 60, stone: 40, gold: 40 },
     map: { x: 70, y: 78 },
@@ -243,8 +253,8 @@ export interface Battle {
   attack: number
   /** Defense of the target. */
   defense: number
-  /** Posture the defender held. */
-  posture: Tactic
+  /** Posture the defender held, against a fleet of triremes. */
+  posture?: Tactic
   /** True if the fleet won: its strength is strictly above the defense. */
   victory: boolean
 }

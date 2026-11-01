@@ -1,9 +1,9 @@
-import { REALM_TOPICS } from '@/modules/realm/contracts'
+import { type Army, garrisonAt, REALM_TOPICS } from '@/modules/realm/contracts'
 import { withOptimisticRetry } from '@/platform/event-store/retry'
 import type { NewMessage } from '@/platform/outbox/outbox'
 import { FLEET_TOPICS, type HarborView } from '../contracts'
 import { decideHarbor, type HarborCommand, type HarborNotice } from '../domain/harbor'
-import { DEFAULT_POSTURE, levelAt, type Tactic } from '../domain/naval'
+import { levelAt } from '../domain/naval'
 import {
   type ArrivalContext,
   decide,
@@ -15,6 +15,7 @@ import {
 } from '../domain/raid'
 import { noticeOf, requestsFor, type SagaRequest } from '../domain/saga'
 import { type RaidView, toView } from '../domain/view'
+import { ARMY_RULES } from './army-rules'
 import type { FleetReader } from './fleet-reader'
 import type { HarborRepository, RaidRepository } from './raid-repository'
 
@@ -66,6 +67,16 @@ function toMessage(request: SagaRequest, now: number): NewMessage {
           replyTo: FLEET_TOPICS.transferResult,
         },
       }
+    case 'withdraw-units':
+      return {
+        topic: REALM_TOPICS.withdraw,
+        payload: {
+          transferId: request.transferId,
+          playerId: request.playerId,
+          units: request.units,
+          ...(request.casualties ? { casualties: true } : { replyTo: FLEET_TOPICS.transferResult }),
+        },
+      }
     case 'deposit':
       return {
         topic: REALM_TOPICS.deposit,
@@ -74,6 +85,18 @@ function toMessage(request: SagaRequest, now: number): NewMessage {
           playerId: request.playerId,
           resources: request.resources,
         },
+        ...(request.at ? { delayMs: Math.max(0, request.at - now) } : {}),
+      }
+    case 'return-units':
+      return {
+        topic: REALM_TOPICS.deposit,
+        payload: {
+          transferId: request.transferId,
+          playerId: request.playerId,
+          units: request.units,
+          lost: request.lost,
+        },
+        delayMs: Math.max(0, request.at - now),
       }
     case 'arrive':
       return {
@@ -151,16 +174,21 @@ export function createFleetService(
   }
 
   /**
-   * Gathers the defense met by a fleet at its arrival: the posture and the level of the
-   * wall of the targeted village at the arrival time, or the past tactics of the attacker
-   * against the pirates.
+   * Gathers the defense met by a fleet at its arrival: the garrison, the level of the wall
+   * and the posture of the targeted village at the arrival time, or the past fights of the
+   * attacker against the pirates.
    *
    * @param state - Raid at sea.
    * @returns The arrival context; null if the village is no longer a target.
    */
   async function arrivalContext(state: RaidState): Promise<ArrivalContext> {
     if (state.target.kind === 'pirates') {
-      return { kind: 'pirates', history: await reader.pirateHistory(state.attackerId) }
+      return {
+        kind: 'pirates',
+        history: await reader.pirateHistory(state.attackerId),
+        damages: await reader.pirateDamages(state.attackerId),
+        rules: ARMY_RULES,
+      }
     }
     const village = await reader.village(state.target.playerId)
     if (!village) return null
@@ -169,6 +197,8 @@ export function createFleetService(
       kind: 'village',
       posture: harbor.state.posture,
       wall: levelAt(village.wall, state.arrivesAt),
+      garrison: garrisonAt(village.units, state.arrivesAt),
+      rules: ARMY_RULES,
     }
   }
 
@@ -224,11 +254,10 @@ export function createFleetService(
    *
    * @param player - Attacker.
    * @param target - Targeted village or island.
-   * @param ships - Number of triremes.
-   * @param tactic - Tactic of the fleet.
+   * @param army - Units sent, taken from the attacker's village once the raid is launched.
    * @returns The new raid identifier and the command result.
    */
-  async function launch(player: Player, target: TargetChoice, ships: number, tactic: Tactic) {
+  async function launch(player: Player, target: TargetChoice, army: Army) {
     const raidId = newId()
     const result = await execute(raidId, player.id, async () => {
       // DETTE TECHNIQUE DT-014 (docs/qualite/dette-technique.md): rules 3 and 12 are checked
@@ -242,13 +271,13 @@ export function createFleetService(
           attackerId: player.id,
           attackerName: player.name,
           target,
-          ships,
-          tactic,
+          army,
           context: {
             raidsOut,
             targetHasVillage: false,
             islandRaidDays: await reader.islandRaidDays(player.id, target.islandId),
             shipyard,
+            rules: ARMY_RULES,
           },
         }
       }
@@ -259,9 +288,14 @@ export function createFleetService(
         attackerId: player.id,
         attackerName: player.name,
         target: { kind: 'village', playerId: target.playerId, name: village?.name ?? '' },
-        ships,
-        tactic,
-        context: { raidsOut, targetHasVillage: village !== null, islandRaidDays: [], shipyard },
+        army,
+        context: {
+          raidsOut,
+          targetHasVillage: village !== null,
+          islandRaidDays: [],
+          shipyard,
+          rules: ARMY_RULES,
+        },
       }
     })
     return { raidId, result }
@@ -332,27 +366,22 @@ export function createFleetService(
     })
 
   /**
-   * Reads the harbor of a player.
+   * Reads the harbor of a player: the units defending the village, its wall, and the
+   * latest notices.
    *
    * @param playerId - Owner of the harbor.
-   * @returns The posture and the latest notices.
+   * @returns The harbor.
    */
   async function harbor(playerId: string): Promise<HarborView> {
     await dispatch()
-    const { state, log } = await harborsRepo.load(playerId)
-    return { posture: state.posture, holding: state.posture ?? DEFAULT_POSTURE, log }
-  }
-
-  /**
-   * Chooses the posture of a player's own harbor.
-   *
-   * @param playerId - Owner of the harbor, the player asking.
-   * @param posture - New posture.
-   * @returns The harbor.
-   */
-  async function choosePosture(playerId: string, posture: Tactic) {
-    await onHarbor(playerId, { type: 'ChoosePosture', posture })
-    return harbor(playerId)
+    const { log } = await harborsRepo.load(playerId)
+    const village = await reader.village(playerId)
+    const now = clock()
+    return {
+      garrison: village ? garrisonAt(village.units, now) : {},
+      wall: village ? levelAt(village.wall, now) : 0,
+      log,
+    }
   }
 
   /**
@@ -399,7 +428,7 @@ export function createFleetService(
     await onHarbor(playerId, { type: 'RecordNotice', notice })
   }
 
-  return { launch, recall, getView, list, targets, harbor, choosePosture, step, arrive, notify }
+  return { launch, recall, getView, list, targets, harbor, step, arrive, notify }
 }
 
 /** Service type inferred from its factory. */

@@ -1,4 +1,5 @@
 import { bigint, boolean, index, integer, jsonb, pgSchema, text } from 'drizzle-orm/pg-core'
+import type { Army, ArmyMove } from '@/modules/realm/contracts'
 import type { LevelSteps } from '../domain/naval'
 
 /** PostgreSQL schema of the fleet module. Its events stay in the platform log. */
@@ -8,13 +9,15 @@ export const fleet = pgSchema('fleet')
  * Villages that may be raided, kept up to date by the fleet projection from the village
  * events: their name, and the levels reached by their wall, which sets their defense, and
  * by their shipyard, which sets the limits of their fleets. Each level is kept with the
- * time its construction completes, so the level at any time can be read.
+ * time its construction completes, so the level at any time can be read. The moves of
+ * their units (orders, departures, returns, losses) give their garrison at any time.
  */
 export const harbors = fleet.table('harbors', {
   playerId: text('player_id').primaryKey(),
   villageName: text('village_name').notNull(),
   wall: jsonb('wall').$type<LevelSteps>().notNull().default([]),
   shipyard: jsonb('shipyard').$type<LevelSteps>().notNull().default([]),
+  units: jsonb('units').$type<ArmyMove[]>().notNull().default([]),
 })
 
 /**
@@ -34,11 +37,18 @@ export const raids = fleet.table(
     targetId: text('target_id').notNull(),
     targetName: text('target_name').notNull(),
     ships: integer('ships').notNull(),
-    tactic: text('tactic').notNull(),
+    /** Tactic of a fleet of triremes; null for an army. */
+    tactic: text('tactic'),
+    /** Army sent; empty for a fleet of triremes. */
+    army: jsonb('army').$type<Army>().notNull().default({}),
+    /** Kind of damage the army deals most, remembered by the pirate captains. */
+    damage: text('damage'),
     status: text('status').notNull(),
     launchedAt: bigint('launched_at', { mode: 'number' }).notNull(),
     sailedAt: bigint('sailed_at', { mode: 'number' }).notNull().default(0),
     arrivesAt: bigint('arrives_at', { mode: 'number' }).notNull().default(0),
+    /** Time the surviving units come home; 0 before they turn back. */
+    returnsAt: bigint('returns_at', { mode: 'number' }).notNull().default(0),
     /** Battle outcome for the attacker; null before the battle. */
     victory: boolean('victory'),
     loot: jsonb('loot'),

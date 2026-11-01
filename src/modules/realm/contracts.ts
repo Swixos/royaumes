@@ -6,11 +6,48 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
-import { BUILDINGS, type Stock } from './domain/catalog'
+import { UNITS } from './domain/army'
+import { BUILDINGS } from './domain/catalog'
 
+export type {
+  Army,
+  ArmyMove,
+  Damage,
+  LandStats,
+  LandUnit,
+  NavalStats,
+  NavalUnit,
+  Training,
+  Unit,
+} from './domain/army'
+export {
+  addArmy,
+  armySize,
+  DAMAGES,
+  garrisonAt,
+  isLand,
+  LAND_STATS,
+  LAND_UNITS,
+  MAX_ORDER,
+  missingUnits,
+  NAVAL_STATS,
+  NAVAL_UNITS,
+  populationOf,
+  TRAINING_SLOTS,
+  trainedAt,
+  trainedBy,
+  trainingEnd,
+  UNIT_COSTS,
+  UNIT_LEVELS,
+  UNIT_POPULATION,
+  UNITS,
+  unitAllowed,
+  unitsOf,
+} from './domain/army'
 export type { Building, Levels, Producer, Resource, Stock } from './domain/catalog'
 export {
   BUILDINGS,
+  farmCapacity,
   hiddenAmount,
   MAX_LEVEL,
   PRODUCERS,
@@ -30,6 +67,12 @@ export const FoundVillageInput = z.object({
     .trim()
     .min(2, 'Le nom doit comporter au moins 2 caractères')
     .max(30, 'Le nom doit comporter au plus 30 caractères'),
+})
+
+/** Expected body to order units at the barracks or the shipyard. */
+export const RecruitUnitsInput = z.object({
+  unit: z.enum(UNITS),
+  count: z.number().int().min(1).max(50),
 })
 
 /** Expected body to upgrade a building from the catalog. */
@@ -52,12 +95,15 @@ export const villageChannel = (userId: string) => `${VILLAGE_CHANNEL_PREFIX}${us
 
 /**
  * Topics of the messages the village module handles: its published language for
- * resource transfers.
+ * transfers of resources and of units.
  */
 export const REALM_TOPICS = {
-  /** Withdraw resources from a village; it may be refused. */
+  /**
+   * Withdraw resources, or units leaving for a raid, from a village; it may be refused.
+   * Casualties of a defense are withdrawn too, and never refused.
+   */
   withdraw: 'realm.withdraw',
-  /** Deposit resources into a village; it cannot be refused. */
+  /** Deposit resources, or units coming home, into a village; it cannot be refused. */
   deposit: 'realm.deposit',
 } as const
 
@@ -70,19 +116,36 @@ export const ResourceAmounts = z
   .strict()
   .refine((amounts) => Object.keys(amounts).length > 0, 'Au moins une ressource est attendue')
 
-/** Content of a withdrawal or deposit message. */
-export const TransferRequest = z.object({
-  /** Transfer identifier, chosen by the requester: a duplicate carries the same one. */
-  transferId: z.string().min(1),
-  /** Player whose village is concerned. */
-  playerId: z.string().min(1),
-  /** Resources to move. */
-  resources: ResourceAmounts,
-  /** True for a plunder, which cannot take the resources hidden by the warehouse. */
-  plunder: z.boolean().optional(),
-  /** Topic of the reply message; missing if the requester expects no reply. */
-  replyTo: z.string().min(1).optional(),
-})
+/** Number of units of a transfer: a positive integer for each known unit. */
+export const UnitCounts = z.partialRecord(z.enum(UNITS), z.number().int().nonnegative())
+
+/**
+ * Content of a withdrawal or deposit message: resources, or units. A transfer moves one
+ * or the other, never both, so it gets a single reply.
+ */
+export const TransferRequest = z
+  .object({
+    /** Transfer identifier, chosen by the requester: a duplicate carries the same one. */
+    transferId: z.string().min(1),
+    /** Player whose village is concerned. */
+    playerId: z.string().min(1),
+    /** Resources to move. */
+    resources: ResourceAmounts.optional(),
+    /** True for a plunder, which cannot take the resources hidden by the warehouse. */
+    plunder: z.boolean().optional(),
+    /** Units to move. */
+    units: UnitCounts.optional(),
+    /** Units lost on the way, for units coming home. */
+    lost: UnitCounts.optional(),
+    /** True for the casualties of a defense: the garrison loses what it has. */
+    casualties: z.boolean().optional(),
+    /** Topic of the reply message; missing if the requester expects no reply. */
+    replyTo: z.string().min(1).optional(),
+  })
+  .refine(
+    (request) => (request.resources === undefined) !== (request.units === undefined),
+    'Un mouvement porte des ressources ou des unités',
+  )
 
 /** Content of a withdrawal or deposit message, inferred from its schema. */
 export type TransferRequest = z.infer<typeof TransferRequest>
@@ -93,6 +156,6 @@ export interface TransferResult {
   transferId: string
   /** Outcome of the transfer. */
   outcome: 'withdrawn' | 'refused' | 'deposited'
-  /** Missing amounts, when refused. */
-  missing?: Partial<Stock>
+  /** Missing resources or units, when refused. */
+  missing?: Record<string, number>
 }

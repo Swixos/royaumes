@@ -9,14 +9,24 @@ import { CATEGORIES, type Category, type ChronicleEntry } from './domain/entry'
 
 export type {
   Amounts,
+  ArmyDetail,
   BattleDetail,
   Category,
   ChronicleEntry,
   Fact,
   ReportLine,
   Told,
+  Units,
 } from './domain/entry'
-export { CATEGORIES, categoryOf, explainBattle, tell, tellAmounts } from './domain/entry'
+export {
+  CATEGORIES,
+  categoryOf,
+  explainArmyBattle,
+  explainBattle,
+  tell,
+  tellAmounts,
+  tellArmy,
+} from './domain/entry'
 
 /** Number of entries returned by one page of the chronicle. */
 export const CHRONICLE_PAGE_SIZE = 30

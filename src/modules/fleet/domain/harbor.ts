@@ -5,6 +5,7 @@
  *
  * @packageDocumentation
  */
+import type { BattleReport } from './battle'
 import type { Amounts, Tactic } from './naval'
 
 /** Notice addressed to a harbor by a raid. */
@@ -29,6 +30,8 @@ export type HarborNotice =
       opponentId: string
       opponentName: string
       loot: Amounts
+      /** Report of the battle of an army; missing for a fleet of triremes. */
+      report?: BattleReport
     }
 
 /** State of a harbor, rebuilt from its events. */
@@ -66,6 +69,8 @@ export type HarborEvent =
         opponentId: string
         opponentName: string
         loot: Amounts
+        /** Report of the battle of an army; missing for a fleet of triremes. */
+        report?: BattleReport
         at: number
       }
     }
@@ -178,6 +183,7 @@ export function decideHarbor(
             opponentId: notice.opponentId,
             opponentName: notice.opponentName,
             loot: notice.loot,
+            ...(notice.report ? { report: notice.report } : {}),
             at: now,
           },
         },

@@ -15,15 +15,17 @@ export type Resource = (typeof RESOURCES)[number]
 export type Stock = Record<Resource, number>
 
 /**
- * Village buildings, in the order of the screen: the senate first, then production,
- * storage, defense and the shipyard.
+ * Village buildings, in the order of the screen: the senate first, then production, the
+ * farm feeding the population, storage, the barracks, defense and the shipyard.
  */
 export const BUILDINGS = [
   'senate',
   'sawmill',
   'quarry',
   'mine',
+  'farm',
   'warehouse',
+  'barracks',
   'wall',
   'shipyard',
 ] as const
@@ -54,7 +56,9 @@ export const BASE_COSTS: Record<Building, Partial<Stock>> = {
   sawmill: { wood: 40, stone: 20 },
   quarry: { wood: 60, stone: 10 },
   mine: { wood: 80, stone: 60 },
+  farm: { wood: 45, stone: 35 },
   warehouse: { wood: 50, stone: 30 },
+  barracks: { wood: 80, stone: 60, gold: 5 },
   wall: { wood: 40, stone: 80 },
   shipyard: { wood: 100, stone: 40, gold: 10 },
 }
@@ -68,7 +72,9 @@ export const BASE_SECONDS: Record<Building, number> = {
   sawmill: 15,
   quarry: 15,
   mine: 25,
+  farm: 20,
   warehouse: 20,
+  barracks: 30,
   wall: 30,
   shipyard: 35,
 }
@@ -88,7 +94,9 @@ export const REQUIREMENTS: Record<Building, Partial<Levels>> = {
   sawmill: {},
   quarry: {},
   mine: { senate: 2 },
+  farm: {},
   warehouse: {},
+  barracks: { senate: 2 },
   wall: { senate: 3 },
   shipyard: { senate: 2, sawmill: 3 },
 }
@@ -102,7 +110,9 @@ export const STARTING_LEVELS: Levels = {
   sawmill: 1,
   quarry: 1,
   mine: 0,
+  farm: 1,
   warehouse: 1,
+  barracks: 0,
   wall: 0,
   shipyard: 0,
 }
@@ -115,6 +125,14 @@ export const STARTING_LEVELS: Levels = {
  * @returns The capacity, per resource.
  */
 export const warehouseCapacity = (level: number) => Math.round(300 * (level + 1) ** 1.5)
+
+/**
+ * Population the farm feeds: every unit, trained, in training or away, takes its share.
+ *
+ * @param level - Level of the farm.
+ * @returns The population the village can hold.
+ */
+export const farmCapacity = (level: number) => Math.round(20 * (level + 1) ** 1.5)
 
 /**
  * Amount of each resource the warehouse hides from plunderers: a raid never takes it.

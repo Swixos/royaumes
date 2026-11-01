@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  type ArmyDetail,
   type BattleDetail,
   CATEGORIES,
   categoryOf,
+  explainArmyBattle,
   explainBattle,
   FACTS_OF,
   tell,
   tellAmounts,
+  tellArmy,
 } from './entry'
 
 describe("récit de l'historique", () => {
@@ -146,5 +149,50 @@ describe("récit de l'historique", () => {
       'Flotte ennemie coulée : 1 trirème',
     )
     expect(lines.some((line) => line.label === 'Conseil')).toBe(false)
+  })
+
+  it('dit une armée en toutes lettres, accordée en nombre', () => {
+    expect(tellArmy({ swordsman: 12, transport: 1, lightShip: 0 })).toBe(
+      '12 épéistes, 1 bateau de transport',
+    )
+    expect(tellArmy({})).toBe('aucune unité')
+    const told = tell({ type: 'units-recruited', unit: 'archer', count: 1, cost: { wood: 18 } }, 0)
+    expect(told.title).toBe('1 archer en formation')
+    expect(categoryOf('units-recruited')).toBe('village')
+  })
+
+  it("explique une bataille d'armées : la mer, la terre, le rempart et les pertes", () => {
+    const army: ArmyDetail = {
+      attacker: { sent: { slinger: 10, transport: 1 }, lost: { slinger: 10, transport: 1 } },
+      defender: { present: { swordsman: 20 }, lost: { swordsman: 6 } },
+      naval: null,
+      land: {
+        attack: 230,
+        damage: { blunt: 0, sharp: 0, distance: 230 },
+        defense: 702,
+        wall: 2,
+        wallBonus: 0.16,
+        won: false,
+      },
+      victory: false,
+      capacity: 0,
+    }
+    const fact = {
+      type: 'battle' as const,
+      role: 'attacker' as const,
+      won: false,
+      opponent: 'Ithaque',
+      loot: {},
+      army,
+    }
+    const lines = explainArmyBattle(fact, army)
+    const value = (label: string) => lines.find((line) => line.label === label)?.value
+    expect(value('Votre armée')).toBe('10 frondeurs, 1 bateau de transport')
+    expect(value('Bataille terrestre')).toBe(
+      "230 d'attaque (230 à distance) contre 702 de défense, rempart niveau 2 (+16 %)",
+    )
+    expect(value('Pertes adverses')).toBe('6 épéistes')
+    expect(lines.some((line) => line.label === 'Conseil')).toBe(true)
+    expect(tell(fact, 0).detail).toBe('Pertes : 10 frondeurs, 1 bateau de transport')
   })
 })

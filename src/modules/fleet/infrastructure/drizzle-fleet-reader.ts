@@ -1,8 +1,11 @@
 import { and, desc, eq, inArray, isNotNull, lte, ne, notInArray, or } from 'drizzle-orm'
+import { type Army, garrisonAt } from '@/modules/realm/contracts'
 import type { Db } from '@/platform/db/client'
 import type { ProjectionRunner } from '@/platform/projection/projection'
+import { ARMY_RULES } from '../application/army-rules'
 import type { FleetReader } from '../application/fleet-reader'
 import type { RaidSummary } from '../contracts'
+import { type Damage, sumArmies } from '../domain/battle'
 import {
   type Amounts,
   crossingMs,
@@ -15,6 +18,7 @@ import {
   travelMinutes,
   villageDefense,
 } from '../domain/naval'
+import { captainReserve } from '../domain/pirates'
 import { OUT_STATUSES, type RaidStatus } from '../domain/raid'
 import { fleetProjection } from './fleet-projection'
 import { harbors, raids } from './schema'
@@ -48,6 +52,30 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
     return projections.positionOf(fleetProjection.name)
   }
 
+  /**
+   * Lists the main kind of damage of the armies a player sent against the pirates, once
+   * they fought, oldest first.
+   *
+   * @param attackerId - Identifier of the attacker.
+   * @returns The kinds of damage.
+   */
+  async function pirateDamages(attackerId: string): Promise<Damage[]> {
+    await fresh()
+    const rows = await db
+      .select({ damage: raids.damage })
+      .from(raids)
+      .where(
+        and(
+          eq(raids.attackerId, attackerId),
+          eq(raids.targetKind, 'pirates'),
+          isNotNull(raids.victory),
+          isNotNull(raids.damage),
+        ),
+      )
+      .orderBy(raids.launchedAt)
+    return rows.map((row) => row.damage as Damage)
+  }
+
   return {
     async targets(viewerId, now, search) {
       const position = await fresh()
@@ -74,6 +102,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
        * @returns The crossing time, in minutes.
        */
       const crossing = (minutes: number) => Math.round(crossingMs(minutes, limits) / 6_000) / 10
+      const damages = await pirateDamages(viewerId)
       return {
         position,
         home: own
@@ -82,6 +111,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
               defense: villageDefense(levelAt(own.wall, now)),
               limits,
               map: mapPositionOf(viewerId),
+              garrison: garrisonAt(own.units, now),
             }
           : null,
         villages: rows
@@ -91,6 +121,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
             playerId: row.playerId,
             name: row.villageName,
             defense: villageDefense(levelAt(row.wall, now)),
+            wall: levelAt(row.wall, now),
             travelMinutes: crossing(travelMinutes(viewerId, row.playerId)),
             map: mapPositionOf(row.playerId),
           }))
@@ -99,7 +130,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
         islands: PIRATE_ISLANDS.map((island) => ({
           islandId: island.id,
           name: island.name,
-          defense: island.defense,
+          garrison: sumArmies(island.garrison, captainReserve(island, damages, ARMY_RULES)),
           travelMinutes: crossing(island.travelMinutes),
           treasure: island.treasure,
           raidedToday: raided.some(
@@ -140,7 +171,10 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
             targetId: row.targetId,
             targetName: row.targetName,
             ships: row.ships,
-            tactic: attacker || row.victory !== null ? (row.tactic as Tactic) : null,
+            tactic:
+              row.tactic && (attacker || row.victory !== null) ? (row.tactic as Tactic) : null,
+            army: attacker || row.victory !== null ? (row.army as Army) : null,
+            returnsAt: attacker ? row.returnsAt : 0,
             status: row.status as RaidStatus,
             launchedAt: row.launchedAt,
             sailedAt: row.sailedAt,
@@ -155,7 +189,9 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
     async village(playerId) {
       await fresh()
       const [row] = await db.select().from(harbors).where(eq(harbors.playerId, playerId))
-      return row ? { name: row.villageName, wall: row.wall, shipyard: row.shipyard } : null
+      return row
+        ? { name: row.villageName, wall: row.wall, shipyard: row.shipyard, units: row.units }
+        : null
     },
 
     async raidsOut(attackerId) {
@@ -195,8 +231,10 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           ),
         )
         .orderBy(raids.launchedAt)
-      return rows.map((row) => row.tactic as Tactic)
+      return rows.filter((row) => row.tactic !== null).map((row) => row.tactic as Tactic)
     },
+
+    pirateDamages,
 
     async dueRaids(viewerId, now) {
       await fresh()

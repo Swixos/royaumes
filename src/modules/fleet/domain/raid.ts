@@ -1,30 +1,45 @@
 /**
  * Fleet domain: a raid and its fate, following the decider pattern. The state of a raid
- * sums up the progress of the raid saga, from the equipment of the fleet to its return.
- * Pure TypeScript: it imports no other module.
+ * sums up the progress of the raid saga, from the departure of the army to its return. A
+ * raid sends an army of units trained in the village; the raids of triremes recorded
+ * before the armies keep their own rules, so they end as they began. Pure TypeScript: it
+ * imports no other module.
  *
  * @packageDocumentation
  */
+import {
+  type Army,
+  type ArmyRules,
+  armyError,
+  type BattleReport,
+  type Damage,
+  entriesOf,
+  fightArmies,
+  lootWithin,
+  mainDamage,
+  paceOf,
+  plunderOf,
+  shipsOf,
+  sumArmies,
+} from './battle'
 import {
   type Amounts,
   type Battle,
   crossingMs,
   DEFAULT_POSTURE,
   dayOf,
-  equipmentCost,
   fight,
   fleetLimits,
   holdOf,
   isEmpty,
   islandOf,
-  MIN_SHIPS,
   pirateLoot,
   reducedLoot,
   type Tactic,
   travelMinutes,
   villageDefense,
 } from './naval'
-import { captainPosture } from './pirates'
+import { captainPosture, captainReserve } from './pirates'
 
 /** Target of a raid: another player's village, or a pirate island. */
 export type Target =
@@ -57,10 +72,14 @@ export interface RaidState {
   attackerName: string
   /** Target of the raid. */
   target: Target
-  /** Number of triremes. */
+  /** Number of ships: the triremes of old, or the ships of the army. */
   ships: number
-  /** Tactic of the fleet. */
+  /** Tactic of a fleet of triremes; unused by an army. */
   tactic: Tactic
+  /** Army sent; empty for a raid of triremes. */
+  army: Army
+  /** Kind of damage the army deals most, remembered by the pirate captains. */
+  damage: Damage | null
   /** Equipment withdrawn from the attacker's village. */
   cost: Amounts
   /** Crossing time in milliseconds. */
@@ -75,6 +94,10 @@ export interface RaidState {
   status: RaidStatus
   /** Battle outcome, once fought. */
   battle: Battle | null
+  /** Report of the battle of an army, once fought. */
+  report: BattleReport | null
+  /** Time the surviving units come home; 0 before they turn back. */
+  returnsAt: number
   /** Plunder asked from the defender's village at the current attempt. */
   plunderAsked: Amounts
   /** Number of the current plunder attempt: 1, then 2 after a refusal. */
@@ -94,6 +117,8 @@ export const initialState: RaidState = {
   target: { kind: 'pirates', islandId: '', name: '' },
   ships: 0,
   tactic: DEFAULT_POSTURE,
+  army: {},
+  damage: null,
   cost: {},
   travelMs: 0,
   launchedAt: 0,
@@ -101,6 +126,8 @@ export const initialState: RaidState = {
   arrivesAt: 0,
   status: 'provisioning',
   battle: null,
+  report: null,
+  returnsAt: 0,
   plunderAsked: {},
   plunderAttempt: 0,
   loot: null,
@@ -117,7 +144,12 @@ export type RaidEvent =
         attackerName: string
         target: Target
         ships: number
-        tactic: Tactic
+        /** Tactic of a fleet of triremes; missing for an army. */
+        tactic?: Tactic
+        /** Army sent; missing for a raid of triremes. */
+        army?: Army
+        /** Kind of damage the army deals most; null without land troops. */
+        damage?: Damage | null
         cost: Amounts
         travelMs: number
         at: number
@@ -129,7 +161,16 @@ export type RaidEvent =
   | { type: 'RaidAborted'; data: { reason: 'target-gone'; at: number } }
   | {
       type: 'BattleFought'
-      data: { attack: number; defense: number; posture: Tactic; victory: boolean; at: number }
+      data: {
+        attack: number
+        defense: number
+        /** Posture met by a fleet of triremes; missing for an army. */
+        posture?: Tactic
+        victory: boolean
+        /** Report of the battle of an army; missing for a fleet of triremes. */
+        report?: BattleReport
+        at: number
+      }
     }
   | { type: 'PlunderReduced'; data: { asked: Amounts; attempt: number; at: number } }
   | { type: 'RaidPlundered'; data: { attackerId: string; loot: Amounts; at: number } }
@@ -147,14 +188,28 @@ export interface LaunchContext {
   islandRaidDays: number[]
   /** Level of the attacker's shipyard (rules 1, 3, 5). */
   shipyard: number
+  /** Values of the units, from the catalog of the village module. */
+  rules: ArmyRules
 }
 
 /** Defense met by a fleet at its arrival, read by the application layer. */
 export type ArrivalContext =
-  /** Village of a player: its posture and the level of its wall. */
-  | { kind: 'village'; posture: Tactic | null; wall: number }
-  /** Pirate island: the attacker's past tactics against the pirates. */
-  | { kind: 'pirates'; history: Tactic[] }
+  /**
+   * Village of a player: its garrison and the level of its wall at the arrival, and its
+   * posture against a fleet of triremes.
+   */
+  | {
+      kind: 'village'
+      posture: Tactic | null
+      wall: number
+      garrison: Army
+      rules: ArmyRules
+    }
+  /**
+   * Pirate island: the attacker's past tactics against the pirates, and the main kind of
+   * damage of their past armies.
+   */
+  | { kind: 'pirates'; history: Tactic[]; damages: Damage[]; rules: ArmyRules }
   /** The targeted village no longer exists. */
   | null
 
@@ -171,8 +226,7 @@ export type RaidCommand =
       target:
         | { kind: 'village'; playerId: string; name: string }
         | { kind: 'pirates'; islandId: string }
-      ships: number
-      tactic: Tactic
+      army: Army
       context: LaunchContext
     }
   | { type: 'RecallFleet'; playerId: string }
@@ -189,6 +243,8 @@ export type RaidError =
   | { code: 'RAID_NOT_FOUND' }
   | { code: 'ALREADY_EXISTS' }
   | { code: 'INVALID_FLEET' }
+  | { code: 'NO_SHIP' }
+  | { code: 'NO_ROOM' }
   | { code: 'OWN_VILLAGE' }
   | { code: 'UNKNOWN_TARGET' }
   | { code: 'TOO_MANY_RAIDS'; limit: number }
@@ -253,7 +309,9 @@ export function evolve(state: RaidState, event: RaidEvent): RaidState {
         attackerName: event.data.attackerName,
         target: event.data.target,
         ships: event.data.ships,
-        tactic: event.data.tactic,
+        tactic: event.data.tactic ?? DEFAULT_POSTURE,
+        army: event.data.army ?? {},
+        damage: event.data.damage ?? null,
         cost: event.data.cost,
         travelMs: event.data.travelMs,
         launchedAt: event.data.at,
@@ -268,16 +326,23 @@ export function evolve(state: RaidState, event: RaidEvent): RaidState {
         arrivesAt: event.data.arrivesAt,
       }
     case 'FleetRecalled':
-      return { ...state, status: 'recalled' }
+      return {
+        ...state,
+        status: 'recalled',
+        returnsAt: event.data.at + Math.max(0, event.data.at - state.sailedAt),
+      }
     case 'RaidAborted':
-      return { ...state, status: 'aborted' }
+      return { ...state, status: 'aborted', returnsAt: state.arrivesAt + state.travelMs }
     case 'BattleFought': {
-      const { attack, defense, posture, victory } = event.data
+      const { attack, defense, posture, victory, report } = event.data
+      const asked = report ? plunderOf(report.capacity) : holdOf(state.ships)
       return {
         ...state,
         status: victory ? 'plundering' : 'sunk',
         battle: { attack, defense, posture, victory },
-        plunderAsked: victory ? holdOf(state.ships) : {},
+        report: report ?? null,
+        returnsAt: report ? state.arrivesAt + state.travelMs : 0,
+        plunderAsked: victory ? asked : {},
         plunderAttempt: victory ? 1 : 0,
       }
     }
@@ -304,31 +369,33 @@ export const replay = (events: RaidEvent[]) => events.reduce(evolve, initialStat
  * @returns The launch event, or the domain error.
  */
 function launch(command: Extract<RaidCommand, { type: 'LaunchRaid' }>, now: number): Decision {
-  const { raidId, attackerId, attackerName, ships, tactic, context } = command
+  const { raidId, attackerId, attackerName, army, context } = command
   const limits = fleetLimits(context.shipyard)
-  if (!Number.isInteger(ships) || ships < MIN_SHIPS || ships > limits.maxShips) {
-    return fail({ code: 'INVALID_FLEET' })
-  }
+  const refused = armyError(army, context.rules)
+  if (refused === 'NO_SHIP') return fail({ code: 'NO_SHIP' })
+  if (refused === 'NO_ROOM') return fail({ code: 'NO_ROOM' })
+  if (refused) return fail({ code: 'INVALID_FLEET' })
 
   let target: Target
-  let travelMs: number
+  let minutes: number
   if (command.target.kind === 'village') {
     if (command.target.playerId === attackerId) return fail({ code: 'OWN_VILLAGE' })
     if (!context.targetHasVillage) return fail({ code: 'UNKNOWN_TARGET' })
     target = command.target
-    travelMs = crossingMs(travelMinutes(attackerId, command.target.playerId), limits)
+    minutes = travelMinutes(attackerId, command.target.playerId)
   } else {
     const island = islandOf(command.target.islandId)
     if (!island) return fail({ code: 'UNKNOWN_TARGET' })
     if (context.islandRaidDays.includes(dayOf(now))) return fail({ code: 'TREASURE_TAKEN' })
     target = { kind: 'pirates', islandId: island.id, name: island.name }
-    travelMs = crossingMs(island.travelMinutes, limits)
+    minutes = island.travelMinutes
   }
 
   if (context.raidsOut >= limits.maxRaids) {
     return fail({ code: 'TOO_MANY_RAIDS', limit: limits.maxRaids })
   }
 
+  const sent = sumArmies(army)
   return accept({
     type: 'RaidLaunched',
     data: {
@@ -336,10 +403,11 @@ function launch(command: Extract<RaidCommand, { type: 'LaunchRaid' }>, now: numb
       attackerId,
       attackerName,
       target,
-      ships,
-      tactic,
-      cost: equipmentCost(ships),
-      travelMs,
+      ships: entriesOf(shipsOf(sent, context.rules)).reduce((sum, [, count]) => sum + count, 0),
+      army: sent,
+      damage: mainDamage(sent, context.rules),
+      cost: {},
+      travelMs: Math.round(crossingMs(minutes, limits) * paceOf(sent, context.rules)),
       at: now,
     },
   })
@@ -361,6 +429,7 @@ function arrive(state: RaidState, context: ArrivalContext, now: number): Decisio
     return accept({ type: 'RaidAborted', data: { reason: 'target-gone', at: now } })
   }
   const island = state.target.kind === 'pirates' ? islandOf(state.target.islandId) : undefined
+  if (entriesOf(state.army).length > 0) return fightArmy(state, context, island, now)
 
   const posture =
     context.kind === 'pirates'
@@ -374,6 +443,57 @@ function arrive(state: RaidState, context: ArrivalContext, now: number): Decisio
     return accept(fought, {
       type: 'RaidPlundered',
       data: { attackerId: state.attackerId, loot: pirateLoot(island, state.ships), at: now },
+    })
+  }
+  return accept(fought)
+}
+
+/**
+ * Fights the battle of an army at its arrival (rules 7 to 11): against a village, its
+ * garrison and its wall at the arrival time; against a pirate island, its garrison with
+ * the reserve its captain calls up. Against an island, the plunder is taken at once,
+ * within the booty of the surviving troops; troops left with no room bring nothing back.
+ *
+ * @param state - Raid of an army at sea.
+ * @param context - Defense met at the arrival.
+ * @param island - Pirate island attacked, if any.
+ * @param now - Current time in milliseconds.
+ * @returns The events of the battle.
+ */
+function fightArmy(
+  state: RaidState,
+  context: Exclude<ArrivalContext, null>,
+  island: ReturnType<typeof islandOf>,
+  now: number,
+): Decision {
+  const { rules } = context
+  const defender =
+    context.kind === 'village'
+      ? context.garrison
+      : sumArmies(
+          island?.garrison ?? {},
+          island ? captainReserve(island, context.damages, rules) : {},
+        )
+  const wall = context.kind === 'village' ? context.wall : 0
+  const report = fightArmies(state.army, defender, wall, rules)
+  const fought: RaidEvent = {
+    type: 'BattleFought',
+    data: {
+      attack: report.land?.attack ?? report.naval?.attack ?? 0,
+      defense: report.land?.defense ?? report.naval?.defense ?? 0,
+      victory: report.victory,
+      report,
+      at: now,
+    },
+  }
+  if (report.victory && (island || report.capacity === 0)) {
+    return accept(fought, {
+      type: 'RaidPlundered',
+      data: {
+        attackerId: state.attackerId,
+        loot: island ? lootWithin(island.treasure, report.capacity) : {},
+        at: now,
+      },
     })
   }
   return accept(fought)

@@ -9,6 +9,7 @@ import {
   type Category,
   type ChronicleEntry,
   categoryOf,
+  explainArmyBattle,
   explainBattle,
   tell,
 } from './contracts'
@@ -28,7 +29,8 @@ const FILTERS: Record<Category | 'all', string> = {
 /** Icon of each fact, shown in its badge. */
 const ICON_OF: Partial<Record<ChronicleEntry['type'], string>> = {
   'village-founded': 'village',
-  'raid-launched': 'trireme',
+  'raid-launched': 'fleet',
+  'units-recruited': 'troops',
   'fleet-sighted': 'search',
   'fleet-turned-back': 'wave',
   battle: 'swords',
@@ -46,6 +48,7 @@ const ICON_OF: Partial<Record<ChronicleEntry['type'], string>> = {
  */
 function iconOf(entry: ChronicleEntry): string {
   if (entry.type === 'building-ordered') return entry.building
+  if (entry.type === 'units-recruited') return entry.unit
   if (entry.type === 'battle' && !entry.won) return 'sunk'
   return ICON_OF[entry.type] ?? categoryOf(entry.type)
 }
@@ -151,7 +154,14 @@ export function ChronicleScreen() {
               <ul className={styles.list}>
                 {day.entries.map((entry) => {
                   const told = tell(entry, now)
-                  const report = entry.type === 'battle' ? entry.report : undefined
+                  const lines =
+                    entry.type !== 'battle'
+                      ? null
+                      : entry.army
+                        ? explainArmyBattle(entry, entry.army)
+                        : entry.report
+                          ? explainBattle(entry, entry.report)
+                          : null
                   const open = opened === entry.position
                   return (
                     <li key={entry.position} className={styles.entry} data-tone={told.tone}>
@@ -166,7 +176,7 @@ export function ChronicleScreen() {
                         <time className={styles.time} dateTime={new Date(entry.at).toISOString()}>
                           {TIME.format(entry.at)}
                         </time>
-                        {report && (
+                        {lines && (
                           <button
                             type="button"
                             className={styles.open}
@@ -178,9 +188,9 @@ export function ChronicleScreen() {
                           </button>
                         )}
                       </span>
-                      {entry.type === 'battle' && report && open && (
+                      {lines && open && (
                         <dl id={`report-${entry.position}`} className={styles.report}>
-                          {explainBattle(entry, report).map((line) => (
+                          {lines.map((line) => (
                             <div key={line.label} data-tone={line.tone}>
                               <dt>{line.label}</dt>
                               <dd>{line.value}</dd>

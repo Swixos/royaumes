@@ -1,5 +1,10 @@
-import { eq, sql } from 'drizzle-orm'
-import { VILLAGE_CHANNEL_PREFIX } from '@/modules/realm/contracts'
+import { eq, type SQL, sql } from 'drizzle-orm'
+import {
+  type Army,
+  type ArmyMove,
+  type Unit,
+  VILLAGE_CHANNEL_PREFIX,
+} from '@/modules/realm/contracts'
 import type { StoredEvent } from '@/platform/event-store/event-store'
 import { ERASED_VILLAGE } from '@/platform/privacy/privacy'
 import type { Projection } from '@/platform/projection/projection'
@@ -28,6 +33,29 @@ interface BuildingUpgradedData {
   completesAt?: number
 }
 
+/** Data of a village `UnitsRecruited` event, in the published language of the realm module. */
+interface UnitsRecruitedData {
+  /** Unit ordered. */
+  unit: Unit
+  /** Number of units ordered. */
+  count: number
+  /** Time the first unit starts. */
+  startsAt: number
+  /** Training time of one unit. */
+  each: number
+}
+
+/** Data of the village events moving units, in the published language of the realm module. */
+interface UnitsMovedData {
+  /** Units leaving, coming home or lost. */
+  units: Army
+  /** Time of the move. */
+  at: number
+}
+
+/** Sign of each village event moving units in the garrison. */
+const MOVES: Record<string, 1 | -1> = { UnitsWithdrawn: -1, UnitsReturned: 1, UnitsLost: -1 }
+
 /**
  * Extracts an identifier from a stream name: "raid-7f3a" gives "7f3a".
  *
@@ -38,17 +66,23 @@ interface BuildingUpgradedData {
 const idFrom = (event: StoredEvent, prefix: string) => event.stream.slice(prefix.length)
 
 /**
- * Fleet projection: the villages that may be raided, from the village events, and the
- * raids, from the fleet events. A village whose owner was erased is no longer a target:
- * its founding event, rewritten, carries the neutral name, and is skipped on a rebuild
- * exactly as the erasure deletes its row.
+ * Fleet projection: the villages that may be raided, with the moves of their units, from
+ * the village events, and the raids, from the fleet events. A village whose owner was
+ * erased is no longer a target: its founding event, rewritten, carries the neutral name,
+ * and is skipped on a rebuild exactly as the erasure deletes its row.
+ *
+ * Version 3: adds the units of the villages, and the armies of the raids.
  */
 export const fleetProjection: Projection = {
   name: 'fleet',
-  version: 2,
+  version: 3,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
+    'UnitsRecruited',
+    'UnitsWithdrawn',
+    'UnitsReturned',
+    'UnitsLost',
     'RaidLaunched',
     'RaidCancelled',
     'FleetSailed',
@@ -59,6 +93,19 @@ export const fleetProjection: Projection = {
   ],
 
   async apply(stored, tx) {
+    /**
+     * Records a move of the units of a village.
+     *
+     * @param playerId - Owner of the village.
+     * @param move - Move to add.
+     * @returns The update query.
+     */
+    const addMove = (playerId: string, move: ArmyMove) =>
+      tx
+        .update(harbors)
+        .set({ units: sql`${harbors.units} || ${JSON.stringify([move])}::jsonb` })
+        .where(eq(harbors.playerId, playerId))
+
     if (stored.stream.startsWith(VILLAGE_CHANNEL_PREFIX)) {
       const playerId = idFrom(stored, VILLAGE_CHANNEL_PREFIX)
       if (stored.type === 'VillageFounded') {
@@ -77,6 +124,12 @@ export const fleetProjection: Projection = {
           .update(harbors)
           .set({ [building]: sql`${harbors[building]} || ${step}::jsonb` })
           .where(eq(harbors.playerId, playerId))
+      } else if (stored.type === 'UnitsRecruited') {
+        const { unit, count, startsAt, each } = stored.data as unknown as UnitsRecruitedData
+        await addMove(playerId, { kind: 'train', unit, count, startsAt, each })
+      } else if (stored.type in MOVES) {
+        const { units, at } = stored.data as unknown as UnitsMovedData
+        await addMove(playerId, { kind: 'move', at, units, sign: MOVES[stored.type] })
       }
       return
     }
@@ -91,7 +144,10 @@ export const fleetProjection: Projection = {
      * @param extra - Other columns to update.
      * @returns The update query.
      */
-    const set = (status: RaidStatus, extra: Partial<typeof raids.$inferInsert> = {}) =>
+    const set = (
+      status: RaidStatus,
+      extra: { [K in keyof typeof raids.$inferInsert]?: (typeof raids.$inferInsert)[K] | SQL } = {},
+    ) =>
       tx
         .update(raids)
         .set({ status, ...extra })
@@ -110,7 +166,9 @@ export const fleetProjection: Projection = {
             targetId: target.kind === 'village' ? target.playerId : target.islandId,
             targetName: target.name,
             ships: event.data.ships,
-            tactic: event.data.tactic,
+            tactic: event.data.tactic ?? null,
+            army: event.data.army ?? {},
+            damage: event.data.damage ?? null,
             status: 'provisioning',
             launchedAt: event.data.at,
           })
@@ -124,13 +182,22 @@ export const fleetProjection: Projection = {
         await set('at-sea', { sailedAt: event.data.at, arrivesAt: event.data.arrivesAt })
         return
       case 'FleetRecalled':
-        await set('recalled')
+        await set('recalled', {
+          returnsAt: sql`${event.data.at} + greatest(0, ${event.data.at} - ${raids.sailedAt})`,
+        })
         return
       case 'RaidAborted':
-        await set('aborted')
+        await set('aborted', {
+          returnsAt: sql`2 * ${raids.arrivesAt} - ${raids.sailedAt}`,
+        })
         return
       case 'BattleFought':
-        await set(event.data.victory ? 'plundering' : 'sunk', { victory: event.data.victory })
+        await set(event.data.victory ? 'plundering' : 'sunk', {
+          victory: event.data.victory,
+          ...(event.data.report
+            ? { returnsAt: sql`2 * ${raids.arrivesAt} - ${raids.sailedAt}` }
+            : {}),
+        })
         return
       case 'RaidPlundered':
         await set('returned', { loot: event.data.loot })

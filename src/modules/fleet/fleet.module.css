@@ -200,22 +200,6 @@
 .target strong { display: block; font-family: var(--display); font-weight: 700; font-size: 1.35rem; }
 .target > div > span { display: block; font-size: 0.875rem; }
 
-.sizes { border: 0; margin: 0; padding: 0; min-width: 0; }
-.sizes legend { font-weight: 800; font-size: 0.9rem; margin-bottom: 6px; padding: 0; }
-.sizes > div { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
-
-.size {
-  padding: 6px 0;
-  background: var(--parchment-2);
-  color: var(--wood-dark);
-  box-shadow: 0 3px 0 var(--wood-dark);
-  text-shadow: none;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.size[data-on='true'] { background: var(--brand-soft); color: var(--brand-strong); }
-.size[aria-pressed='true'] { color: var(--frame); text-shadow: none; }
-
 .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
 .ledger > div { padding: 8px 12px; border: 2px dashed var(--line); border-radius: var(--radius-sm); }
 .ledger dt { font-size: 0.8rem; font-weight: 800; color: var(--wood); }
@@ -223,31 +207,44 @@
 
 .amounts { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-variant-numeric: lining-nums tabular-nums; }
 
-.tactics {
+.army { border: 0; margin: 0; padding: 0; min-width: 0; }
+.army legend { font-weight: 800; font-size: 0.9rem; margin-bottom: 6px; padding: 0; }
+.army ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+.army li {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.tactic {
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 6px;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--parchment-2);
-  color: var(--wood-dark);
-  box-shadow: 0 4px 0 var(--wood-dark);
-  text-shadow: none;
 }
 
-.tactic :global(.icon) { width: 34px; height: 34px; }
-.tactic strong { font-weight: 700; font-size: 1rem; }
-.tactic small { font-family: var(--font); font-weight: 700; font-size: 0.72rem; color: var(--muted); }
-.tactic[aria-pressed='true'] { color: var(--frame); }
-.tactic[aria-pressed='true'] small { color: var(--wood-dark); }
+.army li[data-on='true'] { border-color: var(--wood-dark); background: var(--brand-soft); }
+.unitName { display: grid; min-width: 0; }
+.unitName strong { font-weight: 700; }
+.unitName small { font-weight: 700; font-size: 0.75rem; color: var(--muted); font-variant-numeric: lining-nums tabular-nums; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; }
+.stepper button { min-width: 32px; padding: 4px 8px; }
+
+.stepper input {
+  width: 52px;
+  padding: 4px;
+  text-align: center;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.room { margin: 8px 0 0; font-size: 0.85rem; font-weight: 800; color: var(--wood); }
+.room[data-full='true'] { color: var(--warn); }
+.lost { color: var(--warn); text-decoration: none; font-weight: 800; }
+.forecastBox { display: grid; gap: 8px; }
+.forecast caption { text-align: left; font-size: 0.8rem; font-weight: 800; color: var(--wood); padding-bottom: 4px; }
+.casualties { display: grid; gap: 6px; margin: 0; text-align: left; }
+.casualties > div { padding: 8px 12px; border: 2px dashed var(--line); border-radius: var(--radius-sm); }
+.casualties dt { font-size: 0.8rem; font-weight: 800; color: var(--wood); }
+.casualties dd { margin: 2px 0 0; font-weight: 800; }
 
 .forecast { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: lining-nums tabular-nums; }
 .forecast th { text-align: left; font-size: 0.75rem; font-weight: 800; color: var(--wood); padding: 4px 6px; }
@@ -352,17 +349,6 @@
 }
 
 .lootItem { display: inline-flex; align-items: center; gap: 4px; }
-
-.glow {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--gold);
-  z-index: 0;
-}
-
-.tactic, .size { position: relative; }
-.tactic > :not(.glow), .size > :not(.glow) { position: relative; z-index: 1; }
 
 .verdict {
   margin: 0;

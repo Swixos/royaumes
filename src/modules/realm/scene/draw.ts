@@ -1126,7 +1126,176 @@ export function buildingDrawing(
   if (building === 'quarry') return quarry(stage)
   if (building === 'mine') return mine(stage)
   if (building === 'warehouse') return warehouse(stage)
+  if (building === 'barracks') return barracks(stage)
+  if (building === 'farm') return farm(stage)
   return shipyard(stage)
+}
+
+/**
+ * Draws a training dummy: a post with a crossbar and a straw head.
+ *
+ * @param g - Graphics to draw into.
+ * @param at - Foot of the dummy.
+ */
+function dummy(g: Graphics, at: Tile) {
+  const foot = iso(at.u, at.v)
+  line(g, foot, { x: foot.x, y: foot.y - 20 }, PALETTE.timber, 2.5)
+  line(g, { x: foot.x - 7, y: foot.y - 14 }, { x: foot.x + 7, y: foot.y - 14 }, PALETTE.timber, 2)
+  g.circle(foot.x, foot.y - 23, 4)
+    .fill(PALETTE.thatch)
+    .stroke(EDGE)
+}
+
+/**
+ * Draws a rack of spears and round shields, leaning on a wall.
+ *
+ * @param g - Graphics to draw into.
+ * @param at - Foot of the rack.
+ */
+function weaponRack(g: Graphics, at: Tile) {
+  const foot = iso(at.u, at.v)
+  for (let k = 0; k < 3; k++) {
+    line(
+      g,
+      { x: foot.x - 6 + k * 6, y: foot.y },
+      { x: foot.x - 3 + k * 6, y: foot.y - 26 },
+      PALETTE.trunk,
+      1.6,
+    )
+  }
+  g.circle(foot.x - 9, foot.y - 8, 5)
+    .fill(PALETTE.banner)
+    .stroke(EDGE)
+  g.circle(foot.x + 9, foot.y - 8, 5)
+    .fill(PALETTE.gold)
+    .stroke(EDGE)
+}
+
+/**
+ * Draws the barracks: a long stone hall with a red roof, its sandy training yard with
+ * dummies and racks of weapons, a second hall and a watchtower as it grows.
+ *
+ * @param stage - Size stage, from 1 to 4.
+ * @returns The drawing.
+ */
+function barracks(stage: number): BuildingDrawing {
+  const g = new Graphics()
+  const yard = [iso(-0.95, 0.1), iso(0.95, 0.1), iso(0.95, 1), iso(-0.95, 1)]
+  face(g, yard, TONES.cobble, false)
+  g.poly(yard.flatMap((p) => [p.x, p.y])).stroke({ width: 1.4, color: PALETTE.timber, alpha: 0.8 })
+  const chimneys: Array<Point | null> = []
+  if (stage >= 3) {
+    chimneys.push(
+      house(g, {
+        at: { u: 0.65, v: -0.55 },
+        size: { u: 0.6, v: 0.8 },
+        h: 22,
+        r: 16,
+        ridge: 'v',
+        wall: PALETTE.stone,
+        stone: true,
+        windows: 1,
+        chimney: true,
+      }),
+    )
+  }
+  if (stage >= 4) tower(g, { u: -0.85, v: -0.75 }, 0.36, 56, { roof: PALETTE.roof })
+  chimneys.push(
+    house(g, {
+      at: { u: -0.2, v: -0.45 },
+      size: { u: 1.3, v: 0.75 },
+      h: 24 + stage * 2,
+      r: 18,
+      ridge: 'u',
+      wall: PALETTE.stone,
+      stone: true,
+      windows: 3,
+      door: true,
+      chimney: stage < 3,
+    }),
+  )
+  const facade: WallPoint = (t, hh) => iso(-0.85 + 1.3 * t, -0.07, hh)
+  panel(g, facade, 0.2, 0.26, 10, 22, PALETTE.banner)
+  panel(g, facade, 0.74, 0.8, 10, 22, PALETTE.banner)
+  dummy(g, { u: -0.55, v: 0.55 })
+  if (stage >= 2) dummy(g, { u: 0, v: 0.65 })
+  if (stage >= 3) dummy(g, { u: 0.5, v: 0.55 })
+  weaponRack(g, { u: 0.75, v: 0.25 })
+  if (stage >= 2) weaponRack(g, { u: -0.8, v: 0.3 })
+  return finish([g], chimneys)
+}
+
+/**
+ * Draws a haystack: a rounded heap of straw.
+ *
+ * @param g - Graphics to draw into.
+ * @param at - Foot of the haystack.
+ * @param size - Width of the haystack.
+ */
+function haystack(g: Graphics, at: Tile, size: number) {
+  const foot = iso(at.u, at.v)
+  g.ellipse(foot.x + 3, foot.y + 1, size, size * 0.35).fill({ color: PALETTE.shadow, alpha: 0.2 })
+  g.ellipse(foot.x, foot.y - size * 0.45, size * 0.9, size * 0.75)
+    .fill(PALETTE.thatch)
+    .stroke(EDGE)
+  g.ellipse(foot.x - size * 0.3, foot.y - size * 0.7, size * 0.35, size * 0.25).fill(
+    tint(PALETTE.thatch, 1.12),
+  )
+}
+
+/**
+ * Draws the farm: a thatched farmhouse with a barn, haystacks and a fenced pen, more of
+ * each as it grows.
+ *
+ * @param stage - Size stage, from 1 to 4.
+ * @returns The drawing.
+ */
+function farm(stage: number): BuildingDrawing {
+  const g = new Graphics()
+  const pen = [iso(0.05, 0.1), iso(0.8, 0.1), iso(0.8, 0.7), iso(0.05, 0.7)]
+  face(g, pen, tint(PALETTE.grass, 0.92), false)
+  g.poly(pen.flatMap((p) => [p.x, p.y])).stroke({ width: 1.6, color: PALETTE.timber })
+  for (const corner of pen) line(g, corner, { x: corner.x, y: corner.y - 8 }, PALETTE.timber, 1.8)
+  const chimneys: Array<Point | null> = []
+  if (stage >= 2) {
+    house(g, {
+      at: { u: 0.45, v: -0.45 },
+      size: { u: 0.7, v: 0.6 },
+      h: 20,
+      r: 16,
+      ridge: 'u',
+      wall: TONES.plank,
+      planks: true,
+      roof: PALETTE.roof,
+    })
+  }
+  chimneys.push(
+    house(g, {
+      at: { u: -0.4, v: -0.2 },
+      size: { u: 0.7, v: 0.75 },
+      h: 18 + stage * 2,
+      r: 18,
+      ridge: 'v',
+      roof: PALETTE.thatch,
+      thatch: true,
+      timbered: true,
+      windows: 1,
+      door: true,
+      chimney: true,
+    }),
+  )
+  haystack(g, { u: -0.55, v: 0.55 }, 9)
+  if (stage >= 2) haystack(g, { u: -0.25, v: 0.7 }, 7)
+  if (stage >= 3) haystack(g, { u: 0.95, v: -0.1 }, 8)
+  const flock = 1 + stage
+  for (let k = 0; k < flock; k++) {
+    const spot = iso(0.2 + (k % 3) * 0.22, 0.25 + Math.floor(k / 3) * 0.22)
+    g.ellipse(spot.x, spot.y - 4, 5, 3.5)
+      .fill(PALETTE.parchment)
+      .stroke(EDGE)
+    g.circle(spot.x + 4, spot.y - 6, 2).fill(PALETTE.ink)
+  }
+  return finish([g], chimneys)
 }
 
 /**

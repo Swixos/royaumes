@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TutorialView } from '@/modules/tutorial/contracts'
+import { createEventStore } from '@/platform/event-store/event-store'
 import { createTestApi } from './testing'
 
 type TestApi = Awaited<ReturnType<typeof createTestApi>>
@@ -81,5 +82,22 @@ describe('API du module Tutoriel', () => {
     const view = await tutorial(api)
     const byId = Object.fromEntries(view.quests.map((quest) => [quest.id, quest.progress.done]))
     expect(byId).toMatchObject({ offer: true, expedition: true, 'pirate-raid': false })
+  })
+
+  it('reconnaît les troupes formées à la caserne et les navires du chantier', async () => {
+    const api = await createTestApi()
+    await api.post('/api/realm/village', { name: 'Valombre' })
+    const store = createEventStore(api.db)
+    const version = (await store.read('village-alice')).length
+    await store.append('village-alice', version, [
+      {
+        type: 'BuildingUpgraded',
+        data: { building: 'barracks', toLevel: 1, cost: {}, at: Date.UTC(2026, 0, 1) },
+      },
+    ])
+    await api.post('/api/realm/village/recruit', { unit: 'swordsman', count: 1 })
+    const view = await tutorial(api)
+    const byId = Object.fromEntries(view.quests.map((quest) => [quest.id, quest.progress.done]))
+    expect(byId).toMatchObject({ 'barracks-1': true, troops: true, warship: false })
   })
 })
