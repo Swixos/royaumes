@@ -1,6 +1,12 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import type { HarborView, RaidSummary, RaidView, TargetsList } from '@/modules/fleet/contracts'
+import {
+  type HarborView,
+  MAX_TRAVEL_MINUTES,
+  type RaidSummary,
+  type RaidView,
+  type TargetsList,
+} from '@/modules/fleet/contracts'
 import type { RankingEntry } from '@/modules/ranking/contracts'
 import type { Stock } from '@/modules/realm/contracts'
 import { createEventStore } from '@/platform/event-store/event-store'
@@ -289,7 +295,7 @@ describe('API du module Flotte - raids contre un village', () => {
     await enlist(api, 'bob', { swordsman: 2 })
     const { raidId, view } = await raidBob(api)
 
-    api.advance(6)
+    api.advance(MAX_TRAVEL_MINUTES)
     const list = (await (await api.get('/api/fleet/raids', 'bob')).json()) as {
       raids: RaidSummary[]
     }
@@ -324,7 +330,7 @@ describe('API du module Flotte - raids contre un village', () => {
     await enlist(api, 'bob', { swordsman: 10 })
     const { raidId } = await raidBob(api)
 
-    api.advance(6)
+    api.advance(MAX_TRAVEL_MINUTES)
     const after = (await (await viewOf(api, raidId)).json()) as { view: RaidView }
     expect(after.view.status).toBe('sunk')
     expect(after.view.report?.attacker.lost).toEqual({ slinger: 10 })
@@ -367,7 +373,7 @@ describe('API du module Flotte - îles pirates', () => {
     const res = await launch(api, { target: island, army: ARMY })
     const { raidId } = (await res.json()) as { raidId: string }
 
-    api.advance(3)
+    api.advance(MAX_TRAVEL_MINUTES)
     const after = (await (await viewOf(api, raidId)).json()) as { view: RaidView }
     expect(after.view).toMatchObject({ status: 'returned', report: { victory: true } })
     const gold = (after.view.loot as Record<string, number>).gold
@@ -387,7 +393,7 @@ describe('API du module Flotte - îles pirates', () => {
     const api = await seaWithVillages()
     await enlist(api, 'alice', ARMY)
     await launch(api, { target: { kind: 'pirates', islandId: 'misty-reef' }, army: ARMY })
-    api.advance(3)
+    api.advance(MAX_TRAVEL_MINUTES)
     await api.get('/api/fleet/raids')
     const targets = (await (await api.get('/api/fleet/targets')).json()) as TargetsList
     const cove = targets.islands.find((i) => i.islandId === 'raven-cove')
@@ -410,10 +416,10 @@ describe('API du module Flotte - données personnelles', () => {
     const list = (await (await api.get('/api/fleet/raids')).json()) as { raids: RaidSummary[] }
     expect(list.raids[0].targetName).toBe('Village effacé')
 
-    api.advance(6)
+    api.advance(MAX_TRAVEL_MINUTES)
     const after = (await (await viewOf(api, raidId)).json()) as { view: RaidView }
     expect(after.view.status).toBe('aborted')
-    api.advance(6)
+    api.advance(MAX_TRAVEL_MINUTES)
     await api.get('/api/fleet/raids')
     expect(await armyOf(api, 'alice')).toEqual(ARMY)
   })
@@ -421,7 +427,7 @@ describe('API du module Flotte - données personnelles', () => {
   it("ne recopie aucun nom de joueur dans les avis conservés par la boîte d'envoi", async () => {
     const api = await seaWithVillages()
     const { raidId } = await raidBob(api)
-    api.advance(6)
+    api.advance(MAX_TRAVEL_MINUTES)
     await viewOf(api, raidId)
 
     const result = await api.db.execute(

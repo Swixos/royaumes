@@ -11,6 +11,7 @@ import {
   crossingMs,
   dayOf,
   fleetLimits,
+  islandTravelMinutes,
   levelAt,
   mapPositionOf,
   PIRATE_ISLANDS,
@@ -131,7 +132,7 @@ export function createDrizzleFleetReader(db: Db, projections: ProjectionRunner):
           islandId: island.id,
           name: island.name,
           garrison: sumArmies(island.garrison, captainReserve(island, damages, ARMY_RULES)),
-          travelMinutes: crossing(island.travelMinutes),
+          travelMinutes: crossing(islandTravelMinutes(viewerId, island)),
           treasure: island.treasure,
           raidedToday: raided.some(
             (r) => r.targetId === island.id && dayOf(r.launchedAt) === today,

@@ -36,6 +36,7 @@ import {
   type MapPoint,
   mapPositionOf,
   PIRATE_ISLANDS,
+  paceOf,
   type RaidError,
   type RaidStatus,
   type RaidSummary,
@@ -61,6 +62,15 @@ const loadSea: SceneLoader<SeaSceneState, SeaSceneHandlers> = async (host, state
 
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<FleetApi>('/api/fleet')
+
+/**
+ * Writes a number of minutes the French way, to a tenth: "2,5".
+ *
+ * @param minutes - Number of minutes.
+ * @returns The minutes, with a decimal comma.
+ */
+const minutesText = (minutes: number) =>
+  (Math.round(minutes * 10) / 10).toLocaleString('fr-FR', { maximumFractionDigits: 1 })
 
 /** Values of the units, read by the battle forecast. */
 const RULES: ArmyRules = { land: LAND_STATS, naval: NAVAL_STATS }
@@ -1208,7 +1218,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                     <strong>{target.name}</strong>
                     <span className="muted">
                       {village ? `Rempart niveau ${village.wall} · ` : ''}traversée{' '}
-                      {target.travelMinutes} min
+                      {minutesText(target.travelMinutes * paceOf(chosen, RULES))} min
                     </span>
                     {island && (
                       <span className="muted">

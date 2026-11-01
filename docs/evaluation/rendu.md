@@ -28,7 +28,7 @@ Correspondance entre les règles de la fiche et les tests du domaine (E8) :
 | 2 | « règle 2 : refuse un raid contre son propre village, ou contre un joueur sans village » |
 | 3 | « règle 3 : refuse un troisième raid en mer » |
 | 4 | « règle 4 : l'équipement coûte 15 bois et 5 pierre par trirème » ; « règle 4 : prélève l'équipement avant le départ, et annule le raid s'il n'est pas payé » |
-| 5 | « règle 5 : la traversée dure de 2 à 6 minutes, la même dans les deux sens » ; « règle 5 : la traversée vers une île pirate est fixe » ; « règle 5 : la flotte part pour la durée de la traversée... » |
+| 5 | « règle 5 : la traversée dure de 1 à 7 minutes, la même dans les deux sens » ; « règle 5 : plus la cible est loin sur la carte, plus la traversée est longue » ; « règle 5 : aucun village ne se pose sur une île pirate » ; « règle 5 : la flotte part pour la durée de la traversée... » |
 | 6 | « règle 6 : seul l'attaquant rappelle sa flotte avant l'arrivée, et récupère tout son équipement » |
 | 7 | « règle 7 : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage » |
 | 8 | « règle 8 : la défense vaut 20 plus 12 par niveau de rempart... » (règle revue par l'ADR 0018) ; « règle 8 : une flotte dont la force ne dépasse pas la défense est perdue... » |
