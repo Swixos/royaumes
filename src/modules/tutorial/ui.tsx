@@ -50,6 +50,13 @@ const THE: Record<string, string> = {
   barracks: 'la Caserne',
 }
 
+/** Hint pointing at the pirate island each sea quest asks for. */
+const ISLAND_HINTS: Record<string, string> = {
+  'pirate-raid': 'Touchez une île pirate',
+  'cove-victory': 'Visez la Crique du Corbeau',
+  'atoll-victory': 'Visez l’Atoll Écarlate',
+}
+
 /** One step of the guide: an element of the page to point at, and what to do with it. */
 interface Step {
   /** Value of the `data-guide` attribute of the element. */
@@ -104,13 +111,61 @@ function stepsOf(quest: QuestView): Step[] {
         { target: 'building-shipyard', hint: 'Touchez le Chantier naval' },
         { target: 'recruit-transport', hint: 'Construisez un bateau de transport' },
       ]
+    case 'purchase':
+      return [
+        { target: 'nav-market', hint: 'Ouvrez le Marché' },
+        { target: 'accept-offer', hint: 'Acceptez une offre' },
+      ]
+    case 'dungeon-skill':
+      return [
+        { target: 'nav-dungeon', hint: 'Ouvrez le Donjon' },
+        { target: 'open-expedition', hint: 'Ouvrez une expédition' },
+        { target: 'skill-action', hint: 'Utilisez votre compétence' },
+      ]
+    case 'slinger':
+    case 'archer':
+    case 'hoplite':
+      return [
+        { target: 'nav-village', hint: 'Revenez au village' },
+        { target: 'building-barracks', hint: 'Touchez la Caserne' },
+        { target: `recruit-${quest.id}`, hint: 'Formez ces troupes' },
+      ]
+    case 'bireme':
+    case 'light-ship':
+      return [
+        { target: 'nav-village', hint: 'Revenez au village' },
+        { target: 'building-shipyard', hint: 'Touchez le Chantier naval' },
+        {
+          target: quest.id === 'bireme' ? 'recruit-bireme' : 'recruit-lightShip',
+          hint: 'Construisez ce navire',
+        },
+      ]
+    case 'village-raid':
+    case 'village-victory':
+      return [
+        { target: 'nav-fleet', hint: 'Ouvrez la Flotte' },
+        {
+          target: 'target-village',
+          hint: 'Touchez le port d’un autre seigneur',
+          away: 'Faites glisser la carte jusqu’à un port voisin, ou cherchez-le par son nom',
+        },
+        { target: 'army-picker', hint: 'Embarquez vos troupes et vos navires' },
+        { target: 'launch-raid', hint: 'Hissez les voiles' },
+      ]
+    case 'defended':
+      return [
+        { target: 'nav-fleet', hint: 'Ouvrez la Flotte' },
+        { target: 'fleet-harbor', hint: 'Surveillez votre port et votre garnison' },
+      ]
     case 'pirate-raid':
     case 'naval-victory':
+    case 'cove-victory':
+    case 'atoll-victory':
       return [
         { target: 'nav-fleet', hint: 'Ouvrez la Flotte' },
         {
           target: 'target-pirates',
-          hint: quest.id === 'pirate-raid' ? 'Touchez une île pirate' : 'Visez une île plus faible',
+          hint: ISLAND_HINTS[quest.id] ?? 'Visez une île plus faible',
           away: 'Faites glisser la carte jusqu’à une île pirate, au drapeau noir',
         },
         { target: 'army-picker', hint: 'Embarquez vos troupes et vos navires' },

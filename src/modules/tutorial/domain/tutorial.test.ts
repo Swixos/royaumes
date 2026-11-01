@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { goalProgress, NO_PROGRESS, type Progress, QUESTS } from './quests'
+import { CHAPTERS, DEEDS, goalProgress, NO_PROGRESS, type Progress, QUESTS } from './quests'
 import { currentQuest, decide, evolve, initialState, replay, viewOf } from './tutorial'
 
 /** Progress of a player whose sawmill reaches level 2 at 5 000. */
@@ -35,6 +35,32 @@ describe('quêtes du tutoriel', () => {
     const ids = QUESTS.map((quest) => quest.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const quest of QUESTS) expect(Object.keys(quest.reward).length).toBeGreaterThan(0)
+  })
+
+  it('range les quêtes chapitre après chapitre, et demande chaque fait au moins une fois', () => {
+    const order = QUESTS.map((quest) =>
+      CHAPTERS.findIndex((chapter) => chapter.id === quest.chapter),
+    )
+    expect(order.every((index) => index >= 0)).toBe(true)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    for (const chapter of CHAPTERS) {
+      expect(QUESTS.some((quest) => quest.chapter === chapter.id)).toBe(true)
+    }
+    const asked = new Set(
+      QUESTS.flatMap((quest) => (quest.goal.kind === 'deed' ? [quest.goal.deed] : [])),
+    )
+    expect([...DEEDS].filter((deed) => !asked.has(deed))).toEqual([])
+  })
+
+  it("fait monter chaque bâtiment d'une quête à l'autre, sans dépasser le niveau 10", () => {
+    const reached: Record<string, number> = {}
+    for (const { goal } of QUESTS) {
+      if (goal.kind !== 'building') continue
+      expect(goal.level).toBeGreaterThan(reached[goal.building] ?? 0)
+      expect(goal.level).toBeLessThanOrEqual(10)
+      reached[goal.building] = goal.level
+    }
+    expect(QUESTS.length).toBeGreaterThanOrEqual(50)
   })
 })
 

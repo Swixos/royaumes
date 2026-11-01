@@ -275,7 +275,11 @@ export function MarketScreen() {
                 {offer.sellerName} cède <AmountsText amounts={offer.give} /> contre{' '}
                 <AmountsText amounts={offer.want} />
               </span>
-              <button type="button" onClick={() => acceptOffer(offer.offerId)}>
+              <button
+                type="button"
+                data-guide="accept-offer"
+                onClick={() => acceptOffer(offer.offerId)}
+              >
                 Accepter
               </button>
             </li>

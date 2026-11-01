@@ -596,7 +596,13 @@ function SeaMap({
                 type="button"
                 className={styles.hotspot}
                 data-kind={island.kind}
-                data-guide={island.kind === 'pirates' ? 'target-pirates' : undefined}
+                data-guide={
+                  island.kind === 'pirates'
+                    ? 'target-pirates'
+                    : island.kind === 'village'
+                      ? 'target-village'
+                      : undefined
+                }
                 style={{ left: `${island.point.x}%`, top: `${island.point.y}%` }}
                 disabled={!island.selection}
                 aria-pressed={isTarget(island, selected)}
