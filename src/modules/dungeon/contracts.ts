@@ -5,13 +5,26 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
-import { DIFFICULTIES } from './domain/content'
+import { DIFFICULTIES, HERO_CLASSES } from './domain/content'
 
-export type { Difficulty, MonsterKind } from './domain/content'
-export { DIFFICULTIES, MAX_HEROES, MONSTERS, ROUND_MS } from './domain/content'
+export type { ClassSpec, Difficulty, HeroClass, MonsterKind, Skill } from './domain/content'
+export {
+  BOSSES,
+  CLASSES,
+  DIFFICULTIES,
+  DUNGEON_LENGTH,
+  EXPLORE_MS,
+  HERO_CLASSES,
+  MAX_HEROES,
+  MONSTERS,
+  ROUND_MS,
+  SHRINE_HEAL,
+  SKILL_COOLDOWN,
+  SKILLS,
+} from './domain/content'
 export type { Action, Effect, Monster, Phase, Room } from './domain/game'
 export type { GameError } from './domain/rules'
-export type { GameView, HeroView } from './domain/view'
+export type { GameView, HeroView, IntentView } from './domain/view'
 
 /** Expedition that can still be joined. */
 export interface OpenGame {
@@ -25,9 +38,15 @@ export interface OpenGame {
   createdAt: number
 }
 
-/** Expected body to open an expedition: the difficulty level, easy by default. */
+/** Expected body to open an expedition: the difficulty level, easy by default, and the class of the host. */
 export const CreateGameInput = z.object({
   difficulty: z.enum(DIFFICULTIES).default('easy'),
+  heroClass: z.enum(HERO_CLASSES).default('warrior'),
+})
+
+/** Expected body to join an expedition: the class of the hero, warrior by default. */
+export const JoinGameInput = z.object({
+  heroClass: z.enum(HERO_CLASSES).default('warrior'),
 })
 
 /** Expected body to choose an action: the targeted round and the action itself. */
@@ -37,6 +56,7 @@ export const SubmitActionInput = z.object({
     z.object({ type: z.literal('attack'), target: z.string().min(1) }),
     z.object({ type: z.literal('defend') }),
     z.object({ type: z.literal('heal'), target: z.string().min(1) }),
+    z.object({ type: z.literal('skill') }),
   ]),
 })
 

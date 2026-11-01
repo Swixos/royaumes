@@ -4,7 +4,16 @@
  *
  * @packageDocumentation
  */
-import { DEFAULT_DIFFICULTY, type Difficulty, type MonsterKind } from './content'
+import {
+  CLASSES,
+  DEFAULT_DIFFICULTY,
+  type Difficulty,
+  HEAL_AMOUNT,
+  type HeroClass,
+  type MonsterKind,
+  SKILL_COOLDOWN,
+  type Skill,
+} from './content'
 
 /** Phase of an expedition. */
 export type Phase = 'lobby' | 'exploring' | 'combat' | 'won' | 'lost'
@@ -13,6 +22,7 @@ export type Phase = 'lobby' | 'exploring' | 'combat' | 'won' | 'lost'
 export type Room =
   | { kind: 'empty' }
   | { kind: 'treasure'; gold: number }
+  | { kind: 'shrine'; heal: number }
   | { kind: 'monsters'; monsters: MonsterSpec[] }
 
 /** Stats of a monster, fixed when the rooms are drawn. */
@@ -39,6 +49,14 @@ export interface Hero {
   attack: number
   /** Whether the hero is a companion driven by the game rather than a player. */
   companion: boolean
+  /** Class of the hero; null for a hero recorded before the classes existed. */
+  heroClass: HeroClass | null
+  /** Hit points restored by a heal. */
+  heal: number
+  /** Chance of a critical hit, from 0 to 1. */
+  critical: number
+  /** Signature skill; null for a hero without class. */
+  skill: Skill | null
 }
 
 /** Starting stats of a hero, recorded when they join the expedition. */
@@ -47,6 +65,8 @@ export interface HeroSpec {
   hp: number
   /** Attack value. */
   attack: number
+  /** Class of the hero; missing from events recorded before the classes existed. */
+  heroClass?: HeroClass
 }
 
 /** A monster of the current room. */
@@ -68,11 +88,28 @@ export type Action =
   | { type: 'attack'; target: string }
   | { type: 'defend' }
   | { type: 'heal'; target: string }
+  | { type: 'skill' }
 
 /** Effect produced when a round is resolved. */
 export type Effect =
-  | { kind: 'damage'; source: string; target: string; amount: number }
-  | { kind: 'heal'; source: string; target: string; amount: number }
+  | {
+      kind: 'damage'
+      source: string
+      target: string
+      amount: number
+      /** True for a critical hit, which doubled the damage. */
+      critical?: boolean
+      /** Skill dealing the damage, if any. */
+      skill?: Skill
+    }
+  | {
+      kind: 'heal'
+      source: string
+      target: string
+      amount: number
+      /** Skill giving the heal, if any. */
+      skill?: Skill
+    }
 
 /** State of an expedition, rebuilt from its events. */
 export interface GameState {
@@ -106,6 +143,8 @@ export interface GameState {
   lastRound: { round: number; actions: Record<string, Action>; effects: Effect[] } | null
   /** Gold picked up from treasures. */
   loot: number
+  /** Round each hero last used their skill in, by hero identifier. */
+  skillRounds: Record<string, number>
 }
 
 /** State of an expedition before any event. */
@@ -125,6 +164,7 @@ export const initialState: GameState = {
   choices: {},
   lastRound: null,
   loot: 0,
+  skillRounds: {},
 }
 
 /** Facts recorded for an expedition. */
@@ -207,6 +247,19 @@ export const standingPlayerHeroes = (state: GameState) =>
   state.heroes.filter((hero) => hero.hp > 0 && !hero.companion)
 
 /**
+ * Rounds a hero still waits before using their skill again.
+ *
+ * @param state - Expedition state.
+ * @param hero - Hero to check.
+ * @returns 0 when the skill is ready, the rounds left otherwise; null for a hero without skill.
+ */
+export function skillWait(state: GameState, hero: Hero): number | null {
+  if (!hero.skill) return null
+  const last = state.skillRounds[hero.id]
+  return last === undefined ? 0 : Math.max(0, SKILL_COOLDOWN - (state.round - last))
+}
+
+/**
  * Finds the next explorer after an index, wrapping around if needed: a standing hero
  * played by a player. Companions never take an exploration turn.
  *
@@ -231,14 +284,21 @@ export function nextExplorer(heroes: Hero[], from: number): number {
  * @param companion - Whether the hero is a companion driven by the game.
  * @returns The hero, at full health.
  */
-const newHero = (id: string, name: string, spec: HeroSpec, companion = false): Hero => ({
-  id,
-  name,
-  hp: spec.hp,
-  maxHp: spec.hp,
-  attack: spec.attack,
-  companion,
-})
+const newHero = (id: string, name: string, spec: HeroSpec, companion = false): Hero => {
+  const kind = spec.heroClass ? CLASSES[spec.heroClass] : null
+  return {
+    id,
+    name,
+    hp: spec.hp,
+    maxHp: spec.hp,
+    attack: spec.attack,
+    companion,
+    heroClass: spec.heroClass ?? null,
+    heal: kind?.heal ?? HEAL_AMOUNT,
+    critical: kind?.critical ?? 0,
+    skill: kind?.skill ?? null,
+  }
+}
 
 /**
  * Creates the monsters of a room from the stats recorded in the rooms.
@@ -318,6 +378,12 @@ export function evolve(state: GameState, event: GameEvent): GameState {
       if (room.kind === 'treasure') {
         return { ...state, room: event.data.room, turn, deadline, loot: state.loot + room.gold }
       }
+      if (room.kind === 'shrine') {
+        const heroes = state.heroes.map((hero) =>
+          hero.hp > 0 ? { ...hero, hp: Math.min(hero.maxHp, hero.hp + room.heal) } : hero,
+        )
+        return { ...state, heroes, room: event.data.room, turn, deadline }
+      }
       if (room.kind === 'monsters') {
         return {
           ...state,
@@ -350,8 +416,13 @@ export function evolve(state: GameState, event: GameEvent): GameState {
         effects: event.data.effects,
       }
       const combatOver = event.data.nextDeadline === null
+      const skillRounds = { ...state.skillRounds }
+      for (const [heroId, action] of Object.entries(event.data.actions)) {
+        if (action.type === 'skill') skillRounds[heroId] = event.data.round
+      }
       return {
         ...state,
+        skillRounds,
         heroes,
         monsters,
         lastRound,

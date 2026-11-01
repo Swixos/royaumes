@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { AppEnv } from '@/platform/http/types'
 import { validateJson } from '@/platform/http/validate'
 import type { DungeonService } from './application/dungeon-service'
-import { CreateGameInput, type GameError, SubmitActionInput } from './contracts'
+import { CreateGameInput, type GameError, JoinGameInput, SubmitActionInput } from './contracts'
 
 /** HTTP status code for each domain error. */
 const STATUS: Record<GameError['code'], 403 | 404 | 409 | 422> = {
@@ -18,6 +18,7 @@ const STATUS: Record<GameError['code'], 403 | 404 | 409 | 422> = {
   ROUND_OVER: 409,
   ALREADY_CHOSEN: 409,
   INVALID_TARGET: 422,
+  SKILL_NOT_READY: 409,
 }
 
 /**
@@ -38,7 +39,8 @@ export function createDungeonApi(service: DungeonService) {
 
     .post('/games', validateJson(CreateGameInput), async (c) => {
       const player = { id: c.var.userId, name: c.var.userName }
-      const { gameId, result } = await service.create(player, c.req.valid('json').difficulty)
+      const { difficulty, heroClass } = c.req.valid('json')
+      const { gameId, result } = await service.create(player, difficulty, heroClass)
       return result.ok
         ? c.json({ gameId, view: result.view }, 201)
         : c.json({ error: result.error }, STATUS[result.error.code])
@@ -49,11 +51,12 @@ export function createDungeonApi(service: DungeonService) {
       return view ? c.json({ view }) : c.json({ error: { code: 'GAME_NOT_FOUND' as const } }, 404)
     })
 
-    .post('/games/:id/join', async (c) => {
+    .post('/games/:id/join', validateJson(JoinGameInput), async (c) => {
       const result = await service.execute(c.req.param('id'), c.var.userId, {
         type: 'JoinGame',
         playerId: c.var.userId,
         name: c.var.userName,
+        heroClass: c.req.valid('json').heroClass,
       })
       return result.ok
         ? c.json({ view: result.view })

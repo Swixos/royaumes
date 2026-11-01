@@ -79,7 +79,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | --- | --- | --- |
 | `system` | Route de santé | `/api/system` |
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments, formation des troupes et des navires | `/api/realm` |
-| `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
+| `dungeon` | Donjon « Les Profondeurs » : expéditions de un à quatre héros de trois classes, compétences, monstres qui annoncent leur cible, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
 | `tutorial` | Tutoriel : introduction par une conseillère, chaîne de dix-huit quêtes récompensées, guide qui éclaire où toucher | `/api/tutorial` |
 | `chronicle` | Historique de chaque joueur : constructions, raids et batailles, expéditions, échanges, construit à partir des événements des autres modules | `/api/chronicle` |
@@ -253,7 +253,8 @@ trois lectures de la Flotte (cibles, raids, port) ; la dernière mesure est
 
 Les tests du répertoire `e2e/` pilotent l'interface dans un navigateur (Playwright) : un raid
 la préparation d'un raid contre une île pirate, avec sa garnison, et contre le port d'un autre
-joueur ; la garnison du village ; la rectification du nom d'un joueur. Un nouveau joueur n'a
+joueur ; la garnison du village ; la rectification du nom d'un joueur ; une expédition dans les
+Profondeurs, du choix de la classe au premier combat et à ses intentions de monstres. Un nouveau joueur n'a
 pas encore de troupes : les batailles d'armées sont couvertes par les tests du domaine et de
 l'API. `pnpm test:e2e` construit l'application, la démarre sur le port 3100 avec
 la base locale, puis exécute les tests.

@@ -29,3 +29,4 @@ un nouvel ADR est rédigé et l'ancien prend le statut « remplacé ».
 | [0021](0021-historique.md) | Historique du joueur, projection du langage publié de quatre modules | Accepté |
 | [0022](0022-tutoriel.md) | Tutoriel en quêtes récompensées, guidé par une conseillère et une lumière sur l'interface | Accepté |
 | [0023](0023-troupes.md) | Troupes formées au village, et raids menés par des armées | Accepté |
+| [0024](0024-profondeurs.md) | Les Profondeurs : classes de héros, intentions des monstres et arène animée | Accepté |

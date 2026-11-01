@@ -1,5 +1,5 @@
 import { withOptimisticRetry } from '@/platform/event-store/retry'
-import { DEFAULT_DIFFICULTY, type Difficulty, MAX_HEROES } from '../domain/content'
+import { DEFAULT_DIFFICULTY, type Difficulty, type HeroClass, MAX_HEROES } from '../domain/content'
 import { decide, type GameCommand, type GameError } from '../domain/rules'
 import { type GameView, toView } from '../domain/view'
 import type { GameRepository } from './game-repository'
@@ -74,11 +74,13 @@ export function createDungeonService(
    * @param player.id - Player identifier.
    * @param player.name - Player name.
    * @param difficulty - Difficulty level; easy by default.
+   * @param heroClass - Class of the hero of the host; warrior by default.
    * @returns The new expedition identifier and the command result.
    */
   async function create(
     player: { id: string; name: string },
     difficulty: Difficulty = DEFAULT_DIFFICULTY,
+    heroClass: HeroClass = 'warrior',
   ) {
     const gameId = newId()
     const result = await execute(gameId, player.id, {
@@ -87,6 +89,7 @@ export function createDungeonService(
       name: player.name,
       difficulty,
       seed: newSeed(),
+      heroClass,
     })
     return { gameId, result }
   }

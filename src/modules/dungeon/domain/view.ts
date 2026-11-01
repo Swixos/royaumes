@@ -4,9 +4,23 @@
  *
  * @packageDocumentation
  */
-import { type Difficulty, DUNGEON_LENGTH } from './content'
-import { type Action, evolve, type GameState, type Monster, type Phase, type Room } from './game'
-import { settle } from './rules'
+import {
+  DAMAGE_SPREAD,
+  type Difficulty,
+  DUNGEON_LENGTH,
+  type HeroClass,
+  type Skill,
+} from './content'
+import {
+  type Action,
+  evolve,
+  type GameState,
+  type Monster,
+  type Phase,
+  type Room,
+  skillWait,
+} from './game'
+import { monsterIntents, settle } from './rules'
 
 /** A hero as seen by a player. */
 export interface HeroView {
@@ -24,6 +38,28 @@ export interface HeroView {
   ready: boolean
   /** Chosen action: only known to the hero's own player, `null` for the others. */
   action: Action | null
+  /** Class of the hero; null for a hero recorded before the classes existed. */
+  heroClass: HeroClass | null
+  /** Attack value. */
+  attack: number
+  /** Hit points restored by a heal. */
+  heal: number
+  /** Chance of a critical hit, from 0 to 1. */
+  critical: number
+  /** Signature skill; null for a hero without class. */
+  skill: Skill | null
+  /** Rounds left before the skill is ready, 0 when it is; null without skill. */
+  skillWait: number | null
+}
+
+/** Attack a monster announced for the round: its target and the damage it may deal. */
+export interface IntentView {
+  /** Hero the monster will strike, unless a warrior raises the bulwark. */
+  target: string
+  /** Smallest damage of the blow, before any defense. */
+  min: number
+  /** Largest damage of the blow, before any defense. */
+  max: number
 }
 
 /** An expedition as seen by a player. */
@@ -58,6 +94,10 @@ export interface GameView {
   lastRound: GameState['lastRound']
   /** Gold picked up so far. */
   loot: number
+  /** Kind of each room opened so far, in order; the next rooms stay unknown. */
+  visited: Room['kind'][]
+  /** Attack each standing monster announced for the current round, by monster identifier. */
+  intents: Record<string, IntentView>
 }
 
 /**
@@ -88,6 +128,12 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
       companion: hero.companion,
       ready: inCombat && (hero.companion || current.choices[hero.id] !== undefined),
       action: hero.id === viewerId ? (current.choices[hero.id] ?? null) : null,
+      heroClass: hero.heroClass,
+      attack: hero.attack,
+      heal: hero.heal,
+      critical: hero.critical,
+      skill: hero.skill,
+      skillWait: skillWait(current, hero),
     })),
     turnHeroId: current.phase === 'exploring' ? current.heroes[current.turn].id : null,
     room: current.room,
@@ -98,5 +144,27 @@ export function toView(state: GameState, viewerId: string, now: number): GameVie
     deadline: current.deadline,
     lastRound: current.lastRound,
     loot: current.loot,
+    visited: current.rooms.slice(0, current.room + 1).map((room) => room.kind),
+    intents: inCombat ? intentsOf(current) : {},
   }
+}
+
+/**
+ * Attacks the standing monsters announced for the round, with the damage they may deal.
+ *
+ * @param state - Expedition state, in combat.
+ * @returns The announced attack of each standing monster, by monster identifier.
+ */
+function intentsOf(state: GameState): Record<string, IntentView> {
+  const intents: Record<string, IntentView> = {}
+  for (const [monsterId, target] of Object.entries(monsterIntents(state))) {
+    const monster = state.monsters.find((candidate) => candidate.id === monsterId)
+    if (!monster) continue
+    intents[monsterId] = {
+      target,
+      min: Math.max(1, monster.attack - DAMAGE_SPREAD.monster),
+      max: monster.attack + DAMAGE_SPREAD.monster,
+    }
+  }
+  return intents
 }
