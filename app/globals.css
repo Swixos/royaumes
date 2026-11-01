@@ -702,9 +702,9 @@ input.amount { width: 6em; }
 .works-level { white-space: nowrap; }
 .works-time { margin-left: auto; font-weight: 800; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
 
-.games, .log, .offers, .presence { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.offers, .presence { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 
-.games li, .offers li {
+.offers li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -715,38 +715,6 @@ input.amount { width: 6em; }
   border: 1px solid var(--line);
   flex-wrap: wrap;
   font-weight: 700;
-}
-
-.log li { padding: 6px 0; border-bottom: 1px solid var(--line); }
-
-.heroes, .monsters { display: grid; gap: 8px; }
-
-.fighter {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--parchment-2);
-  border: 1px solid var(--line);
-  font-weight: 700;
-}
-
-.fighter .icon { width: 1.9em; height: 1.9em; }
-.fighter[data-down='true'] { opacity: 0.45; text-decoration: line-through; }
-
-.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-
-.countdown {
-  font-family: var(--display);
-  font-weight: 700;
-  font-variant-numeric: lining-nums tabular-nums;
-  color: var(--cream);
-  background: var(--accent);
-  border: 1px solid var(--gold);
-  padding: 2px 12px;
-  border-radius: var(--radius-sm);
 }
 
 .ranking { width: 100%; border-collapse: collapse; font-variant-numeric: lining-nums tabular-nums; }
@@ -877,7 +845,7 @@ a, button, input, select { -webkit-tap-highlight-color: transparent; touch-actio
   .ranking th { font-size: 0.62rem; letter-spacing: 0.04em; }
   .ranking td:first-child { width: auto; text-align: center; }
 
-  .games li, .offers li { flex-wrap: wrap; }
+  .offers li { flex-wrap: wrap; }
   .messages { max-height: 55vh; }
 
   .login-scene { min-height: 380px; border-right: 0; border-bottom: 4px solid var(--gold); box-shadow: 0 4px 0 var(--frame); }
