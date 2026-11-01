@@ -5,6 +5,7 @@
  *
  * @packageDocumentation
  */
+import { type Army, entriesOf, survivorsOf } from './battle'
 import type { HarborNotice } from './harbor'
 import { type Amounts, isEmpty } from './naval'
 import { type RaidEvent, type RaidState, transferIdOf } from './raid'
@@ -22,8 +23,31 @@ export type SagaRequest =
       resources: Amounts
       plunder?: boolean
     }
-  /** Deposit resources: a deposit cannot fail, so no reply is expected. */
-  | { kind: 'deposit'; transferId: string; playerId: string; resources: Amounts }
+  /**
+   * Withdraw units: the army leaving the attacker's village, whose reply moves the saga
+   * forward, or the casualties of the defender, never refused and never answered.
+   */
+  | {
+      kind: 'withdraw-units'
+      transferId: string
+      playerId: string
+      units: Army
+      casualties?: boolean
+    }
+  /**
+   * Deposit resources: a deposit cannot fail, so no reply is expected. It is delivered at
+   * `at`, when the army brings it home, or at once without it.
+   */
+  | { kind: 'deposit'; transferId: string; playerId: string; resources: Amounts; at?: number }
+  /** Bring units home at `at`, with those lost on the way, no longer counted. */
+  | {
+      kind: 'return-units'
+      transferId: string
+      playerId: string
+      units: Army
+      lost: Army
+      at: number
+    }
   /** Reminder addressed to the raid itself at the arrival of its fleet. */
   | { kind: 'arrive'; raidId: string; at: number }
   /**
@@ -74,16 +98,38 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
     notice(state.attackerId, 'report'),
     ...(defender ? [notice(defender, 'report')] : []),
   ]
+  const army = entriesOf(state.army).length > 0
+  /**
+   * Brings the army home at its return time, the units lost excepted.
+   *
+   * @param lost - Units lost.
+   * @returns The request.
+   */
+  const homecoming = (lost: Army): SagaRequest => ({
+    kind: 'return-units',
+    transferId: id('return'),
+    playerId: state.attackerId,
+    units: survivorsOf(state.army, lost),
+    lost,
+    at: state.returnsAt,
+  })
 
   switch (event.type) {
     case 'RaidLaunched':
       return [
-        {
-          kind: 'withdraw',
-          transferId: id('provision'),
-          playerId: state.attackerId,
-          resources: state.cost,
-        },
+        army
+          ? {
+              kind: 'withdraw-units',
+              transferId: id('provision'),
+              playerId: state.attackerId,
+              units: state.army,
+            }
+          : {
+              kind: 'withdraw',
+              transferId: id('provision'),
+              playerId: state.attackerId,
+              resources: state.cost,
+            },
       ]
 
     case 'FleetSailed':
@@ -95,19 +141,39 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
     case 'FleetRecalled':
     case 'RaidAborted':
       return [
-        {
-          kind: 'deposit',
-          transferId: id('refund'),
-          playerId: state.attackerId,
-          resources: state.cost,
-        },
+        army
+          ? homecoming({})
+          : {
+              kind: 'deposit',
+              transferId: id('refund'),
+              playerId: state.attackerId,
+              resources: state.cost,
+            },
         ...(defender && event.type === 'FleetRecalled' ? [notice(defender, 'turned-back')] : []),
       ]
 
-    case 'BattleFought':
-      if (!event.data.victory) return reports()
+    case 'BattleFought': {
+      const report = event.data.report
+      const aftermath: SagaRequest[] = report
+        ? [
+            homecoming(report.attacker.lost),
+            ...(defender && entriesOf(report.defender.lost).length > 0
+              ? [
+                  {
+                    kind: 'withdraw-units' as const,
+                    transferId: id('casualties'),
+                    playerId: defender,
+                    units: report.defender.lost,
+                    casualties: true,
+                  },
+                ]
+              : []),
+          ]
+        : []
+      if (!event.data.victory) return [...aftermath, ...reports()]
       return defender
         ? [
+            ...aftermath,
             {
               kind: 'withdraw',
               transferId: id('plunder-1'),
@@ -116,7 +182,8 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
               plunder: true,
             },
           ]
-        : []
+        : aftermath
+    }
 
     case 'PlunderReduced':
       return [
@@ -133,7 +200,15 @@ export function requestsFor(state: RaidState, event: RaidEvent): SagaRequest[] {
       const loot = event.data.loot
       const delivery: SagaRequest[] = isEmpty(loot)
         ? []
-        : [{ kind: 'deposit', transferId: id('loot'), playerId: state.attackerId, resources: loot }]
+        : [
+            {
+              kind: 'deposit',
+              transferId: id('loot'),
+              playerId: state.attackerId,
+              resources: loot,
+              ...(state.returnsAt > 0 ? { at: state.returnsAt } : {}),
+            },
+          ]
       return [...delivery, ...reports()]
     }
 
@@ -191,6 +266,7 @@ export function noticeOf(
             opponentId: targetId,
             opponentName: state.target.name,
             loot: state.loot ?? {},
+            ...(state.report ? { report: state.report } : {}),
           }
         : {
             kind,
@@ -200,6 +276,7 @@ export function noticeOf(
             opponentId: state.attackerId,
             opponentName: state.attackerName,
             loot: state.loot ?? {},
+            ...(state.report ? { report: state.report } : {}),
           }
     }
   }

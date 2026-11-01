@@ -5,17 +5,27 @@
  * @packageDocumentation
  */
 import { z } from 'zod'
-import { MAX_LEVEL } from '@/modules/realm/contracts'
-import {
-  type Amounts,
-  type FleetLimits,
-  fleetLimits,
-  MIN_SHIPS,
-  TACTICS,
-  type Tactic,
-} from './domain/naval'
+import { type Army, UnitCounts } from '@/modules/realm/contracts'
+import type { Amounts, FleetLimits, Tactic } from './domain/naval'
 import type { RaidStatus } from './domain/raid'
 
+export type {
+  ArmyError,
+  ArmyRules,
+  BattleReport,
+  Damage,
+  LandFight,
+  NavalFight,
+} from './domain/battle'
+export {
+  armyError,
+  BASE_DEFENSE,
+  fightArmies,
+  landOf,
+  paceOf,
+  shipsOf,
+  WALL_BONUS,
+} from './domain/battle'
 export type { HarborEvent } from './domain/harbor'
 export type { Amounts, Battle, FleetLimits, LevelSteps, PirateIsland, Tactic } from './domain/naval'
 export {
@@ -49,15 +59,11 @@ export const LaunchRaidInput = z.object({
     z.object({ kind: z.literal('village'), playerId: z.string().min(1).max(100) }),
     z.object({ kind: z.literal('pirates'), islandId: z.string().min(1).max(50) }),
   ]),
-  ships: z.number().int().min(MIN_SHIPS).max(fleetLimits(MAX_LEVEL).maxShips),
-  tactic: z.enum(TACTICS),
+  army: UnitCounts,
 })
 
 /** Expected query of the targets: an optional part of a village name to look for. */
 export const TargetsQuery = z.object({ search: z.string().trim().max(30).optional() })
-
-/** Expected body to choose the defensive posture of one's harbor. */
-export const ChoosePostureInput = z.object({ posture: z.enum(TACTICS) })
 
 /** Prefix shared by the stream names of every raid. */
 export const RAID_STREAM_PREFIX = 'raid-'
@@ -106,8 +112,10 @@ export interface VillageTarget {
   playerId: string
   /** Name of the village. */
   name: string
-  /** Defense of the village, without its posture. */
+  /** Defense of the village without troops, its wall included. */
   defense: number
+  /** Level of the wall of the village. */
+  wall: number
   /** Crossing time from the viewer's village, shipyard included, in minutes. */
   travelMinutes: number
   /** Position on the sea map. */
@@ -120,8 +128,8 @@ export interface IslandTarget {
   islandId: string
   /** Name of the island. */
   name: string
-  /** Defense of the island. */
-  defense: number
+  /** Units guarding the island, with the reserve its captain readies against the viewer. */
+  garrison: Army
   /** Crossing time from the viewer's village, shipyard included, in minutes. */
   travelMinutes: number
   /** Treasure of the day. */
@@ -137,10 +145,16 @@ export interface TargetsList {
   /** Position of the log up to which the list is up to date. */
   position: number
   /**
-   * Village of the viewer, or null if they have none: its defense, and the limits its
-   * shipyard gives to its fleets.
+   * Village of the viewer, or null if they have none: its defense, the limits its
+   * shipyard gives to its fleets, and the units at home, ready to sail.
    */
-  home: { name: string; defense: number; limits: FleetLimits; map: MapPoint } | null
+  home: {
+    name: string
+    defense: number
+    limits: FleetLimits
+    map: MapPoint
+    garrison: Army
+  } | null
   /** Villages of the other players. */
   villages: VillageTarget[]
   /** Pirate islands. */
@@ -163,10 +177,14 @@ export interface RaidSummary {
   targetId: string
   /** Name of the target. */
   targetName: string
-  /** Number of triremes. */
+  /** Number of ships. */
   ships: number
-  /** Tactic of the fleet: shown to the defender only after the battle. */
+  /** Tactic of a fleet of triremes: shown to the defender only after the battle. */
   tactic: Tactic | null
+  /** Army sent: shown to the defender only after the battle; null for triremes. */
+  army: Army | null
+  /** Time the surviving units come home; 0 before they turn back. */
+  returnsAt: number
   /** Progress of the raid. */
   status: RaidStatus
   /** Launch time in milliseconds. */
@@ -191,10 +209,10 @@ export interface RaidsList {
 
 /** Harbor of the player returned by the API. */
 export interface HarborView {
-  /** Posture chosen; null if the player never chose one. */
-  posture: Tactic | null
-  /** Posture actually held: the chosen one, or the default posture. */
-  holding: Tactic
+  /** Units at home, defending the village. */
+  garrison: Army
+  /** Level of the wall. */
+  wall: number
   /** Latest notices of the harbor, latest first, with their stream version. */
   log: { version: number; type: string; data: Record<string, unknown> }[]
 }

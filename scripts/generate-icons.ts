@@ -66,6 +66,20 @@ const ICONS: Record<string, string> = {
   done: 'check-mark',
   locked: 'padlock',
   sparkle: 'sparkles',
+  barracks: 'barracks',
+  farm: 'windmill',
+  population: 'meeple',
+  troops: 'rally-the-troops',
+  swordsman: 'broadsword',
+  slinger: 'sling',
+  archer: 'bow-arrow',
+  hoplite: 'spartan-helmet',
+  transport: 'cargo-ship',
+  bireme: 'galley',
+  lightShip: 'drakkar',
+  blunt: 'tribal-shield',
+  sharp: 'spears',
+  distance: 'arrow-flights',
 }
 
 const require = createRequire(import.meta.url)

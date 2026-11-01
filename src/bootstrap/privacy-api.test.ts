@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { RankingEntry } from '@/modules/ranking/contracts'
 import { rankingProjection } from '@/modules/ranking/infrastructure/ranking-projection'
+import { createEventStore } from '@/platform/event-store/event-store'
 import { createProjectionRunner } from '@/platform/projection/projection'
 import { createTestApi, TEST_CRON_SECRET } from './testing'
 
@@ -222,9 +223,17 @@ describe('Droits des joueurs - rectification du nom', () => {
     await api.db.execute(
       sql`INSERT INTO identity.user (id, name, email) VALUES ('alice', 'alice', 'alice@example.com')`,
     )
+    const store = createEventStore(api.db)
+    const village = await store.read('village-alice')
+    await store.append('village-alice', village.length, [
+      {
+        type: 'UnitsRecruited',
+        data: { unit: 'lightShip', count: 1, cost: {}, at: 0, startsAt: 0, each: 1 },
+      },
+    ])
     await api.post(
       '/api/fleet/raids',
-      { target: { kind: 'village', playerId: 'bob' }, ships: 1, tactic: 'ram' },
+      { target: { kind: 'village', playerId: 'bob' }, army: { lightShip: 1 } },
       'alice',
     )
 

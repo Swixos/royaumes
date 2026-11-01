@@ -28,7 +28,10 @@ function resultOf(event: VillageEvent): TransferResult | null {
     case 'WithdrawalRefused':
       return { transferId: event.data.transferId, outcome: 'refused', missing: event.data.missing }
     case 'ResourcesDeposited':
+    case 'UnitsReturned':
       return { transferId: event.data.transferId, outcome: 'deposited' }
+    case 'UnitsWithdrawn':
+      return { transferId: event.data.transferId, outcome: 'withdrawn' }
     default:
       return null
   }

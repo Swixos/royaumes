@@ -108,6 +108,8 @@ const NAMES: Record<Building, string> = {
   quarry: 'Carrière',
   mine: 'Mine',
   warehouse: 'Entrepôt',
+  barracks: 'Caserne',
+  farm: 'Ferme',
   wall: 'Rempart',
   shipyard: 'Chantier naval',
 }

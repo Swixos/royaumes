@@ -47,6 +47,38 @@ export interface BattleDetail {
   hold: Amounts
 }
 
+/** Number of each unit, as copied from the events. */
+export type Units = Partial<Record<string, number>>
+
+/** Kind of damage dealt by land units. */
+export type Damage = 'blunt' | 'sharp' | 'distance'
+
+/**
+ * Detail of a battle between armies, as the fleet module reports it: the units met, the
+ * naval battle, then the land battle, and what each side lost.
+ */
+export interface ArmyDetail {
+  /** Units sent by the attacker, and those it lost. */
+  attacker: { sent: Units; lost: Units }
+  /** Units defending the target, and those it lost. */
+  defender: { present: Units; lost: Units }
+  /** Naval battle; null if the target had no ship. */
+  naval: { attack: number; defense: number; won: boolean } | null
+  /** Land battle; null if the fleet was sunk first, or carried no troop. */
+  land: {
+    attack: number
+    damage: Record<Damage, number>
+    defense: number
+    wall: number
+    wallBonus: number
+    won: boolean
+  } | null
+  /** True if the attacker won the land battle, and may plunder. */
+  victory: boolean
+  /** Resources the surviving troops can carry back. */
+  capacity: number
+}
+
 /** Fact told by an entry, with the data it needs. */
 export type Fact =
   | { type: 'village-founded'; name: string }
@@ -57,7 +89,17 @@ export type Fact =
       cost: Amounts
       completesAt: number | null
     }
-  | { type: 'raid-launched'; target: string; pirates: boolean; ships: number; tactic: Tactic }
+  | {
+      type: 'raid-launched'
+      target: string
+      pirates: boolean
+      ships: number
+      /** Tactic of a fleet of triremes; missing for an army. */
+      tactic?: Tactic
+      /** Army sent; missing for a fleet of triremes. */
+      army?: Units
+    }
+  | { type: 'units-recruited'; unit: string; count: number; cost: Amounts }
   | { type: 'raid-cancelled'; target: string }
   | { type: 'fleet-recalled'; target: string }
   | { type: 'raid-aborted'; target: string }
@@ -69,8 +111,10 @@ export type Fact =
       won: boolean
       opponent: string
       loot: Amounts
-      /** Detail of the battle; missing when its raid was not read. */
+      /** Detail of a battle of triremes; missing when its raid was not read. */
       report?: BattleDetail
+      /** Detail of a battle between armies. */
+      army?: ArmyDetail
     }
   | { type: 'posture-chosen'; posture: Tactic }
   | { type: 'expedition-created' }
@@ -102,7 +146,7 @@ export const CATEGORIES: readonly Category[] = ['village', 'fleet', 'dungeon', '
 
 /** Types of facts of each part of the game. */
 export const FACTS_OF: Record<Category, readonly Fact['type'][]> = {
-  village: ['village-founded', 'building-ordered'],
+  village: ['village-founded', 'building-ordered', 'units-recruited'],
   fleet: [
     'raid-launched',
     'raid-cancelled',
@@ -136,6 +180,53 @@ const BUILDING_NAMES: Record<string, string> = {
   warehouse: 'Entrepôt',
   wall: 'Rempart',
   shipyard: 'Chantier naval',
+  farm: 'Ferme',
+  barracks: 'Caserne',
+}
+
+/** French name of each unit, singular then plural. */
+const UNIT_NAMES: Record<string, [string, string]> = {
+  swordsman: ['épéiste', 'épéistes'],
+  slinger: ['frondeur', 'frondeurs'],
+  archer: ['archer', 'archers'],
+  hoplite: ['hoplite', 'hoplites'],
+  transport: ['bateau de transport', 'bateaux de transport'],
+  bireme: ['birème', 'birèmes'],
+  lightShip: ['navire léger', 'navires légers'],
+  trireme: ['trirème', 'trirèmes'],
+}
+
+/** French name of each kind of damage. */
+const DAMAGE_NAMES: Record<Damage, string> = {
+  blunt: 'contondant',
+  sharp: 'tranchant',
+  distance: 'à distance',
+}
+
+/**
+ * Tells a number of units: "12 épéistes".
+ *
+ * @param unit - Unit.
+ * @param count - Number of units.
+ * @returns The count and the name, agreed in number.
+ */
+export function tellUnit(unit: string, count: number): string {
+  const [one, many] = UNIT_NAMES[unit] ?? [unit, unit]
+  return `${count} ${count > 1 ? many : one}`
+}
+
+/**
+ * Tells an army: "12 épéistes, 2 bateaux de transport".
+ *
+ * @param units - Units to tell.
+ * @param none - Words used when the army is empty.
+ * @returns The units in words.
+ */
+export function tellArmy(units: Units, none = 'aucune unité'): string {
+  const parts = Object.entries(units)
+    .filter((entry): entry is [string, number] => (entry[1] ?? 0) > 0)
+    .map(([unit, count]) => tellUnit(unit, count))
+  return parts.length > 0 ? parts.join(', ') : none
 }
 
 /** French name of each tactic. */
@@ -194,7 +285,15 @@ export function tell(fact: Fact, now: number): Told {
     case 'raid-launched':
       return {
         title: `Raid lancé contre ${fact.target}`,
-        detail: `${fact.ships} trirème${fact.ships > 1 ? 's' : ''}, ${TACTIC_NAMES[fact.tactic]}`,
+        detail: fact.army
+          ? tellArmy(fact.army)
+          : `${tellUnit('trireme', fact.ships)}, ${TACTIC_NAMES[fact.tactic ?? 'ram']}`,
+        tone: 'plain',
+      }
+    case 'units-recruited':
+      return {
+        title: `${capital(tellUnit(fact.unit, fact.count))} en formation`,
+        detail: `Pour ${tellAmounts(fact.cost)}`,
         tone: 'plain',
       }
     case 'raid-cancelled':
@@ -214,7 +313,7 @@ export function tell(fact: Fact, now: number): Told {
     case 'fleet-sighted':
       return {
         title: `Flotte de ${fact.attacker} en approche`,
-        detail: `${fact.ships} trirème${fact.ships > 1 ? 's' : ''}`,
+        detail: `${fact.ships} navire${fact.ships > 1 ? 's' : ''}`,
         tone: 'bad',
       }
     case 'fleet-turned-back':
@@ -232,9 +331,13 @@ export function tell(fact: Fact, now: number): Told {
       const detail = attacking
         ? fact.won
           ? `Butin : ${loot}`
-          : 'La flotte est perdue'
+          : fact.army
+            ? `Pertes : ${tellArmy(fact.army.attacker.lost)}`
+            : 'La flotte est perdue'
         : fact.won
-          ? 'Le port a tenu bon'
+          ? fact.army
+            ? `Pertes : ${tellArmy(fact.army.defender.lost)}`
+            : 'Le port a tenu bon'
           : `Pertes : ${loot}`
       return { title, detail, tone: fact.won ? 'good' : 'bad' }
     }
@@ -382,6 +485,86 @@ export function explainBattle(
       value: attacking
         ? `Il fallait au moins ${triremes(report.neededShips)} en ${TACTIC_NAMES[report.tactic]}, ou une tactique qui bat ${TACTIC_NAMES[report.posture]}.`
         : `La posture ${TACTIC_NAMES[report.counter]} aurait affaibli cette attaque ; chaque niveau de rempart ajoute ${report.perWallLevel} de défense.`,
+      tone: 'plain',
+    })
+  }
+  return lines
+}
+
+/**
+ * Explains a battle between armies line by line, from the side of the player: the units
+ * of each side, the naval battle, the land battle with its kinds of damage and the wall,
+ * the losses, the plunder, then what would have changed the outcome.
+ *
+ * @param fact - Battle told by the entry.
+ * @param army - Detail of the battle.
+ * @returns The lines of the report.
+ */
+export function explainArmyBattle(
+  fact: Extract<Fact, { type: 'battle' }>,
+  army: ArmyDetail,
+): ReportLine[] {
+  const attacking = fact.role === 'attacker'
+  const [mine, theirs] = attacking
+    ? [army.attacker.sent, army.defender.present]
+    : [army.defender.present, army.attacker.sent]
+  const [myLoss, theirLoss] = attacking
+    ? [army.attacker.lost, army.defender.lost]
+    : [army.defender.lost, army.attacker.lost]
+  const lines: ReportLine[] = [
+    {
+      label: attacking ? 'Votre armée' : 'Votre garnison',
+      value: tellArmy(mine, 'aucune unité, seuls les habitants'),
+      tone: 'plain',
+    },
+    {
+      label: attacking ? 'Défenseurs' : 'Armée ennemie',
+      value: tellArmy(theirs, 'aucun défenseur, seuls les habitants'),
+      tone: 'plain',
+    },
+  ]
+  if (army.naval) {
+    lines.push({
+      label: 'Bataille navale',
+      value: `${army.naval.attack} d'attaque contre ${army.naval.defense} de défense : ${army.naval.won ? "la flotte d'attaque l'emporte" : "la flotte d'attaque est coulée, avec les troupes à son bord"}`,
+      tone: army.naval.won === attacking ? 'good' : 'bad',
+    })
+  }
+  if (army.land) {
+    const damage = (Object.keys(DAMAGE_NAMES) as Damage[])
+      .filter((kind) => army.land && army.land.damage[kind] > 0)
+      .map((kind) => `${army.land?.damage[kind]} ${DAMAGE_NAMES[kind]}`)
+      .join(', ')
+    lines.push({
+      label: 'Bataille terrestre',
+      value: `${army.land.attack} d'attaque (${damage || 'aucune'}) contre ${army.land.defense} de défense${army.land.wall > 0 ? `, rempart niveau ${army.land.wall} (+${Math.round(army.land.wallBonus * 100)} %)` : ''}`,
+      tone: army.land.won === attacking ? 'good' : 'bad',
+    })
+  }
+  lines.push(
+    {
+      label: 'Issue',
+      value: army.victory ? "L'attaquant l'emporte et pille" : 'La défense tient',
+      tone: fact.won ? 'good' : 'bad',
+    },
+    { label: 'Vos pertes', value: tellArmy(myLoss, 'aucune'), tone: 'bad' },
+    { label: 'Pertes adverses', value: tellArmy(theirLoss, 'aucune'), tone: 'good' },
+  )
+  if (army.victory) {
+    lines.push({
+      label: 'Butin',
+      value: `${tellAmounts(fact.loot)}, pour ${army.capacity} de capacité de pillage`,
+      tone: attacking ? 'good' : 'bad',
+    })
+  }
+  if (!fact.won) {
+    lines.push({
+      label: 'Conseil',
+      value: attacking
+        ? army.naval && !army.naval.won
+          ? 'Escortez vos transports de navires légers : ils percent la défense des birèmes.'
+          : 'Envoyez plus de troupes, et variez les dégâts : chaque défenseur résiste à sa manière.'
+        : 'Formez des défenseurs contre les dégâts que vous subissez, et élevez le rempart.',
       tone: 'plain',
     })
   }

@@ -82,9 +82,9 @@ export const GATES: readonly Tile[] = [
 ]
 
 /**
- * Ground of each building: the senate and the warehouse inside the walls, the producers on
- * their own ground (forest edge, cliff, mountain), the gate of the wall facing the harbor,
- * and the shipyard on the south-west shore.
+ * Ground of each building: the senate, the warehouse and the barracks inside the walls, the
+ * producers on their own ground (forest edge, cliff, mountain), the farm among the fields,
+ * the gate of the wall facing the harbor, and the shipyard on the south-west shore.
  */
 export const FOOTPRINTS: Record<Building, Footprint> = {
   senate: { at: { u: -2.3, v: -2.3 }, size: { u: 2.2, v: 2 } },
@@ -92,6 +92,8 @@ export const FOOTPRINTS: Record<Building, Footprint> = {
   quarry: { at: { u: -8, v: -2 }, size: { u: 2, v: 2 } },
   mine: { at: { u: 2, v: -9 }, size: { u: 1.8, v: 1.6 } },
   warehouse: { at: { u: 2.3, v: -2.3 }, size: { u: 1.6, v: 2 } },
+  barracks: { at: { u: -2.3, v: 2.3 }, size: { u: 2, v: 2 } },
+  farm: { at: { u: 7.5, v: -1.2 }, size: { u: 1.6, v: 1.4 } },
   wall: { at: GATES[0], size: { u: 0.8, v: 1.4 } },
   shipyard: { at: { u: 6.5, v: 11.5 }, size: { u: 2, v: 2.4 } },
 }
@@ -427,7 +429,7 @@ export interface Lot extends Footprint {
 const BLOCK_ROWS = [-3.2, -2.15, -1.1, 1.1, 2.15, 3.2]
 
 /** Largest number of houses lining the roads outside the walls. */
-const SUBURB_LOTS = 16
+const SUBURB_LOTS = 22
 
 /**
  * Lots of the houses, in the order they are built: inside the walls first, from the town
@@ -498,7 +500,7 @@ export function lots(): Lot[] {
  */
 export function housesFor(levels: Levels): Lot[] {
   const all = lots()
-  return all.slice(0, Math.min(all.length, 4 + totalLevel(levels)))
+  return all.slice(0, Math.min(all.length, 3 + totalLevel(levels)))
 }
 
 /** A tree of the island. */

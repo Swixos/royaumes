@@ -46,6 +46,8 @@ const THE: Record<string, string> = {
   warehouse: 'l’Entrepôt',
   wall: 'le Rempart',
   shipyard: 'le Chantier naval',
+  farm: 'la Ferme',
+  barracks: 'la Caserne',
 }
 
 /** One step of the guide: an element of the page to point at, and what to do with it. */
@@ -90,11 +92,17 @@ function stepsOf(quest: QuestView): Step[] {
       ]
     case 'expedition-won':
       return [{ target: 'nav-dungeon', hint: 'Menez une expédition jusqu’à la victoire' }]
-    case 'posture':
+    case 'troops':
       return [
-        { target: 'nav-fleet', hint: 'Ouvrez la Flotte' },
-        { target: 'fleet-harbor', hint: 'Ouvrez Votre port' },
-        { target: 'posture', hint: 'Choisissez une posture' },
+        { target: 'nav-village', hint: 'Revenez au village' },
+        { target: 'building-barracks', hint: 'Touchez la Caserne' },
+        { target: 'recruit-swordsman', hint: 'Formez des épéistes' },
+      ]
+    case 'warship':
+      return [
+        { target: 'nav-village', hint: 'Revenez au village' },
+        { target: 'building-shipyard', hint: 'Touchez le Chantier naval' },
+        { target: 'recruit-transport', hint: 'Construisez un bateau de transport' },
       ]
     case 'pirate-raid':
     case 'naval-victory':
@@ -105,6 +113,7 @@ function stepsOf(quest: QuestView): Step[] {
           hint: quest.id === 'pirate-raid' ? 'Touchez une île pirate' : 'Visez une île plus faible',
           away: 'Faites glisser la carte jusqu’à une île pirate, au drapeau noir',
         },
+        { target: 'army-picker', hint: 'Embarquez vos troupes et vos navires' },
         { target: 'launch-raid', hint: 'Hissez les voiles' },
       ]
     default:

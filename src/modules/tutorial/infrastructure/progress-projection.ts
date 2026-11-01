@@ -1,7 +1,12 @@
 import { eq } from 'drizzle-orm'
 import { GAME_CHANNEL_PREFIX } from '@/modules/dungeon/contracts'
 import { HARBOR_CHANNEL_PREFIX } from '@/modules/fleet/contracts'
-import { STARTING_LEVELS, VILLAGE_CHANNEL_PREFIX } from '@/modules/realm/contracts'
+import {
+  isLand,
+  STARTING_LEVELS,
+  type Unit,
+  VILLAGE_CHANNEL_PREFIX,
+} from '@/modules/realm/contracts'
 import type { StoredEvent } from '@/platform/event-store/event-store'
 import type { DbTransaction, Projection } from '@/platform/projection/projection'
 import type { Deed, LevelSteps } from '../domain/quests'
@@ -92,11 +97,11 @@ async function raise(
  */
 export const progressProjection: Projection = {
   name: 'tutorial-progress',
-  version: 1,
+  version: 2,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
-    'PostureChosen',
+    'UnitsRecruited',
     'BattleReported',
     'RaidLaunched',
     'OfferPublished',
@@ -121,9 +126,11 @@ export const progressProjection: Projection = {
         await raise(tx, playerId, String(data.building), Number(data.toLevel), at)
         return
       }
-      case 'PostureChosen':
-        await achieve(tx, event.stream.slice(HARBOR_CHANNEL_PREFIX.length), 'posture')
+      case 'UnitsRecruited': {
+        const playerId = event.stream.slice(VILLAGE_CHANNEL_PREFIX.length)
+        await achieve(tx, playerId, isLand(data.unit as Unit) ? 'troops' : 'warship')
         return
+      }
       case 'BattleReported':
         if (data.role === 'attacker' && data.won === true) {
           await achieve(tx, event.stream.slice(HARBOR_CHANNEL_PREFIX.length), 'navalVictory')
