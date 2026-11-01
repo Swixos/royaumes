@@ -78,14 +78,14 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | Module | Rôle | Adresse de l'API |
 | --- | --- | --- |
 | `system` | Route de santé | `/api/system` |
-| `realm` | Village : fondation, production de ressources, amélioration des bâtiments | `/api/realm` |
+| `realm` | Village : fondation, production de ressources, amélioration des bâtiments, formation des troupes et des navires | `/api/realm` |
 | `dungeon` | Donjon : expéditions de un à quatre héros, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
-| `tutorial` | Tutoriel : introduction par une conseillère, chaîne de quinze quêtes récompensées, guide qui éclaire où toucher | `/api/tutorial` |
+| `tutorial` | Tutoriel : introduction par une conseillère, chaîne de dix-huit quêtes récompensées, guide qui éclaire où toucher | `/api/tutorial` |
 | `chronicle` | Historique de chaque joueur : constructions, raids et batailles, expéditions, échanges, construit à partir des événements des autres modules | `/api/chronicle` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
-| `fleet` | Flotte : raids navals contre les villages des autres joueurs et contre des îles pirates pilotées par l'ordinateur, saga avec le Village, posture défensive et alertes en temps réel | `/api/fleet` |
+| `fleet` | Flotte : raids menés par des armées contre les villages des autres joueurs et contre des îles pirates pilotées par l'ordinateur, batailles navale puis terrestre, saga avec le Village et alertes en temps réel | `/api/fleet` |
 
 ## Temps réel
 
@@ -101,7 +101,7 @@ enregistrés après leur ouverture.
 
 Le canal `harbor-<joueur>` est le port de la Flotte : il correspond au flux du port, et n'est
 accessible qu'à son propriétaire. Il annonce les flottes ennemies en approche, celles qui font
-demi-tour et les rapports de bataille ; la tactique d'une flotte n'y figure jamais avant la
+demi-tour et les rapports de bataille ; l'armée d'un raid n'y figure jamais avant la
 bataille.
 
 Le canal `tavern` ne lit pas le journal, mais la table des messages de la Taverne : il
@@ -128,31 +128,51 @@ est garantie au moins une fois : les gestionnaires de messages sont idempotents.
 
 ## Le Village
 
-Comme dans Grepolis, le village compte sept bâtiments, du niveau 0 au niveau 10 (ADR 0018) :
+Comme dans Grepolis, le village compte neuf bâtiments, du niveau 0 au niveau 10 (ADR 0018) :
 
 | Bâtiment | Effet | Prérequis |
 | --- | --- | --- |
 | Sénat | Chaque niveau raccourcit les chantiers de 5 % | - |
 | Scierie, Carrière, Mine | Produisent le bois, la pierre et l'or | Mine : Sénat 2 |
 | Entrepôt | Fixe la capacité de stockage de chaque ressource, et en cache une part aux pillards | - |
-| Rempart | Défense du port : 20, plus 12 par niveau | Sénat 3 |
-| Chantier naval | Trirèmes par raid, flottes en mer et vitesse des traversées | Sénat 2, Scierie 3 |
+| Ferme | Fixe la population : chaque unité y occupe une ou plusieurs places | - |
+| Caserne | Forme les troupes terrestres, plus vite à chaque niveau | Sénat 2 |
+| Rempart | Chaque niveau renforce de 8 % la défense des troupes restées au village | Sénat 3 |
+| Chantier naval | Construit les navires, envoie plus de flottes à la fois et accélère les traversées | Sénat 2, Scierie 3 |
 
 Une amélioration est payée à la commande puis prend du temps : elle entre dans une file de
 deux chantiers, et le bâtiment monte de niveau à la fin de son chantier. La production s'arrête
 quand l'entrepôt est plein pour une ressource.
 
+La caserne et le chantier naval forment les unités de Grepolis (ADR 0023), payées à la
+commande, puis sorties l'une après l'autre (`POST /api/realm/village/recruit`) :
+
+| Unité | Bâtiment | Attaque | Défense (contondant, tranchant, distance) | Butin | Population |
+| --- | --- | --- | --- | --- | --- |
+| Épéiste | Caserne 1 | 5 contondant | 14, 8, 30 | 16 | 1 |
+| Frondeur | Caserne 2 | 23 à distance | 7, 8, 2 | 8 | 1 |
+| Archer | Caserne 3 | 8 à distance | 7, 25, 13 | 12 | 1 |
+| Hoplite | Caserne 5 | 16 tranchant | 18, 12, 7 | 8 | 1 |
+
+| Navire | Bâtiment | Attaque | Défense | Transport | Vitesse | Population |
+| --- | --- | --- | --- | --- | --- | --- |
+| Bateau de transport | Chantier naval 1 | 0 | 0 | 10 | 8 | 3 |
+| Birème | Chantier naval 2 | 24 | 160 | 0 | 15 | 4 |
+| Navire léger | Chantier naval 4 | 200 | 60 | 0 | 13 | 5 |
+
 ## La Flotte
 
 Inspirée des raids navals de Grepolis, la Flotte est le module de l'évaluation finale
 ([fiche de cadrage](docs/evaluation/fiche-cadrage.md), [rendu](docs/evaluation/rendu.md)).
-Un joueur arme de 1 à 10 trirèmes (davantage avec un chantier naval) avec les ressources de son village, choisit une tactique
-(éperonnage, abordage ou blocus, qui se battent en triangle) et lance un raid contre le village
-d'un autre joueur ou contre une île pirate. La flotte traverse la mer pendant 2 à 6 minutes ; le
-défenseur est alerté en temps réel, et peut changer de posture. À l'arrivée, la bataille se
-résout sans hasard ; une flotte victorieuse pille ce que ses cales emportent, et une flotte
-rappelée avant l'arrivée rend son équipement. Les capitaines pirates parent la tactique que
-l'attaquant emploie le plus contre eux.
+Un joueur choisit une armée dans sa garnison, au moins un navire et assez de bateaux de
+transport pour ses troupes, et lance un raid contre le village d'un autre joueur ou contre une
+île pirate. Le navire le plus lent fixe la durée de la traversée ; le défenseur est alerté en
+temps réel. À l'arrivée, la bataille se résout sans hasard, comme dans Grepolis : les navires
+s'affrontent d'abord en mer, puis les troupes débarquées affrontent la garnison, renforcée par
+le rempart. Chaque camp perd des unités, et les survivants rentrent avec ce que leur capacité de
+butin emporte. Une armée rappelée avant l'arrivée rentre au port. Les capitaines pirates
+appellent en renfort l'unité qui défend le mieux contre les dégâts que l'attaquant leur inflige
+le plus souvent.
 
 | Route | Rôle |
 | --- | --- |
@@ -161,8 +181,7 @@ l'attaquant emploie le plus contre eux.
 | `POST /api/fleet/raids` | Lancement d'un raid |
 | `GET /api/fleet/raids/:id` | Vue d'un raid, pour son attaquant ou son défenseur |
 | `POST /api/fleet/raids/:id/recall` | Rappel de la flotte par son attaquant |
-| `GET /api/fleet/harbor` | Posture et avis du port du joueur |
-| `PUT /api/fleet/harbor/posture` | Choix de la posture défensive du port |
+| `GET /api/fleet/harbor` | Garnison, rempart et avis du port du joueur |
 
 L'arrivée d'une flotte est une échéance sans tâche de fond : elle est résolue par un message
 différé de la boîte d'envoi, ou par la première lecture de la Flotte après l'heure d'arrivée
@@ -196,7 +215,7 @@ page « Mes données » :
   d'événements (ADR 0008). Chaque effacement est consigné dans `platform.erasures`.
 
 La Flotte conserve les noms de l'attaquant et du défenseur dans les événements de chaque raid
-et dans les avis des ports, le nom du village visé, la tactique, la posture défensive et le
+et dans les avis des ports, le nom du village visé, l'armée envoyée, le rapport de bataille et le
 butin. Ses messages de la boîte d'envoi ne portent que des identifiants.
 
 Les messages de la Taverne sont conservés trente jours, et la présence d'un joueur deux
@@ -233,9 +252,10 @@ trois lectures de la Flotte (cibles, raids, port) ; la dernière mesure est
 ## Tests de bout en bout
 
 Les tests du répertoire `e2e/` pilotent l'interface dans un navigateur (Playwright) : un raid
-entre deux joueurs, avec l'alerte en temps réel du défenseur et le rappel de la flotte ; le
-choix de la posture et la prévision d'une bataille contre une île pirate ; la rectification
-du nom d'un joueur. `pnpm test:e2e` construit l'application, la démarre sur le port 3100 avec
+la préparation d'un raid contre une île pirate, avec sa garnison, et contre le port d'un autre
+joueur ; la garnison du village ; la rectification du nom d'un joueur. Un nouveau joueur n'a
+pas encore de troupes : les batailles d'armées sont couvertes par les tests du domaine et de
+l'API. `pnpm test:e2e` construit l'application, la démarre sur le port 3100 avec
 la base locale, puis exécute les tests.
 
 ## Déploiement
@@ -269,7 +289,7 @@ palissade puis à la muraille, et une maison s'élève pour chaque niveau gagné
 puis le long des routes. La scène s'anime : fumées, villageois sur les routes, ressources
 produites, vagues et oiseaux. Les noms des bâtiments n'apparaissent qu'au survol, à la
 sélection, pendant un chantier ou en zoomant. Un nouveau joueur est accueilli par sa conseillère, qui lui présente le jeu puis lui confie
-une chaîne de quinze quêtes, du premier chantier au chantier naval (ADR 0022) : une
+une chaîne de dix-huit quêtes, du premier chantier à la première victoire et au rempart (ADR 0022) : une
 lumière dorée montre à chaque étape où toucher, et chaque quête accomplie se réclame contre
 des ressources versées au village. Un clic sur un bâtiment
 ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. La carte des

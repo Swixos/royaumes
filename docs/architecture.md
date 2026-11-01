@@ -163,22 +163,21 @@ sequenceDiagram
   participant V as Village
   participant J as Journal
   participant C as Classement
-  A->>F: POST /api/fleet/raids (cible, trirèmes, tactique)
+  A->>F: POST /api/fleet/raids (cible, armée)
   F->>J: RaidLaunched, avec le message realm.withdraw (provision)
-  O->>V: realm.withdraw : équipement d'Alice
-  V->>J: ResourcesWithdrawn, avec la réponse fleet.transfer-result
+  O->>V: realm.withdraw : unités d'Alice
+  V->>J: UnitsWithdrawn, avec la réponse fleet.transfer-result
   O->>F: fleet.transfer-result (withdrawn)
   F->>J: FleetSighted (port de Bob), message différé fleet.arrive
   J-->>B: canal harbor-bob : flotte ennemie en approche
-  B->>F: PUT /api/fleet/harbor/posture
   Note over F: heure d'arrivée : message différé, ou première lecture
   O->>F: fleet.arrive
-  F->>J: BattleFought (victoire), message realm.withdraw (plunder-1)
+  F->>J: BattleFought (rapport), messages realm.withdraw (pertes de Bob, plunder-1)
   O->>V: realm.withdraw : butin chez Bob
   V->>J: ResourcesWithdrawn, ou WithdrawalRefused avec les quantités manquantes
   O->>F: fleet.transfer-result
   F->>J: RaidPlundered, messages realm.deposit (loot) et fleet.notice (rapports)
-  O->>V: realm.deposit : butin chez Alice
+  O->>V: realm.deposit : butin et survivants chez Alice, au retour
   O->>F: fleet.notice : rapports dans les ports d'Alice et de Bob
   J-->>A: canal harbor-alice : rapport de bataille
   C->>J: rattrapage : RaidPlundered ajoute l'or pillé à Alice
