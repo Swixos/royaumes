@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { GAME_CHANNEL_PREFIX } from '@/modules/dungeon/contracts'
-import { HARBOR_CHANNEL_PREFIX } from '@/modules/fleet/contracts'
+import { HARBOR_CHANNEL_PREFIX, PIRATE_ISLANDS } from '@/modules/fleet/contracts'
 import {
   isLand,
   STARTING_LEVELS,
@@ -91,13 +91,22 @@ async function raise(
   await save(tx, { ...row, levels: { ...row.levels, [building]: [...steps, [level, at]] } })
 }
 
+/** Fact achieved by recruiting each unit, for the units a quest asks for by name. */
+const UNIT_DEEDS: Partial<Record<Unit, Deed>> = {
+  slinger: 'slinger',
+  archer: 'archer',
+  hoplite: 'hoplite',
+  bireme: 'bireme',
+  lightShip: 'lightShip',
+}
+
 /**
  * Progress projection of the tutorial: reads, in the published language of the realm,
  * fleet, market and dungeon modules, what each player achieved that a quest may ask for.
  */
 export const progressProjection: Projection = {
   name: 'tutorial-progress',
-  version: 2,
+  version: 3,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
@@ -105,6 +114,8 @@ export const progressProjection: Projection = {
     'BattleReported',
     'RaidLaunched',
     'OfferPublished',
+    'OfferAccepted',
+    'ActionSubmitted',
     'GameCreated',
     'PlayerJoined',
     'GameEnded',
@@ -128,21 +139,45 @@ export const progressProjection: Projection = {
       }
       case 'UnitsRecruited': {
         const playerId = event.stream.slice(VILLAGE_CHANNEL_PREFIX.length)
-        await achieve(tx, playerId, isLand(data.unit as Unit) ? 'troops' : 'warship')
+        const unit = data.unit as Unit
+        await achieve(tx, playerId, isLand(unit) ? 'troops' : 'warship')
+        const deed = UNIT_DEEDS[unit]
+        if (deed) await achieve(tx, playerId, deed)
         return
       }
-      case 'BattleReported':
-        if (data.role === 'attacker' && data.won === true) {
-          await achieve(tx, event.stream.slice(HARBOR_CHANNEL_PREFIX.length), 'navalVictory')
+      case 'BattleReported': {
+        const playerId = event.stream.slice(HARBOR_CHANNEL_PREFIX.length)
+        if (data.won !== true) return
+        if (data.role === 'defender') {
+          await achieve(tx, playerId, 'defended')
+          return
+        }
+        await achieve(tx, playerId, 'navalVictory')
+        const opponent = String(data.opponentId)
+        if (opponent === 'raven-cove') await achieve(tx, playerId, 'coveVictory')
+        if (opponent === 'scarlet-atoll') await achieve(tx, playerId, 'atollVictory')
+        if (!PIRATE_ISLANDS.some((island) => island.id === opponent)) {
+          await achieve(tx, playerId, 'villageVictory')
         }
         return
+      }
       case 'RaidLaunched':
         if ((data.target as { kind?: string })?.kind === 'pirates') {
           await achieve(tx, String(data.attackerId), 'pirateRaid')
+        } else {
+          await achieve(tx, String(data.attackerId), 'villageRaid')
         }
         return
       case 'OfferPublished':
         await achieve(tx, String(data.sellerId), 'offer')
+        return
+      case 'OfferAccepted':
+        await achieve(tx, String(data.buyerId), 'purchase')
+        return
+      case 'ActionSubmitted':
+        if ((data.action as { type?: string })?.type === 'skill') {
+          await achieve(tx, String(data.heroId), 'dungeonSkill')
+        }
         return
       case 'GameCreated':
       case 'PlayerJoined': {

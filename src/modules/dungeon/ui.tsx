@@ -1208,6 +1208,7 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
                   type="button"
                   className={styles.move}
                   data-skill="true"
+                  data-guide="skill-action"
                   disabled={me.skillWait !== 0}
                   onClick={() => act({ type: 'skill' })}
                 >
