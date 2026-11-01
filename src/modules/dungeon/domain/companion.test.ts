@@ -19,6 +19,10 @@ const hero = (id: string, hp: number): Hero => ({
   maxHp: 30,
   attack: 6,
   companion: id.startsWith('companion'),
+  heroClass: null,
+  heal: 8,
+  critical: 0,
+  skill: null,
 })
 
 /**

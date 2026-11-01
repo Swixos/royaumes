@@ -13,6 +13,10 @@ const hero = (id: string, hp: number): Hero => ({
   maxHp: 30,
   attack: 6,
   companion: false,
+  heroClass: null,
+  heal: 8,
+  critical: 0,
+  skill: null,
 })
 const troll: Monster = { id: 'm0', kind: 'troll', hp: 40, maxHp: 40, attack: 7 }
 

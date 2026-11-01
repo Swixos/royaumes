@@ -82,7 +82,7 @@ describe('Donjon - salon', () => {
     expect(state.phase).toBe('lobby')
     expect(state.difficulty).toBe('hard')
     expect(state.heroes.map((hero) => hero.name)).toEqual(['Alice'])
-    expect(state.heroes[0]).toMatchObject({ hp: 30, maxHp: 30, attack: 6 })
+    expect(state.heroes[0]).toMatchObject({ hp: 40, maxHp: 40, attack: 5, heroClass: 'warrior' })
   })
 
   it('lit comme facile une expédition enregistrée sans niveau de difficulté', () => {
