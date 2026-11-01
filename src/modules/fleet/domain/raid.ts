@@ -33,6 +33,7 @@ import {
   holdOf,
   isEmpty,
   islandOf,
+  islandTravelMinutes,
   pirateLoot,
   reducedLoot,
   type Tactic,
@@ -388,7 +389,7 @@ function launch(command: Extract<RaidCommand, { type: 'LaunchRaid' }>, now: numb
     if (!island) return fail({ code: 'UNKNOWN_TARGET' })
     if (context.islandRaidDays.includes(dayOf(now))) return fail({ code: 'TREASURE_TAKEN' })
     target = { kind: 'pirates', islandId: island.id, name: island.name }
-    minutes = island.travelMinutes
+    minutes = islandTravelMinutes(attackerId, island)
   }
 
   if (context.raidsOut >= limits.maxRaids) {

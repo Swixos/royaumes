@@ -166,8 +166,8 @@ Inspirée des raids navals de Grepolis, la Flotte est le module de l'évaluation
 ([fiche de cadrage](docs/evaluation/fiche-cadrage.md), [rendu](docs/evaluation/rendu.md)).
 Un joueur choisit une armée dans sa garnison, au moins un navire et assez de bateaux de
 transport pour ses troupes, et lance un raid contre le village d'un autre joueur ou contre une
-île pirate. Le navire le plus lent fixe la durée de la traversée ; le défenseur est alerté en
-temps réel. À l'arrivée, la bataille se résout sans hasard, comme dans Grepolis : les navires
+île pirate. Comme dans Grepolis, la traversée dure d'autant plus longtemps que la cible est loin
+sur la carte, au pas du navire le plus lent ; le défenseur est alerté en temps réel. À l'arrivée, la bataille se résout sans hasard, comme dans Grepolis : les navires
 s'affrontent d'abord en mer, puis les troupes débarquées affrontent la garnison, renforcée par
 le rempart. Chaque camp perd des unités, et les survivants rentrent avec ce que leur capacité de
 butin emporte. Une armée rappelée avant l'arrivée rentre au port. Les capitaines pirates

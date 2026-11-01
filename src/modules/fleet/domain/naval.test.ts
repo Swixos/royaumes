@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
+  crossingMinutes,
   equipmentCost,
   fight,
   holdOf,
+  ISLAND_CLEARANCE,
   islandOf,
+  islandTravelMinutes,
   MAX_TRAVEL_MINUTES,
   MIN_TRAVEL_MINUTES,
   mapPositionOf,
+  PIRATE_ISLANDS,
   pirateLoot,
   reducedLoot,
+  seaDistance,
   tacticMultiplier,
   travelMinutes,
   villageDefense,
@@ -21,7 +26,7 @@ describe('Flotte - règles navales', () => {
     expect(equipmentCost(4)).toEqual({ wood: 60, stone: 20 })
   })
 
-  it('règle 5 : la traversée dure de 2 à 6 minutes, la même dans les deux sens', () => {
+  it('règle 5 : la traversée dure de 1 à 7 minutes, la même dans les deux sens', () => {
     const players = ['alice', 'bob', 'carol', 'dave', 'erin', 'frank', 'grace']
     const seen = new Set<number>()
     for (const a of players) {
@@ -37,9 +42,29 @@ describe('Flotte - règles navales', () => {
     expect(seen.size).toBeGreaterThan(1)
   })
 
-  it('règle 5 : la traversée vers une île pirate est fixe', () => {
-    expect(islandOf('misty-reef')?.travelMinutes).toBe(3)
-    expect(islandOf('scarlet-atoll')?.travelMinutes).toBe(6)
+  it('règle 5 : plus la cible est loin sur la carte, plus la traversée est longue', () => {
+    const home = { x: 50, y: 50 }
+    expect(crossingMinutes(home, home)).toBe(MIN_TRAVEL_MINUTES)
+    expect(crossingMinutes(home, { x: 50, y: 75 })).toBe(2)
+    expect(crossingMinutes(home, { x: 60, y: 50 })).toBeCloseTo(1.6)
+    expect(crossingMinutes({ x: 0, y: 0 }, { x: 100, y: 100 })).toBe(MAX_TRAVEL_MINUTES)
+    for (const player of ['alice', 'bob', 'carol']) {
+      const near = [...PIRATE_ISLANDS].sort(
+        (a, b) =>
+          seaDistance(mapPositionOf(player), a.map) - seaDistance(mapPositionOf(player), b.map),
+      )
+      const times = near.map((island) => islandTravelMinutes(player, island))
+      expect(times).toEqual([...times].sort((a, b) => a - b))
+    }
+  })
+
+  it('règle 5 : aucun village ne se pose sur une île pirate', () => {
+    for (let i = 0; i < 200; i++) {
+      const point = mapPositionOf(`joueur-${i}`)
+      for (const island of PIRATE_ISLANDS) {
+        expect(seaDistance(point, island.map)).toBeGreaterThanOrEqual(ISLAND_CLEARANCE)
+      }
+    }
     expect(islandOf('atlantide')).toBeUndefined()
   })
 
