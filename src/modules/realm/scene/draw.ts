@@ -1141,7 +1141,9 @@ function dummy(g: Graphics, at: Tile) {
   const foot = iso(at.u, at.v)
   line(g, foot, { x: foot.x, y: foot.y - 20 }, PALETTE.timber, 2.5)
   line(g, { x: foot.x - 7, y: foot.y - 14 }, { x: foot.x + 7, y: foot.y - 14 }, PALETTE.timber, 2)
-  g.circle(foot.x, foot.y - 23, 4).fill(PALETTE.thatch).stroke(EDGE)
+  g.circle(foot.x, foot.y - 23, 4)
+    .fill(PALETTE.thatch)
+    .stroke(EDGE)
 }
 
 /**
@@ -1153,10 +1155,20 @@ function dummy(g: Graphics, at: Tile) {
 function weaponRack(g: Graphics, at: Tile) {
   const foot = iso(at.u, at.v)
   for (let k = 0; k < 3; k++) {
-    line(g, { x: foot.x - 6 + k * 6, y: foot.y }, { x: foot.x - 3 + k * 6, y: foot.y - 26 }, PALETTE.trunk, 1.6)
+    line(
+      g,
+      { x: foot.x - 6 + k * 6, y: foot.y },
+      { x: foot.x - 3 + k * 6, y: foot.y - 26 },
+      PALETTE.trunk,
+      1.6,
+    )
   }
-  g.circle(foot.x - 9, foot.y - 8, 5).fill(PALETTE.banner).stroke(EDGE)
-  g.circle(foot.x + 9, foot.y - 8, 5).fill(PALETTE.gold).stroke(EDGE)
+  g.circle(foot.x - 9, foot.y - 8, 5)
+    .fill(PALETTE.banner)
+    .stroke(EDGE)
+  g.circle(foot.x + 9, foot.y - 8, 5)
+    .fill(PALETTE.gold)
+    .stroke(EDGE)
 }
 
 /**
@@ -1223,8 +1235,12 @@ function barracks(stage: number): BuildingDrawing {
 function haystack(g: Graphics, at: Tile, size: number) {
   const foot = iso(at.u, at.v)
   g.ellipse(foot.x + 3, foot.y + 1, size, size * 0.35).fill({ color: PALETTE.shadow, alpha: 0.2 })
-  g.ellipse(foot.x, foot.y - size * 0.45, size * 0.9, size * 0.75).fill(PALETTE.thatch).stroke(EDGE)
-  g.ellipse(foot.x - size * 0.3, foot.y - size * 0.7, size * 0.35, size * 0.25).fill(tint(PALETTE.thatch, 1.12))
+  g.ellipse(foot.x, foot.y - size * 0.45, size * 0.9, size * 0.75)
+    .fill(PALETTE.thatch)
+    .stroke(EDGE)
+  g.ellipse(foot.x - size * 0.3, foot.y - size * 0.7, size * 0.35, size * 0.25).fill(
+    tint(PALETTE.thatch, 1.12),
+  )
 }
 
 /**
@@ -1274,7 +1290,9 @@ function farm(stage: number): BuildingDrawing {
   const flock = 1 + stage
   for (let k = 0; k < flock; k++) {
     const spot = iso(0.2 + (k % 3) * 0.22, 0.25 + Math.floor(k / 3) * 0.22)
-    g.ellipse(spot.x, spot.y - 4, 5, 3.5).fill(PALETTE.parchment).stroke(EDGE)
+    g.ellipse(spot.x, spot.y - 4, 5, 3.5)
+      .fill(PALETTE.parchment)
+      .stroke(EDGE)
     g.circle(spot.x + 4, spot.y - 6, 2).fill(PALETTE.ink)
   }
   return finish([g], chimneys)

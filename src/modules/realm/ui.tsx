@@ -2,7 +2,7 @@
 import { hc } from 'hono/client'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fleetLimits, villageDefense } from '@/modules/fleet/contracts'
+import { fleetLimits, WALL_BONUS } from '@/modules/fleet/contracts'
 import { useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
@@ -13,16 +13,34 @@ import { ZoomControls } from '@/ui/pixi/zoom-controls'
 import { look } from '@/ui/theme'
 import type { RealmApi } from './api'
 import {
+  type Army,
+  addArmy,
   BUILDINGS,
   type Building,
   type DomainError,
+  farmCapacity,
   hiddenAmount,
+  isLand,
+  LAND_STATS,
+  LAND_UNITS,
   type Levels,
   MAX_LEVEL,
+  MAX_ORDER,
+  NAVAL_STATS,
+  NAVAL_UNITS,
   PRODUCTION,
   type Producer,
   type Stock,
   stockAt,
+  TRAINING_SLOTS,
+  trainedAt,
+  trainedBy,
+  trainingEnd,
+  UNIT_COSTS,
+  UNIT_LEVELS,
+  UNIT_POPULATION,
+  type Unit,
+  unitsOf,
   type VillageView,
   villageChannel,
   warehouseCapacity,
@@ -43,7 +61,10 @@ const ERRORS: Record<ApiError['code'], string> = {
   MAX_LEVEL_REACHED: 'Niveau maximum atteint.',
   INSUFFICIENT_RESOURCES: 'Ressources insuffisantes.',
   REQUIREMENTS_NOT_MET: 'Les bâtiments nécessaires ne sont pas encore construits.',
-  QUEUE_FULL: 'La file de construction est pleine.',
+  QUEUE_FULL: 'La file est pleine : attendez la fin d’un ordre.',
+  UNIT_LOCKED: 'Ce bâtiment n’a pas encore le niveau voulu pour cette unité.',
+  INVALID_ORDER: 'Un ordre compte de 1 à 50 unités.',
+  POPULATION_EXCEEDED: 'La ferme ne nourrit pas autant de monde : agrandissez-la.',
 }
 
 /**
@@ -63,11 +84,14 @@ const STORIES: Record<Building, string> = {
   sawmill: "Les bûcherons abattent la forêt de l'ouest et débitent les troncs.",
   quarry: 'Les tailleurs découpent la falaise en blocs prêts à bâtir.',
   mine: "Les mineurs creusent la montagne de l'est pour en tirer de l'or.",
+  farm: 'La ferme nourrit le peuple : chaque unité, formée, en formation ou en raid, y prend sa place.',
+  barracks:
+    'Les recrues y apprennent le maniement des armes : épéistes, frondeurs, archers et hoplites.',
   warehouse:
     "L'entrepôt garde les récoltes : la production s'arrête quand il est plein, et une part y reste cachée aux pillards.",
-  wall: 'Le rempart protège le port : chaque niveau renforce sa défense contre les raids.',
+  wall: 'Le rempart protège la ville : chaque niveau renforce la défense de la garnison.',
   shipyard:
-    'Les charpentiers arment des flottes plus grandes, en mettent davantage en mer et les rendent plus rapides.',
+    'Les charpentiers construisent bateaux de transport, birèmes et navires légers, et mettent plus de flottes en mer.',
 }
 
 /** Effect of a building, compared between its current level and the next one. */
@@ -103,15 +127,19 @@ function effectsOf(building: Building): Effect[] {
       ]
     case 'wall':
       return [
-        { label: 'Défense du port', icon: 'defense', at: (level) => `${villageDefense(level)}` },
+        {
+          label: 'Défense de la garnison',
+          icon: 'defense',
+          at: (level) => `+${Math.round(WALL_BONUS * level * 100)} %`,
+        },
       ]
+    case 'farm':
+      return [{ label: 'Population', icon: 'population', at: (level) => `${farmCapacity(level)}` }]
+    case 'barracks':
+      return [{ label: 'Formation', icon: 'time', at: (level) => `-${level * 5} % de durée` }]
     case 'shipyard':
       return [
-        {
-          label: 'Trirèmes par raid',
-          icon: 'trireme',
-          at: (level) => `${fleetLimits(level).maxShips}`,
-        },
+        { label: 'Formation', icon: 'time', at: (level) => `-${level * 5} % de durée` },
         { label: 'Flottes en mer', icon: 'fleet', at: (level) => `${fleetLimits(level).maxRaids}` },
         {
           label: 'Traversées',
@@ -222,6 +250,16 @@ export function VillageScreen({ userId }: { userId: string }) {
     handle(await res.json())
   }
   /**
+   * Orders units at the barracks or the shipyard.
+   *
+   * @param unit - Unit to train.
+   * @param count - Number of units.
+   */
+  async function recruit(unit: Unit, count: number) {
+    const res = await client.village.recruit.$post({ json: { unit, count } })
+    handle(await res.json())
+  }
+  /**
    * Applies an API response: shows the error, or stores the new view and announces the
    * change to the resource bar.
    *
@@ -305,8 +343,10 @@ export function VillageScreen({ userId }: { userId: string }) {
             view={view}
             stock={stock}
             onUpgrade={upgrade}
+            onRecruit={recruit}
             onSelect={setSelected}
             error={error}
+            now={now}
           />
         </GameWindow>
       )}
@@ -413,8 +453,10 @@ function Works({
  * @param props.view - Current village view.
  * @param props.stock - Current stock.
  * @param props.onUpgrade - Called with the building the player builds or upgrades.
+ * @param props.onRecruit - Called with the units the player orders.
  * @param props.onSelect - Called with another building to show, from the senate.
  * @param props.error - Error of the last command, if any.
+ * @param props.now - Current time in milliseconds, to count the units in training.
  * @returns The card.
  */
 function BuildingCard({
@@ -422,15 +464,19 @@ function BuildingCard({
   view,
   stock,
   onUpgrade,
+  onRecruit,
   onSelect,
   error,
+  now,
 }: {
   building: Building
   view: VillageView
   stock: Stock
   onUpgrade: (building: Building) => void
+  onRecruit: (unit: Unit, count: number) => void
   onSelect: (building: Building) => void
   error: string | null
+  now: number
 }) {
   const affordable = canAfford(stock, view.nextCosts[building])
   const level = view.levels[building]
@@ -514,6 +560,16 @@ function BuildingCard({
       {building === 'senate' && (
         <Constructions view={view} stock={stock} onUpgrade={onUpgrade} onSelect={onSelect} />
       )}
+      {(building === 'barracks' || building === 'shipyard') && (
+        <Recruitment
+          building={building}
+          view={view}
+          stock={stock}
+          now={now}
+          onRecruit={onRecruit}
+        />
+      )}
+      {(building === 'farm' || building === 'wall') && <Garrison view={view} now={now} />}
     </article>
   )
 }
@@ -576,6 +632,277 @@ function Constructions({
           )
         })}
       </ul>
+    </section>
+  )
+}
+
+/**
+ * Units at home now: those of the view, plus the units out of training since the view was
+ * read, so the counts move without asking the server again.
+ *
+ * @param view - Last view received.
+ * @param now - Current time in milliseconds.
+ * @returns The units at home.
+ */
+function armyNow(view: VillageView, now: number): Army {
+  let army = view.army
+  for (const training of view.trainings) {
+    const fresh = trainedBy(training, now) - trainedBy(training, view.asOf)
+    if (fresh > 0) army = addArmy(army, { [training.unit]: fresh })
+  }
+  return army
+}
+
+/**
+ * Fighting values of a unit, told in a few icons.
+ *
+ * @param props - Component props.
+ * @param props.unit - Unit to describe.
+ * @returns The values: attack, defenses and booty of a land unit, values at sea of a ship.
+ */
+function UnitStats({ unit }: { unit: Unit }) {
+  if (isLand(unit)) {
+    const { attack, damage, defense, booty } = LAND_STATS[unit]
+    return (
+      <span className="unit-stats">
+        <span title={`Attaque : ${look(damage).label.toLowerCase()}`}>
+          <Entity kind={damage} /> {attack}
+        </span>
+        <span title="Défense contre contondant, tranchant et distance">
+          <Entity kind="defense" /> {defense.blunt} · {defense.sharp} · {defense.distance}
+        </span>
+        <span title="Butin emporté">
+          <Entity kind="loot" /> {booty}
+        </span>
+      </span>
+    )
+  }
+  const { attack, defense, capacity, speed } = NAVAL_STATS[unit]
+  return (
+    <span className="unit-stats">
+      {capacity > 0 ? (
+        <span title="Places pour les troupes">
+          <Entity kind="troops" /> {capacity}
+        </span>
+      ) : (
+        <>
+          <span title="Attaque en mer">
+            <Entity kind="swords" /> {attack}
+          </span>
+          <span title="Défense en mer">
+            <Entity kind="defense" /> {defense}
+          </span>
+        </>
+      )}
+      <span title="Vitesse">
+        <Entity kind="wave" /> {speed}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * Recruitment of a building, as in a strategy game: the population the farm feeds, the
+ * units of the building with their values, cost and training time, the number to order,
+ * and the orders under way, counted live.
+ *
+ * @param props - Component props.
+ * @param props.building - Barracks or shipyard.
+ * @param props.view - Current village view.
+ * @param props.stock - Current stock.
+ * @param props.now - Current time in milliseconds.
+ * @param props.onRecruit - Called with the units the player orders.
+ * @returns The recruitment panel.
+ */
+function Recruitment({
+  building,
+  view,
+  stock,
+  now,
+  onRecruit,
+}: {
+  building: 'barracks' | 'shipyard'
+  view: VillageView
+  stock: Stock
+  now: number
+  onRecruit: (unit: Unit, count: number) => void
+}) {
+  const [counts, setCounts] = useState<Partial<Record<Unit, number>>>({})
+  const units = building === 'barracks' ? LAND_UNITS : NAVAL_UNITS
+  const title = building === 'barracks' ? 'Formation des troupes' : 'Construction des navires'
+  const army = armyNow(view, now)
+  const free = view.population.capacity - view.population.used
+  const orders = view.trainings.filter(
+    (training) => trainedAt(training.unit) === building && trainingEnd(training) > now,
+  )
+  const full = orders.length >= TRAINING_SLOTS
+  /**
+   * Largest order of a unit the village can pay and feed.
+   *
+   * @param unit - Unit to train.
+   * @returns The number of units, from 0 to the largest order.
+   */
+  const most = (unit: Unit) => {
+    let count = Math.floor(free / UNIT_POPULATION[unit])
+    for (const [resource, amount] of Object.entries(UNIT_COSTS[unit])) {
+      if ((amount ?? 0) > 0) {
+        count = Math.min(count, Math.floor(stock[resource as keyof Stock] / (amount ?? 1)))
+      }
+    }
+    return Math.max(0, Math.min(MAX_ORDER, count))
+  }
+  return (
+    <section className="recruitment" aria-label={title}>
+      <h3>{title}</h3>
+      <p className="population">
+        <Entity kind="population" showLabel /> {view.population.used} / {view.population.capacity}
+        <span className="muted">
+          {' '}
+          · {Math.max(0, free)} place{free > 1 ? 's' : ''} libre{free > 1 ? 's' : ''}
+        </span>
+      </p>
+      <ul className="units">
+        {units.map((unit) => {
+          const locked = view.levels[building] < UNIT_LEVELS[unit]
+          const max = most(unit)
+          const count = Math.min(counts[unit] ?? 1, Math.max(1, max))
+          return (
+            <li key={unit} data-locked={locked}>
+              <span className="unit-badge">
+                <Entity kind={unit} />
+                <span className="unit-owned" title="À la maison">
+                  {army[unit] ?? 0}
+                </span>
+              </span>
+              <span className="unit-text">
+                <strong>{look(unit).label}</strong>
+                <UnitStats unit={unit} />
+                <span className="amounts">
+                  {Object.entries(UNIT_COSTS[unit]).map(([resource, amount]) => (
+                    <span
+                      key={resource}
+                      data-short={stock[resource as keyof Stock] < (amount ?? 0)}
+                    >
+                      <Entity kind={resource} /> {amount}
+                    </span>
+                  ))}
+                  <span>
+                    <Entity kind="population" /> {UNIT_POPULATION[unit]}
+                  </span>
+                  <span>
+                    <Entity kind="time" /> {duration(view.trainingTimes[unit])}
+                  </span>
+                </span>
+              </span>
+              {locked ? (
+                <span className="muted unit-lock">
+                  {look(building).label} niveau {UNIT_LEVELS[unit]}
+                </span>
+              ) : (
+                <span className="unit-order">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={Math.max(1, max)}
+                    value={count}
+                    aria-label={`Nombre : ${look(unit).label}`}
+                    onChange={(event) =>
+                      setCounts({
+                        ...counts,
+                        [unit]: Math.max(1, Math.floor(Number(event.target.value) || 1)),
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={max < 1}
+                    onClick={() => setCounts({ ...counts, [unit]: max })}
+                  >
+                    Max
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    data-guide={`recruit-${unit}`}
+                    disabled={full || max < 1 || count > max}
+                    onClick={() => onRecruit(unit, count)}
+                  >
+                    {building === 'barracks' ? 'Former' : 'Construire'}
+                  </button>
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {full && <p className="muted">La file est pleine : {TRAINING_SLOTS} ordres au plus.</p>}
+      {orders.length > 0 && (
+        <ol className="orders" aria-label="Ordres en cours">
+          {orders.map((order) => {
+            const done = trainedBy(order, now)
+            const next = order.startsAt + (done + 1) * order.each
+            return (
+              <li key={`${order.unit}-${order.startsAt}`}>
+                <Entity kind={order.unit} showLabel />
+                <span className="muted">
+                  {done} / {order.count}
+                </span>
+                <span className="works-time">
+                  {now >= order.startsAt ? (
+                    <>
+                      <Entity kind="time" /> {duration(next - now)}
+                    </>
+                  ) : (
+                    'en attente'
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Units of the village, at home and away, shown on the cards of the farm and the wall.
+ *
+ * @param props - Component props.
+ * @param props.view - Current village view.
+ * @param props.now - Current time in milliseconds.
+ * @returns The garrison.
+ */
+function Garrison({ view, now }: { view: VillageView; now: number }) {
+  const home = unitsOf(armyNow(view, now))
+  const away = unitsOf(view.away)
+  return (
+    <section className="recruitment" aria-label="Garnison">
+      <h3>Garnison</h3>
+      {home.length === 0 && away.length === 0 && (
+        <p className="muted">Aucune troupe : formez-en à la caserne et au chantier naval.</p>
+      )}
+      {home.length > 0 && (
+        <p className="amounts">
+          {home.map(([unit, count]) => (
+            <span key={unit} title={look(unit).label}>
+              <Entity kind={unit} /> {count}
+            </span>
+          ))}
+        </p>
+      )}
+      {away.length > 0 && (
+        <p className="muted amounts">
+          En raid :
+          {away.map(([unit, count]) => (
+            <span key={unit} title={look(unit).label}>
+              <Entity kind={unit} /> {count}
+            </span>
+          ))}
+        </p>
+      )}
     </section>
   )
 }
