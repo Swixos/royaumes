@@ -7,72 +7,75 @@
 
 ## L'idée
 
-Inspirée des raids navals de Grepolis, la Flotte permet à un joueur d'armer des trirèmes en
-payant leur équipement avec les ressources de son village, puis de les lancer contre le
+Inspirée des raids de Grepolis, la Flotte permet à un joueur d'embarquer une armée formée dans
+son village (troupes de la caserne, navires du chantier naval) et de la lancer contre le
 village d'un autre joueur ou contre une île tenue par des pirates. La flotte met plusieurs
-minutes à traverser la mer : pendant ce temps, le défenseur voit l'alerte « Flotte ennemie en
-approche » en temps réel, et peut changer de posture défensive. À l'arrivée, la bataille se
-résout par un affrontement de tactiques (éperonnage, abordage, blocus) qui se battent en
-triangle, pondéré par le nombre de navires et par la défense du village. Une flotte victorieuse
-pille ce que le village peut donner, dans la limite de ce que ses cales emportent. Une flotte
-rappelée avant l'arrivée rend son équipement à son village.
+minutes à traverser la mer, selon la distance sur la carte : pendant ce temps, le défenseur
+voit l'alerte « Flotte ennemie en approche » en temps réel. À l'arrivée, les navires se
+battent d'abord en mer, puis les troupes débarquées affrontent la garnison, renforcée par le
+rempart. Chaque camp perd des unités ; les survivants victorieux pillent ce qu'ils peuvent
+porter. Une armée rappelée avant l'arrivée rentre au village.
 
 L'intérêt dans le jeu est double : les villages, jusqu'ici isolés, entrent en interaction
-directe, et le choix d'une tactique contre la posture de l'adversaire crée un jeu de lecture
-de l'autre joueur, absent des modules existants. Les îles pirates, pilotées par l'ordinateur,
-offrent une cible au joueur seul, et récompensent celui qui varie ses tactiques.
+directe, et la composition d'une armée (types de dégâts, navires d'escorte, transports) face à
+une garnison crée un vrai choix stratégique. Les îles pirates, pilotées par l'ordinateur,
+offrent une cible au joueur seul, et récompensent celui qui varie ses armes.
 
 ## Les règles métier
 
-1. Un raid engage de 1 à 10 trirèmes, plus 2 par niveau du chantier naval (ADR 0018).
+Les règles 1, 4 et 6 à 11 ont été revues quand les raids sont passés des trirèmes armées au
+départ aux armées formées au village (ADR 0023) ; l'écart est expliqué dans le document de
+rendu.
+
+1. Une armée compte au moins un navire, et ses troupes tiennent dans les cales de ses
+   bateaux de transport.
 2. Un joueur ne peut pas lancer un raid contre son propre village, ni contre un joueur qui n'a
    pas fondé de village.
 3. Un joueur a au plus deux raids en mer à la fois, plus un tous les 4 niveaux du chantier
    naval (ADR 0018).
-4. L'équipement d'un raid coûte 15 bois et 5 pierre par trirème. Il est prélevé sur le village
-   de l'attaquant avant le départ : si le village ne peut pas le payer, le raid est annulé, et
-   aucune flotte ne part.
+4. L'armée est retirée de la garnison du village de l'attaquant avant le départ : si les
+   unités demandées n'y sont pas, le raid est annulé, et aucune flotte ne part.
 5. La durée de la traversée dépend de la distance sur la carte entre le village de
    l'attaquant et sa cible, village ou île pirate : elle est comprise entre 1 et 7 minutes, et
    toujours la même pour deux places données. Le navire le plus lent de l'armée fixe son pas,
    et le chantier naval de l'attaquant la raccourcit de 4 % par niveau (ADR 0018, ADR 0023).
-6. Seul l'attaquant peut rappeler sa flotte, et seulement avant son arrivée : l'équipement lui
-   est alors rendu en totalité.
-7. Les tactiques se battent en triangle : l'abordage bat l'éperonnage, l'éperonnage bat le
-   blocus, le blocus bat l'abordage. La force d'attaque vaut 10 par trirème, multipliée par 1,5
-   si la tactique de l'attaquant bat la posture du défenseur, et par 0,5 si elle est battue.
-8. La défense d'un village vaut 20, plus 12 par niveau de son rempart achevé à l'arrivée de
-   la flotte (règle revue par l'ADR 0018). L'attaquant l'emporte si sa force est strictement supérieure à la défense ; sinon, sa
-   flotte est perdue.
-9. Une flotte victorieuse pille au plus 10 bois, 5 pierre et 2 or par trirème. Si le village
-   ne possède pas tout ce butin, le pillage est réduit à ce qui manque une seule fois ; un
-   second refus laisse la flotte rentrer sans butin.
-10. Un joueur ne choisit sa posture défensive que pour son propre village ; un village sans
-    posture choisie défend en blocus.
-11. Le capitaine pirate d'une île choisit sa posture sans hasard : celle qui bat la tactique
-    que l'attaquant a le plus employée contre les pirates, l'abordage à égalité ou en
-    l'absence d'historique.
-12. Un joueur n'attaque chaque île pirate qu'une fois par jour : un raid annulé faute
-    d'équipement, ou rappelé avant l'arrivée, ne compte pas.
+6. Seul l'attaquant peut rappeler son armée, et seulement avant son arrivée : elle rentre au
+   village après le temps déjà passé en mer.
+7. La bataille commence en mer, si la cible a des navires : la flotte la plus forte l'emporte,
+   la flotte vaincue est perdue avec les troupes qu'elle porte, et le vainqueur perd une part
+   de ses navires de combat qui croît avec la force du vaincu.
+8. Sur terre, l'attaque de chaque type de dégâts (contondant, tranchant, à distance) affronte
+   la défense des unités contre ce type, plus la défense des habitants, renforcée de 8 % par
+   niveau du rempart. L'égalité revient au défenseur ; le vaincu perd toutes ses troupes, le
+   vainqueur une part qui croît avec la force du vaincu.
+9. Une armée victorieuse pille ce que ses survivants peuvent porter, réparti entre le bois, la
+   pierre et l'or. Si le village ne possède pas tout ce butin, le pillage est réduit une seule
+   fois à ce qu'il possède ; les survivants rentrent avec le butin à l'heure de retour.
+10. Un village est défendu par les unités présentes dans sa garnison à l'arrivée de la flotte,
+    et le défenseur perd ses morts.
+11. Le capitaine pirate d'une île appelle sans hasard un renfort : l'unité qui défend le mieux
+    contre le type de dégâts que l'attaquant lui a le plus infligé, aucun renfort à égalité ou
+    sans historique.
+12. Un joueur n'attaque chaque île pirate qu'une fois par jour : un raid annulé, ou rappelé
+    avant l'arrivée, ne compte pas.
 
 ## Les commandes et les lectures
 
 | Action du joueur | Commande ou lecture | Route envisagée |
 | --- | --- | --- |
-| Voir les cibles possibles : villages les plus proches des autres joueurs, ou ceux dont le nom contient une recherche, et îles pirates | Lecture | `GET /api/fleet/targets?search=` |
+| Voir les cibles possibles, et les troupes prêtes à partir | Lecture | `GET /api/fleet/targets?search=` |
 | Voir ses raids, envoyés et subis | Lecture | `GET /api/fleet/raids` |
 | Voir le détail et le rapport de bataille d'un raid | Lecture | `GET /api/fleet/raids/:id` |
-| Lancer un raid | Commande `LaunchRaid` | `POST /api/fleet/raids` |
-| Rappeler sa flotte | Commande `RecallFleet` | `POST /api/fleet/raids/:id/recall` |
-| Voir sa posture défensive | Lecture | `GET /api/fleet/harbor` |
-| Choisir sa posture défensive | Commande `ChoosePosture` | `PUT /api/fleet/harbor/posture` |
+| Lancer un raid avec une armée | Commande `LaunchRaid` | `POST /api/fleet/raids` |
+| Rappeler son armée | Commande `RecallFleet` | `POST /api/fleet/raids/:id/recall` |
+| Voir la garnison, le rempart et les avis de son port | Lecture | `GET /api/fleet/harbor` |
 
 ## Le stockage envisagé
 
 Le journal d'événements, selon le modèle decider : un flux `raid-<id>` par raid, et un flux
-`harbor-<joueur>` pour la posture défensive de chaque village. L'historique a ici une valeur de
+`harbor-<joueur>` pour les avis du port de chaque village. L'historique a ici une valeur de
 jeu : un rapport de bataille est l'enchaînement des événements du raid (départ, arrivée,
-bataille, pillage), et l'IA des pirates s'appuie sur l'historique des tactiques d'un joueur. Le
+bataille, pillage), et l'IA des pirates s'appuie sur l'historique des armes d'un joueur. Le
 raid est aussi une saga, dont l'état doit survivre aux redémarrages et aux réessais, comme les
 offres du Marché.
 
@@ -82,14 +85,14 @@ par une projection, rangé dans le schéma `fleet`, et créé par une migration.
 ## La communication avec les modules existants
 
 - **Village (`realm`), dans les deux sens, par messages de la boîte d'envoi.** La Flotte
-  demande au Village le prélèvement de l'équipement (étape compensable), le prélèvement du
-  butin chez le défenseur, puis les dépôts du butin chez l'attaquant ou de l'équipement rendu
-  lors d'un rappel (compensation). Le Village répond sur un sujet de la Flotte. Les
+  demande au Village le retrait de l'armée de sa garnison (étape compensable), le retrait des
+  morts et du butin chez le défenseur, puis le retour des survivants et le dépôt du butin chez
+  l'attaquant, ou le retour de toute l'armée lors d'un rappel (compensation). Le Village répond sur un sujet de la Flotte. Les
   identifiants de transfert sont construits à partir de l'identifiant du raid, ce qui rend les
   gestionnaires idempotents.
 - **Village (`realm`), par la lecture de son langage publié.** La projection de la Flotte lit
-  les événements de fondation et d'amélioration des villages, pour connaître les cibles et
-  calculer leur défense.
+  les événements de fondation et d'amélioration des villages, et les mouvements de leurs
+  unités, pour connaître les cibles, leur rempart et leur garnison.
 - **Classement (`ranking`), par la lecture du langage publié de la Flotte.** La projection du
   Classement compte l'or pillé par une flotte victorieuse dans l'or rapporté par le joueur. Sa
   version est augmentée afin qu'elle soit reconstruite.
@@ -99,11 +102,11 @@ par une projection, rangé dans le schéma `fleet`, et créé par une migration.
 - Les identifiants de l'attaquant et du défenseur de chaque raid, ainsi que leurs noms, copiés
   dans les événements du raid pour les rapports de bataille.
 - Le nom du village de chaque joueur, copié dans le modèle de lecture des cibles.
-- La posture défensive choisie par le joueur.
+- Les armées envoyées et les rapports de bataille, qui disent ce que chaque joueur a perdu.
 
 À l'effacement d'un compte, les noms sont remplacés dans les événements et dans le modèle de
 lecture, et le village effacé disparaît des cibles. L'export comprend les raids envoyés et
-subis, et la posture.
+subis, et les avis du port.
 
 ## Les bonus visés
 

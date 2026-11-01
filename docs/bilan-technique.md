@@ -15,7 +15,7 @@ revues. Il s'adresse à la personne qui reprendrait le projet.
 | Modules métier | 7 : `realm`, `dungeon`, `market`, `ranking`, `tavern`, `fleet`, `system` |
 | Briques de la plateforme | 9 : `auth`, `cron`, `db`, `event-store`, `http`, `outbox`, `privacy`, `projection`, `realtime` ; plus le service Village extrait (`src/services/village`) |
 | Lignes de code, hors tests | Environ 13 700 (`src` et `app`, commentaires TSDoc compris), contre environ 9 500 à `td11-fin` |
-| Fichiers de test, nombre de tests | 36 fichiers, 290 tests Vitest, et 3 parcours de bout en bout (Playwright) ; 33 fichiers et 232 tests à `td11-fin` |
+| Fichiers de test, nombre de tests | 47 fichiers, 385 tests Vitest, et 6 parcours de bout en bout (Playwright) ; 33 fichiers et 232 tests à `td11-fin` |
 | Commits | 159 sur la branche de l'évaluation au moment du bilan, fusions comprises ; 136 à `td11-fin` |
 | Hébergement | Vercel (Francfort), base Neon (Francfort) |
 
@@ -52,16 +52,25 @@ d'envoi et 304 pour le temps réel.
 | 0013 | Batailles déterministes, capitaines pirates sans hasard | Tests de l'IA, fonction d'aptitude | A tenu : la fonction d'aptitude échoue dès qu'un appel au hasard est ajouté au domaine. |
 | 0014 | Jeton signé entre l'application et un service | Tests de contrat du service extrait | A tenu sur les tests ; le rejeu dans la minute et l'absence de destinataire restent à traiter avant un déploiement. |
 | 0015 | Droit de rectification par la réécriture ciblée du journal | Tests de rectification sur cinq modules, reconstruction de la projection | A tenu : l'effacement est devenu une rectification vers le nom neutre, dans chaque module, sans nouveau mécanisme. |
+| 0016 | Scène du village dessinée avec PixiJS | Essais sur ordinateur et téléphone, mise en pause sous les fenêtres | A tenu : la scène vit à côté des contrôles de la page, qui restent accessibles au clavier ; le rendu n'est pas couvert par Vitest. |
+| 0017 | Carte des mers en PixiJS, briques communes aux scènes | Ajout de la carte à la suite du village | A tenu : la seconde scène a réutilisé la scène, la caméra et les dessins communs sans les modifier. |
+| 0018 | Bâtiments à effets et chantiers à durée | Ajout de la caserne et de la ferme, recrutement en file | A tenu : les unités ont repris le même principe de file et de fin calculée, sans tâche de fond. |
+| 0019 | Un seul écran de jeu, les pages en fenêtres | Ajout de l'Historique, des quêtes et du Donjon en fenêtres | A tenu : chaque nouvel écran s'est ouvert en fenêtre ; deux défauts de mise en page sur téléphone ont été corrigés après coup. |
+| 0020 | Village isométrique sur une grille | Ajout de nouveaux bâtiments et des maisons | A tenu, au prix d'un recalage des emplacements quand la caserne et la ferme ont pris de la place. |
+| 0021 | Historique, projection du langage publié de quatre modules | Rapports de bataille d'armées, recrutements | A tenu : de nouveaux faits ont été ajoutés en augmentant la version de la projection, sans toucher aux autres modules. |
+| 0022 | Tutoriel en quêtes récompensées | Passage de 15 à 51 quêtes, nouveaux faits suivis | A tenu : les quêtes ne sont que des données, et chaque nouveau fait n'a demandé qu'un cas dans la projection. |
+| 0023 | Troupes formées au village, raids menés par des armées | Tests des batailles navale puis terrestre, saga des unités | A tenu ; la garnison d'un village se recalcule à partir des mouvements de ses unités, et un joueur neuf sans troupe limite les tests de bout en bout. |
+| 0024 | Les Profondeurs : classes, intentions des monstres, arène animée | Tests des compétences et des intentions, test de bout en bout | Trop récente pour être éprouvée en jeu ; les expéditions déjà enregistrées se rejouent à l'identique. |
 
 ## 3. La qualité
 
 | Caractéristique | Indicateur | Valeur | Appréciation |
 | --- | --- | --- | --- |
-| Adéquation fonctionnelle | Tests réussis ; couverture des domaines | 290 tests réussis (232 à `td11-fin`), et 3 parcours de bout en bout ; domaines presque entièrement couverts, celui de la Flotte à 100 % des lignes sauf le port (95 %) | Satisfaisante : chaque règle du jeu, et chacune des douze règles de la Flotte, est vérifiée par des tests exacts, d'invariant ou statistiques. |
+| Adéquation fonctionnelle | Tests réussis ; couverture des domaines | 385 tests réussis (232 à `td11-fin`), et 6 parcours de bout en bout ; domaines presque entièrement couverts, celui de la Flotte à 100 % des lignes sauf le port (95 %) | Satisfaisante : chaque règle du jeu, et chacune des douze règles de la Flotte, est vérifiée par des tests exacts, d'invariant ou statistiques. |
 | Efficacité des performances | Débit et p99 des lectures ; respect du budget | De 96 à 217 requêtes par seconde ; p99 de 137 à 433 ms sous 20 connexions, dont 389 et 433 ms pour les cibles et les raids de la Flotte (`perf/flotte.json`) | Satisfaisante en local : budget respecté ; les lectures de la Flotte sont les plus lentes, car elles résolvent les arrivées dues, distribuent la boîte d'envoi et lisent tous les villages (DT-015). Non mesurée en production. |
 | Fiabilité | Tests de concurrence, de reprise et d'idempotence ; messages abandonnés | Concurrence optimiste, rattrapages simultanés, messages en double et panne du service testés ; aucun message abandonné | Satisfaisante : les chemins d'échec sont testés, et les lettres mortes peuvent être examinées et relancées. |
 | Sécurité | Exigences des revues de sécurité | 52 exigences, dont 48 conformes et 4 en risque accepté (40, 37 et 3 à `td11-fin`) ; jeton signé entre services ; toutes les routes non publiques vérifiées anonymement par un test | Satisfaisante : aucune non-conformité ouverte ; les risques acceptés sont consignés et justifiés. |
-| Maintenabilité | Règles d'architecture ; fonctions d'aptitude ; couverture | 8 règles de dépendance, 0 violation (inchangé) ; 3 fonctions d'aptitude par les tests (2 à `td11-fin`) ; 72,2 % des lignes couvertes par Vitest (75 % à `td11-fin`), 79,7 % hors interface de la Flotte | Bonne. La baisse de la couverture vient de l'interface de la Flotte (`ui.tsx`, 214 lignes mesurées), couverte par les tests de bout en bout et non par Vitest ; hors cette interface, la couverture progresse. |
+| Maintenabilité | Règles d'architecture ; fonctions d'aptitude ; couverture | 8 règles de dépendance, 0 violation (inchangé) ; 3 fonctions d'aptitude par les tests (2 à `td11-fin`) ; 47,6 % des lignes couvertes par Vitest (75 % à `td11-fin`), 93,7 % hors interfaces | Bonne pour la logique, faible pour les interfaces. La baisse vient des interfaces ajoutées depuis `td11-fin` (Village, Flotte, Donjon, Tutoriel, scènes), couvertes par les tests de bout en bout et non par Vitest ; hors interfaces, la couverture progresse. |
 | Flexibilité | Extraction d'un module ; changement de base entre local et production | Village extrait sans modification ; PGlite en local et en test, Neon en production | Démontrée : le changement de stockage d'un module ou de son hébergement ne touche pas les autres. |
 
 ## 4. La dette technique
@@ -112,7 +121,7 @@ dans le registre des traitements.
 
 Le projet peut être repris et évoluer sans régression côté serveur : ses frontières sont
 vérifiées automatiquement, et démontrées par l'extraction du Village ; ses règles sont
-couvertes par 290 tests, ses décisions consignées dans quinze ADR, et sa dette tenue à jour.
+couvertes par 385 tests, ses décisions consignées dans vingt-quatre ADR, et sa dette tenue à jour.
 La Flotte, ajoutée à l'évaluation, s'est intégrée sans modifier le Village, et en ne touchant
 au Classement que par son langage publié. Deux conditions s'imposent toutefois : étendre les
 tests de bout en bout aux autres écrans avant toute évolution importante de l'interface, et
