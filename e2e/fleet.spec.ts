@@ -87,7 +87,7 @@ test('prévoit un raid contre une île pirate : sa garnison, et le port à armer
 
   await page.getByRole('button', { name: 'Cibler Récif des Brumes' }).click({ delay: 150 })
   await expect(page.getByRole('heading', { name: 'Conseil de guerre' })).toBeVisible()
-  await expect(page.getByText('traversée 3 min')).toBeVisible()
+  await expect(page.getByText(/traversée \d+(,\d)? min/)).toBeVisible()
   await expect(page.getByText(/Garnison/)).toBeVisible()
   await expect(page.getByText(/Aucune unité au village/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Hisser les voiles' })).toBeDisabled()

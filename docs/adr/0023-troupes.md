@@ -27,8 +27,9 @@ Grepolis et vivent dans `realm/domain/army.ts`.
   retrait des pertes d'un défenseur n'est jamais refusé : il est borné à ce qui reste.
 
 **La Flotte mène des armées.** Un raid part avec une armée prise dans la garnison : au
-moins un navire, et assez de bateaux de transport pour les troupes. Le navire le plus lent
-fixe la durée de la traversée. La bataille (`fleet/domain/battle.ts`) suit Grepolis :
+moins un navire, et assez de bateaux de transport pour les troupes. La traversée dure de 1 à
+7 minutes selon la distance sur la carte entre le village et sa cible, village ou île pirate,
+et le navire le plus lent en fixe le pas ; aucun village n'est placé sur une île pirate. La bataille (`fleet/domain/battle.ts`) suit Grepolis :
 
 1. La bataille navale oppose l'attaque des navires à la défense des navires adverses. Le
    perdant perd tout ; une flotte d'attaque coulée emporte ses troupes. Le vainqueur perd

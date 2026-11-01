@@ -32,10 +32,10 @@ offrent une cible au joueur seul, et récompensent celui qui varie ses tactiques
 4. L'équipement d'un raid coûte 15 bois et 5 pierre par trirème. Il est prélevé sur le village
    de l'attaquant avant le départ : si le village ne peut pas le payer, le raid est annulé, et
    aucune flotte ne part.
-5. La durée de la traversée dépend de la distance entre les deux villages : elle est comprise
-   entre 2 et 6 minutes, et toujours la même pour deux villages donnés. Elle est fixe pour
-   chaque île pirate. Le chantier naval de l'attaquant la raccourcit de 4 % par niveau
-   (ADR 0018).
+5. La durée de la traversée dépend de la distance sur la carte entre le village de
+   l'attaquant et sa cible, village ou île pirate : elle est comprise entre 1 et 7 minutes, et
+   toujours la même pour deux places données. Le navire le plus lent de l'armée fixe son pas,
+   et le chantier naval de l'attaquant la raccourcit de 4 % par niveau (ADR 0018, ADR 0023).
 6. Seul l'attaquant peut rappeler sa flotte, et seulement avant son arrivée : l'équipement lui
    est alors rendu en totalité.
 7. Les tactiques se battent en triangle : l'abordage bat l'éperonnage, l'éperonnage bat le
