@@ -604,11 +604,6 @@ function BuildingCard({
           >
             {full ? 'File pleine' : planned === 0 ? 'Construire' : 'Améliorer'}
           </button>
-          {lack && (
-            <p className="lack" role="status">
-              <Entity kind="warning" plain /> {lack}
-            </p>
-          )}
         </div>
       ) : (
         <p className="level">Ce bâtiment a atteint son niveau maximum.</p>
@@ -869,11 +864,6 @@ function Recruitment({
                     <Entity kind="time" /> {duration(view.trainingTimes[unit])}
                   </span>
                 </span>
-                {why && (
-                  <span className="lack" role="status">
-                    <Entity kind="warning" plain /> {why}
-                  </span>
-                )}
               </span>
               {locked ? (
                 <span className="muted unit-lock">
