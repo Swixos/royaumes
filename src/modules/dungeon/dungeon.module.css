@@ -56,7 +56,7 @@
 .title {
   margin: 0;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   font-family: var(--display);
   font-size: 1.7rem;
@@ -420,11 +420,11 @@
 .fighter[data-boss='true'] .portrait { width: 92px; height: 92px; border-color: #c8402c; }
 .fighter[data-boss='true'] .portrait :global(.icon) { width: 60px; height: 60px; }
 
-.hp { position: relative; width: 100%; height: 12px; border-radius: 6px; background: #0d0a08; border: 1px solid #3d332a; overflow: hidden; }
+.hp { position: relative; width: 100%; height: 14px; border-radius: 6px; background: #0d0a08; border: 1px solid #3d332a; overflow: hidden; }
 .hp > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(180deg, #6fcf6a, #2f8a2c); transition: width 320ms ease; }
 .hp[data-low='true'] > span { background: linear-gradient(180deg, #ff8a6b, #b8321e); }
 .fighter[data-monster='true'] .hp > span { background: linear-gradient(180deg, #e0634d, #8a1f12); }
-.hp > em { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 0.62rem; font-weight: 800; color: #fff; text-shadow: 0 1px 0 #000; font-variant-numeric: lining-nums tabular-nums; }
+.hp > em { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; line-height: 1; font-style: normal; font-size: 0.62rem; font-weight: 800; color: #fff; text-shadow: 0 1px 0 #000; font-variant-numeric: lining-nums tabular-nums; }
 
 .intent {
   position: absolute;
