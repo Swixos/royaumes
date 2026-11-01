@@ -315,21 +315,23 @@ export function DungeonGame({ gameId, userId }: { gameId: string; userId: string
           <p className="muted">
             Communiquez l'adresse de cette page aux joueurs que vous souhaitez inviter.
           </p>
-          {!view.isMember && view.heroes.length < MAX_HEROES && (
-            <button type="button" onClick={join}>
-              Rejoindre l'expédition
-            </button>
-          )}
-          {view.isHost && view.heroes.length < MAX_HEROES && (
-            <button type="button" onClick={addCompanion}>
-              <Entity kind="companion" /> Ajouter un compagnon
-            </button>
-          )}
-          {view.isHost && (
-            <button type="button" onClick={start}>
-              Entrer dans le donjon
-            </button>
-          )}
+          <div className="row">
+            {!view.isMember && view.heroes.length < MAX_HEROES && (
+              <button type="button" onClick={join}>
+                Rejoindre l'expédition
+              </button>
+            )}
+            {view.isHost && view.heroes.length < MAX_HEROES && (
+              <button type="button" onClick={addCompanion}>
+                <Entity kind="companion" /> Ajouter un compagnon
+              </button>
+            )}
+            {view.isHost && (
+              <button type="button" onClick={start}>
+                Entrer dans le donjon
+              </button>
+            )}
+          </div>
           {view.isMember && !view.isHost && (
             <p className="muted">En attente du lancement par l'hôte.</p>
           )}
