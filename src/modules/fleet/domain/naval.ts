@@ -44,10 +44,24 @@ export const BASE_DEFENSE = 20
 /** Defense added by each level of the wall of a village. */
 export const DEFENSE_PER_WALL_LEVEL = 12
 
-/** Shortest crossing towards a village, in minutes. */
-export const MIN_TRAVEL_MINUTES = 2
-/** Longest crossing towards a village, in minutes. */
-export const MAX_TRAVEL_MINUTES = 6
+/** Shortest crossing, between two neighbors, in minutes. */
+export const MIN_TRAVEL_MINUTES = 1
+/** Longest crossing, from one corner of the sea to the other, in minutes. */
+export const MAX_TRAVEL_MINUTES = 7
+/** Width of the sea map divided by its height: a step across is longer than a step down. */
+export const MAP_ASPECT = 1.6
+/** Distance a fleet covers in one minute, in percent of the map height. */
+export const DISTANCE_PER_MINUTE = 25
+/** Shortest distance between a village and a pirate island, in percent of the map height. */
+export const ISLAND_CLEARANCE = 18
+
+/** Position on the sea map, in percent of its width and height. */
+export interface SeaPoint {
+  /** Horizontal position. */
+  x: number
+  /** Vertical position. */
+  y: number
+}
 
 /** Island held by pirates, played by the computer. */
 export interface PirateIsland {
@@ -61,8 +75,6 @@ export interface PirateIsland {
   garrison: Partial<Record<string, number>>
   /** Units the captain adds against the kind of damage an attacker uses most. */
   reserve: number
-  /** Crossing time, in minutes. */
-  travelMinutes: number
   /** Treasure of the day: the most a victorious fleet takes from the island. */
   treasure: Amounts
   /** Position on the sea map, in percent of its width and height. */
@@ -77,7 +89,6 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     defense: 25,
     garrison: { swordsman: 4, slinger: 2 },
     reserve: 3,
-    travelMinutes: 3,
     treasure: { wood: 40, gold: 10 },
     map: { x: 18, y: 26 },
   },
@@ -87,7 +98,6 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     defense: 45,
     garrison: { swordsman: 10, archer: 6, hoplite: 4, bireme: 1 },
     reserve: 6,
-    travelMinutes: 4,
     treasure: { stone: 30, gold: 20 },
     map: { x: 80, y: 20 },
   },
@@ -97,7 +107,6 @@ export const PIRATE_ISLANDS: readonly PirateIsland[] = [
     defense: 70,
     garrison: { swordsman: 18, archer: 14, hoplite: 12, slinger: 6, bireme: 3 },
     reserve: 10,
-    travelMinutes: 6,
     treasure: { wood: 60, stone: 40, gold: 40 },
     map: { x: 70, y: 78 },
   },
@@ -154,29 +163,68 @@ export function hash(text: string): number {
 }
 
 /**
- * Crossing time between two villages (rule 5): from 2 to 6 minutes, the same whichever
- * village sends the fleet.
+ * Distance between two points of the sea map, the width of the map stretched by its
+ * aspect so that the distance matches what the player sees.
+ *
+ * @param a - First point, in percent of the map.
+ * @param b - Second point, in percent of the map.
+ * @returns The distance, in percent of the map height.
+ */
+export const seaDistance = (a: SeaPoint, b: SeaPoint) =>
+  Math.hypot((a.x - b.x) * MAP_ASPECT, a.y - b.y)
+
+/**
+ * Crossing time between two points of the sea map (rule 5), as in Grepolis: the farther,
+ * the longer, from one to seven minutes, rounded to a tenth of a minute.
+ *
+ * @param from - Point of departure.
+ * @param to - Point of arrival.
+ * @returns The crossing time in minutes, before the shipyard and the pace of the ships.
+ */
+export function crossingMinutes(from: SeaPoint, to: SeaPoint): number {
+  const minutes = MIN_TRAVEL_MINUTES + seaDistance(from, to) / DISTANCE_PER_MINUTE
+  return Math.round(Math.min(MAX_TRAVEL_MINUTES, minutes) * 10) / 10
+}
+
+/**
+ * Position of a village on the sea map, drawn from its owner identifier so it never moves.
+ * A draw too close to a pirate island is drawn again, so that no village sits on a lair.
+ *
+ * @param playerId - Owner of the village.
+ * @returns The position, in percent of the map width and height.
+ */
+export function mapPositionOf(playerId: string): SeaPoint {
+  let point: SeaPoint = { x: 50, y: 50 }
+  for (let draw = 0; draw < 20; draw++) {
+    const h = hash(draw === 0 ? playerId : `${playerId}#${draw}`)
+    point = { x: 10 + (h % 80), y: 12 + ((h >>> 8) % 74) }
+    if (PIRATE_ISLANDS.every((island) => seaDistance(point, island.map) >= ISLAND_CLEARANCE)) {
+      return point
+    }
+  }
+  return point
+}
+
+/**
+ * Crossing time between two villages (rule 5), from their places on the sea map: the
+ * same whichever village sends the fleet.
  *
  * @param a - Identifier of one player.
  * @param b - Identifier of the other player.
  * @returns The crossing time in minutes.
  */
-export function travelMinutes(a: string, b: string): number {
-  const [first, second] = [a, b].sort()
-  const span = MAX_TRAVEL_MINUTES - MIN_TRAVEL_MINUTES + 1
-  return MIN_TRAVEL_MINUTES + (hash(`${first}|${second}`) % span)
-}
+export const travelMinutes = (a: string, b: string) =>
+  crossingMinutes(mapPositionOf(a), mapPositionOf(b))
 
 /**
- * Position of a village on the sea map, drawn from its owner identifier so it never moves.
+ * Crossing time from a village to a pirate island (rule 5), from their places on the map.
  *
- * @param playerId - Owner of the village.
- * @returns The position, in percent of the map width and height.
+ * @param playerId - Owner of the village sending the fleet.
+ * @param island - Pirate island.
+ * @returns The crossing time in minutes.
  */
-export function mapPositionOf(playerId: string): { x: number; y: number } {
-  const h = hash(playerId)
-  return { x: 10 + (h % 80), y: 12 + ((h >>> 8) % 74) }
-}
+export const islandTravelMinutes = (playerId: string, island: PirateIsland) =>
+  crossingMinutes(mapPositionOf(playerId), island.map)
 
 /**
  * Defense of a village (rule 8): its wall protects it.
