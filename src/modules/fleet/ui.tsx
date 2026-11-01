@@ -3,6 +3,16 @@ import { hc } from 'hono/client'
 import { AnimatePresence, m } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  type Army,
+  armySize,
+  isLand,
+  LAND_STATS,
+  NAVAL_STATS,
+  UNITS,
+  type Unit,
+  unitsOf,
+} from '@/modules/realm/contracts'
 import { type ChannelEvent, useChannel } from '@/platform/realtime/use-channel'
 import { Entity } from '@/ui/entity'
 import { VILLAGE_CHANGED } from '@/ui/events'
@@ -15,14 +25,14 @@ import { look } from '@/ui/theme'
 import type { FleetApi } from './api'
 import {
   type Amounts,
-  BEATS,
-  equipmentCost,
-  fight,
+  type ArmyRules,
+  armyError,
+  type BattleReport,
+  fightArmies,
   type HarborView,
   harborChannel,
-  holdOf,
+  landOf,
   MAX_RAIDS_AT_SEA,
-  MAX_SHIPS,
   type MapPoint,
   mapPositionOf,
   PIRATE_ISLANDS,
@@ -30,9 +40,9 @@ import {
   type RaidStatus,
   type RaidSummary,
   type RaidView,
-  TACTICS,
-  type Tactic,
+  shipsOf,
   type TargetsList,
+  WALL_BONUS,
 } from './contracts'
 import styles from './fleet.module.css'
 import { clock, laneOf, relax, toWorld } from './scene/sea-layout'
@@ -52,13 +62,8 @@ const loadSea: SceneLoader<SeaSceneState, SeaSceneHandlers> = async (host, state
 /** Typed HTTP client, inferred from the Hono sub-app of the module. */
 const client = hc<FleetApi>('/api/fleet')
 
-/**
- * Possible fleet sizes, from one trireme to the largest fleet the shipyard allows.
- *
- * @param maxShips - Largest number of triremes in a raid.
- * @returns The sizes.
- */
-const fleetSizes = (maxShips: number) => Array.from({ length: maxShips }, (_, i) => i + 1)
+/** Values of the units, read by the battle forecast. */
+const RULES: ArmyRules = { land: LAND_STATS, naval: NAVAL_STATS }
 
 /** Flat colors of the ships of the battle report. */
 const SEA = {
@@ -76,7 +81,7 @@ const STATUS_LABELS = {
 } as const
 
 /** Message shown to the player for each error. */
-const ERRORS: Record<RaidError['code'] | 'INVALID_INPUT', string> = {
+const ERRORS: Record<RaidError['code'] | 'INVALID_INPUT' | 'UNKNOWN_UNIT', string> = {
   INVALID_INPUT: 'Ordre invalide.',
   RAID_NOT_FOUND: 'Raid introuvable.',
   ALREADY_EXISTS: 'Raid déjà lancé.',
@@ -89,6 +94,9 @@ const ERRORS: Record<RaidError['code'] | 'INVALID_INPUT', string> = {
   NOT_AT_SEA: "Cette flotte n'est plus en mer.",
   ALREADY_ARRIVED: 'Trop tard : la flotte a touché terre.',
   NOT_ARRIVED: "La flotte n'est pas encore arrivée.",
+  NO_SHIP: 'Il faut au moins un navire.',
+  NO_ROOM: 'Pas assez de bateaux de transport pour ces troupes.',
+  UNKNOWN_UNIT: 'Unité inconnue.',
 }
 
 /** Label of each raid state, seen by the attacker. */
@@ -210,48 +218,224 @@ function Trireme({
 }
 
 /**
- * Tactic chooser: the three tactics as cards, each naming the tactic it beats; the gold
- * highlight slides from one card to the other. It serves both the tactic of a fleet and
- * the posture of a harbor.
+ * Units of an army in a row, each with its icon and its number.
  *
  * @param props - Component props.
- * @param props.value - Selected tactic.
- * @param props.onChange - Called with the chosen tactic.
- * @param props.caption - Name of the choice, read by screen readers.
- * @param props.guide - Name of the chooser for the tutorial guide, if any.
- * @returns The tactic chooser.
+ * @param props.army - Army to show.
+ * @param props.lost - Units lost, shown after the number when given.
+ * @param props.empty - Text shown when the army is empty.
+ * @returns The units.
  */
-function TacticPicker({
-  value,
-  onChange,
-  caption,
-  guide,
-}: {
-  value: Tactic
-  onChange: (tactic: Tactic) => void
-  caption: string
-  guide?: string
-}) {
+function ArmyText({ army, lost, empty = 'aucune' }: { army: Army; lost?: Army; empty?: string }) {
+  const units = unitsOf(army)
+  if (units.length === 0) return <>{empty}</>
   return (
-    <fieldset className={styles.tactics} data-guide={guide}>
-      <legend className="sr-only">{caption}</legend>
-      {TACTICS.map((tactic) => (
-        <button
-          key={tactic}
-          type="button"
-          className={styles.tactic}
-          aria-pressed={value === tactic}
-          onClick={() => onChange(tactic)}
-        >
-          {value === tactic && (
-            <m.span className={styles.glow} layoutId={`tactic-${caption}`} transition={SPRING} />
-          )}
-          <Icon kind={tactic} size={28} />
-          <strong>{look(tactic).label}</strong>
-          <small>bat {look(BEATS[tactic]).label.toLowerCase()}</small>
-        </button>
+    <span className={styles.amounts}>
+      {units.map(([unit, count]) => (
+        <span key={unit} title={look(unit).label}>
+          <Icon kind={unit} /> {count}
+          {lost && (lost[unit] ?? 0) > 0 && <s className={styles.lost}> -{lost[unit]}</s>}
+        </span>
       ))}
+    </span>
+  )
+}
+
+/**
+ * Army chooser of the war council: a stepper for each unit at home, and the room left
+ * in the transport ships. A fleet needs at least one ship, and its transports carry the
+ * land troops.
+ *
+ * @param props - Component props.
+ * @param props.garrison - Units at home.
+ * @param props.army - Army chosen.
+ * @param props.onChange - Called with the new army.
+ * @returns The army chooser.
+ */
+function ArmyPicker({
+  garrison,
+  army,
+  onChange,
+}: {
+  garrison: Army
+  army: Army
+  onChange: (army: Army) => void
+}) {
+  const home = unitsOf(garrison)
+  const troops = armySize(landOf(army, RULES))
+  const room = unitsOf(army)
+    .filter(([unit]) => !isLand(unit))
+    .reduce((sum, [unit, count]) => sum + RULES.naval[unit].capacity * count, 0)
+  /**
+   * Sets the number of one unit, kept between 0 and the units at home.
+   *
+   * @param unit - Unit to change.
+   * @param count - Number wanted.
+   */
+  const set = (unit: Unit, count: number) => {
+    const next = { ...army, [unit]: Math.max(0, Math.min(garrison[unit] ?? 0, count)) }
+    if (next[unit] === 0) delete next[unit]
+    onChange(next)
+  }
+  if (home.length === 0) {
+    return (
+      <p className={styles.notice} data-error="true">
+        Aucune unité au village. Formez des troupes à la caserne et des navires au chantier naval.
+      </p>
+    )
+  }
+  return (
+    <fieldset className={styles.army} data-guide="army-picker">
+      <legend>Votre armée</legend>
+      <ul>
+        {UNITS.filter((unit) => (garrison[unit] ?? 0) > 0).map((unit) => {
+          const count = army[unit] ?? 0
+          const available = garrison[unit] ?? 0
+          return (
+            <li key={unit} data-on={count > 0}>
+              <Icon kind={unit} size={28} />
+              <span className={styles.unitName}>
+                <strong>{look(unit).label}</strong>
+                <small>
+                  {count} / {available}
+                </small>
+              </span>
+              <span className={styles.stepper}>
+                <button
+                  type="button"
+                  className="ghost"
+                  aria-label={`Retirer : ${look(unit).label}`}
+                  disabled={count === 0}
+                  onClick={() => set(unit, count - 1)}
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  max={available}
+                  value={count}
+                  aria-label={`Nombre : ${look(unit).label}`}
+                  data-guide={`army-${unit}`}
+                  onChange={(event) => set(unit, Number(event.target.value) || 0)}
+                />
+                <button
+                  type="button"
+                  className="ghost"
+                  aria-label={`Ajouter : ${look(unit).label}`}
+                  disabled={count >= available}
+                  onClick={() => set(unit, count + 1)}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={count >= available}
+                  onClick={() => set(unit, available)}
+                >
+                  Tout
+                </button>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <p className={styles.room} data-full={troops > room}>
+        <Icon kind="transport" /> Troupes embarquées {troops} / {room} places
+      </p>
     </fieldset>
+  )
+}
+
+/**
+ * Bar comparing an attack with a defense, filled in gold for the stronger side.
+ *
+ * @param props - Component props.
+ * @param props.attack - Attack.
+ * @param props.defense - Defense.
+ * @param props.won - True if the attack wins.
+ * @returns The bar.
+ */
+function Balance({ attack, defense, won }: { attack: number; defense: number; won: boolean }) {
+  const scale = Math.max(attack, defense, 1) * 1.15
+  return (
+    <span className={styles.bar} data-win={won}>
+      <span style={{ width: `${(attack / scale) * 100}%` }} />
+      <i style={{ left: `${(defense / scale) * 100}%` }} />
+    </span>
+  )
+}
+
+/**
+ * Battle forecast of the war council: the naval battle, then the land battle, with the
+ * losses each side would suffer and the plunder the survivors could carry.
+ *
+ * @param props - Component props.
+ * @param props.report - Battle computed against the known defenders.
+ * @param props.caption - What the defenders are.
+ * @returns The forecast.
+ */
+function Forecast({ report, caption }: { report: BattleReport; caption: string }) {
+  return (
+    <div className={styles.forecastBox} data-guide="battle-forecast">
+      <table className={styles.forecast}>
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Bataille</th>
+            <th scope="col">Attaque contre défense</th>
+            <th scope="col">Issue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.naval && (
+            <tr>
+              <td>
+                <Icon kind="bireme" /> Navale
+              </td>
+              <td>
+                <Balance {...report.naval} won={report.naval.won} />
+              </td>
+              <td className={styles.verdictCell} data-win={report.naval.won}>
+                {report.naval.attack} {report.naval.won ? 'gagne' : 'perd'}
+              </td>
+            </tr>
+          )}
+          {report.land && (
+            <tr>
+              <td>
+                <Icon kind="troops" /> Terrestre
+              </td>
+              <td>
+                <Balance {...report.land} won={report.land.won} />
+              </td>
+              <td className={styles.verdictCell} data-win={report.land.won}>
+                {report.land.attack} {report.land.won ? 'gagne' : 'perd'}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <dl className={styles.ledger}>
+        <div>
+          <dt>Vos pertes</dt>
+          <dd>
+            <ArmyText army={report.attacker.lost} empty="aucune" />
+          </dd>
+        </div>
+        <div>
+          <dt>Pertes adverses</dt>
+          <dd>
+            <ArmyText army={report.defender.lost} empty="aucune" />
+          </dd>
+        </div>
+        <div>
+          <dt>Butin possible</dt>
+          <dd>{report.victory ? report.capacity : 0}</dd>
+        </div>
+      </dl>
+    </div>
   )
 }
 
@@ -525,15 +709,20 @@ function BattleOverlay({
   const won = report.won === true
   const attacker = report.role === 'attacker'
   useEffect(() => {
-    const timer = setTimeout(onClose, 7000)
+    const timer = setTimeout(onClose, report.report ? 11000 : 7000)
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
     return () => {
       clearTimeout(timer)
       window.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [onClose, report.report])
   const loot = (report.loot ?? {}) as Amounts
+  const battle = report.report as BattleReport | undefined
+  const mine = battle ? (attacker ? battle.attacker.sent : battle.defender.present) : null
+  const myLoss = battle ? (attacker ? battle.attacker.lost : battle.defender.lost) : null
+  const theirs = battle ? (attacker ? battle.defender.present : battle.attacker.sent) : null
+  const theirLoss = battle ? (attacker ? battle.defender.lost : battle.attacker.lost) : null
   const spoils = Object.entries(loot).filter(([, amount]) => (amount ?? 0) > 0)
   const lootList = (
     <span className={styles.amounts}>
@@ -614,7 +803,7 @@ function BattleOverlay({
             won ? (
               <>butin {lootList}</>
             ) : (
-              'la flotte a sombré.'
+              "l'armée est tombée."
             )
           ) : won ? (
             "l'assaut est repoussé."
@@ -622,6 +811,27 @@ function BattleOverlay({
             <>pillé {lootList}</>
           )}
         </p>
+        {mine && theirs && myLoss && theirLoss && (
+          <m.dl
+            className={styles.casualties}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...SPRING, delay: 1.2 }}
+          >
+            <div>
+              <dt>Vos unités</dt>
+              <dd>
+                <ArmyText army={mine} lost={myLoss} />
+              </dd>
+            </div>
+            <div>
+              <dt>{String(report.opponentName)}</dt>
+              <dd>
+                <ArmyText army={theirs} lost={theirLoss} empty="aucun défenseur" />
+              </dd>
+            </div>
+          </m.dl>
+        )}
         <button type="button" onClick={onClose}>
           Fermer le rapport
         </button>
@@ -664,8 +874,7 @@ export function FleetScreen({ userId }: { userId: string }) {
       return null
     })
   }, [])
-  const [ships, setShips] = useState(3)
-  const [tactic, setTactic] = useState<Tactic>('ram')
+  const [army, setArmy] = useState<Army>({})
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
   useEffect(() => {
     if (!message) return
@@ -763,8 +972,7 @@ export function FleetScreen({ userId }: { userId: string }) {
           selected.kind === 'village'
             ? { kind: 'village', playerId: selected.id }
             : { kind: 'pirates', islandId: selected.id },
-        ships,
-        tactic,
+        army,
       },
     })
     const body = await res.json()
@@ -781,7 +989,10 @@ export function FleetScreen({ userId }: { userId: string }) {
           ? { text: 'Armement impossible : votre village manque de ressources.', error: true }
           : { text: `La flotte a hissé les voiles vers ${view.target.name}.`, error: false },
       )
-      if (view.status !== 'cancelled') closePanel()
+      if (view.status !== 'cancelled') {
+        setArmy({})
+        closePanel()
+      }
       window.dispatchEvent(new Event(VILLAGE_CHANGED))
     }
     refresh()
@@ -798,24 +1009,27 @@ export function FleetScreen({ userId }: { userId: string }) {
     setMessage(
       'error' in body
         ? { text: ERRORS[body.error.code as keyof typeof ERRORS] ?? 'Ordre refusé.', error: true }
-        : { text: "Demi-tour ! L'équipement rentre au village.", error: false },
+        : { text: 'Demi-tour ! Vos unités rentrent au village.', error: false },
     )
     if (!('error' in body)) window.dispatchEvent(new Event(VILLAGE_CHANGED))
     refresh()
   }
 
-  /**
-   * Chooses the posture of the player's harbor.
-   *
-   * @param posture - New posture.
-   */
-  async function choosePosture(posture: Tactic) {
-    const res = await client.harbor.posture.$put({ json: { posture } })
-    if (res.ok) setHarbor(await res.json())
-  }
-
-  const cost = equipmentCost(ships)
-  const hold = holdOf(ships)
+  const garrison = targets?.home?.garrison ?? {}
+  const chosen = Object.fromEntries(
+    unitsOf(army).map(([unit, count]) => [unit, Math.min(count, garrison[unit] ?? 0)]),
+  ) as Army
+  const refusal = armySize(chosen) === 0 ? 'EMPTY' : armyError(chosen, RULES)
+  const forecast =
+    refusal === null
+      ? island
+        ? fightArmies(chosen, island.garrison, 0, RULES)
+        : village
+          ? fightArmies(chosen, {}, village.wall, RULES)
+          : null
+      : null
+  const homeTroops = armySize(landOf(garrison, RULES))
+  const homeShips = armySize(shipsOf(garrison, RULES))
 
   const outCount = raids.filter(
     (raid) => raid.status === 'at-sea' || raid.status === 'provisioning',
@@ -885,26 +1099,23 @@ export function FleetScreen({ userId }: { userId: string }) {
 
       <dl className={styles.figures}>
         <div>
-          <dt>Défense</dt>
-          <dd>{targets?.home?.defense ?? '-'}</dd>
+          <dt>Troupes</dt>
+          <dd>
+            <Icon kind="troops" />
+            <span className={styles.figureText}>{targets?.home ? homeTroops : '-'}</span>
+          </dd>
+        </div>
+        <div>
+          <dt>Navires</dt>
+          <dd>
+            <Icon kind="bireme" />
+            <span className={styles.figureText}>{targets?.home ? homeShips : '-'}</span>
+          </dd>
         </div>
         <div>
           <dt>En mer</dt>
           <dd>
             {out} / {targets?.home?.limits.maxRaids ?? MAX_RAIDS_AT_SEA}
-          </dd>
-        </div>
-        <div>
-          <dt>Posture</dt>
-          <dd>
-            {harbor ? (
-              <>
-                <Icon kind={harbor.holding} />
-                <span className={styles.figureText}>{look(harbor.holding).label}</span>
-              </>
-            ) : (
-              '-'
-            )}
           </dd>
         </div>
         <div>
@@ -934,8 +1145,8 @@ export function FleetScreen({ userId }: { userId: string }) {
               <div>
                 <strong>Flotte ennemie en approche</strong>
                 <span>
-                  {raid.attackerName} lance {raid.ships} trirème{raid.ships > 1 ? 's' : ''} sur
-                  votre port. Changez de posture tant qu'il est temps.
+                  {raid.attackerName} lance {raid.ships} navire{raid.ships > 1 ? 's' : ''} sur votre
+                  port. Renforcez votre garnison tant qu'il est temps.
                 </span>
               </div>
               <span className={styles.alarmClock}>{clock(raid.arrivesAt - now)}</span>
@@ -996,7 +1207,8 @@ export function FleetScreen({ userId }: { userId: string }) {
                   <div>
                     <strong>{target.name}</strong>
                     <span className="muted">
-                      Défense {target.defense} · traversée {target.travelMinutes} min
+                      {village ? `Rempart niveau ${village.wall} · ` : ''}traversée{' '}
+                      {target.travelMinutes} min
                     </span>
                     {island && (
                       <span className="muted">
@@ -1004,88 +1216,33 @@ export function FleetScreen({ userId }: { userId: string }) {
                         {island.raidedToday && " · déjà attaquée aujourd'hui"}
                       </span>
                     )}
+                    {island && (
+                      <span className="muted">
+                        Garnison : <ArmyText army={island.garrison} />
+                      </span>
+                    )}
                   </div>
                 </m.div>
 
-                <fieldset className={styles.sizes}>
-                  <legend>Trirèmes</legend>
-                  <div>
-                    {fleetSizes(targets?.home?.limits.maxShips ?? MAX_SHIPS).map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        className={styles.size}
-                        data-on={size <= ships}
-                        aria-label={`${size} trirème${size > 1 ? 's' : ''}`}
-                        aria-pressed={size === ships}
-                        onClick={() => setShips(size)}
-                      >
-                        {size === ships && (
-                          <m.span
-                            className={styles.glow}
-                            layoutId="fleet-size"
-                            transition={SPRING}
-                          />
-                        )}
-                        <span>{size}</span>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
+                <ArmyPicker garrison={garrison} army={chosen} onChange={setArmy} />
 
-                <dl className={styles.ledger}>
-                  <div>
-                    <dt>Coût</dt>
-                    <dd>
-                      <AmountsText amounts={cost} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Cales</dt>
-                    <dd>
-                      <AmountsText amounts={hold} />
-                    </dd>
-                  </div>
-                </dl>
-
-                <TacticPicker value={tactic} onChange={setTactic} caption="Votre tactique" />
-
-                <table className={styles.forecast}>
-                  <caption className="sr-only">Prévision de bataille</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Si le défenseur tient</th>
-                      <th scope="col">Attaque contre défense</th>
-                      <th scope="col">Issue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TACTICS.map((posture) => {
-                      const battle = fight(ships, tactic, posture, target.defense)
-                      const scale = Math.max(battle.attack, battle.defense) * 1.15
-                      return (
-                        <tr key={posture}>
-                          <td>
-                            <Icon kind={posture} /> {look(posture).label}
-                          </td>
-                          <td>
-                            <span className={styles.bar} data-win={battle.victory}>
-                              <span style={{ width: `${(battle.attack / scale) * 100}%` }} />
-                              <i style={{ left: `${(battle.defense / scale) * 100}%` }} />
-                            </span>
-                          </td>
-                          <td className={styles.verdictCell} data-win={battle.victory}>
-                            {battle.attack} {battle.victory ? 'gagne' : 'perd'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                {forecast && (
+                  <Forecast
+                    report={forecast}
+                    caption={
+                      island ? 'Contre la garnison pirate' : 'Si le village est sans défenseur'
+                    }
+                  />
+                )}
+                {refusal && refusal !== 'EMPTY' && (
+                  <p className={styles.notice} data-error="true">
+                    {ERRORS[refusal]}
+                  </p>
+                )}
                 <p className="muted">
                   {island
-                    ? 'Le capitaine pirate pare la tactique que vous employez le plus contre lui.'
-                    : 'Selon la posture que tiendra le défenseur à votre arrivée.'}
+                    ? 'Le capitaine pirate appelle sa réserve : les unités qui défendent le mieux contre les dégâts que vous lui infligez le plus souvent.'
+                    : 'Les troupes du défenseur restent inconnues : la prévision ne compte que son rempart et ses habitants.'}
                 </p>
 
                 {island?.raidedToday && (
@@ -1102,7 +1259,7 @@ export function FleetScreen({ userId }: { userId: string }) {
                   type="button"
                   className="primary"
                   data-guide="launch-raid"
-                  disabled={busy || !targets?.home || !!island?.raidedToday}
+                  disabled={busy || !targets?.home || !!island?.raidedToday || refusal !== null}
                   onClick={launch}
                 >
                   Hisser les voiles
@@ -1161,11 +1318,18 @@ export function FleetScreen({ userId }: { userId: string }) {
                               : `Raid de ${raid.attackerName}`}
                           </strong>
                           <span className={styles.meta}>
-                            {raid.ships} trirème{raid.ships > 1 ? 's' : ''}
+                            {raid.army ? (
+                              <ArmyText army={raid.army} />
+                            ) : (
+                              `${raid.ships} navire${raid.ships > 1 ? 's' : ''}`
+                            )}
                             {raid.tactic && ` · ${look(raid.tactic).label}`}
                             {raid.status === 'at-sea' &&
                               raid.arrivesAt > now &&
                               ` · arrivée ${new Date(raid.arrivesAt).toLocaleTimeString('fr-FR')}`}
+                            {attacker &&
+                              raid.returnsAt > now &&
+                              ` · retour ${new Date(raid.returnsAt).toLocaleTimeString('fr-FR')}`}
                             {raid.loot && (
                               <>
                                 {' · '}
@@ -1201,16 +1365,25 @@ export function FleetScreen({ userId }: { userId: string }) {
           <section className="panel" aria-labelledby="harbor">
             <h2 id="harbor">Votre port</h2>
             {harbor && (
-              <TacticPicker
-                value={harbor.holding}
-                onChange={choosePosture}
-                caption="Posture du port"
-                guide="posture"
-              />
+              <dl className={styles.ledger} data-guide="harbor-garrison">
+                <div>
+                  <dt>Garnison</dt>
+                  <dd>
+                    <ArmyText army={harbor.garrison} empty="aucune unité" />
+                  </dd>
+                </div>
+                <div>
+                  <dt>Rempart</dt>
+                  <dd>
+                    niveau {harbor.wall} · +{Math.round(harbor.wall * WALL_BONUS * 100)} %
+                  </dd>
+                </div>
+              </dl>
             )}
             <p className="muted">
-              Un village sans posture choisie défend en blocus. Le rempart du village renforce sa
-              défense.
+              Les unités restées au village le défendent : les navires d'abord en mer, puis les
+              troupes à terre, renforcées par le rempart. Sans troupe, seuls les habitants
+              résistent.
             </p>
           </section>
         </GameWindow>

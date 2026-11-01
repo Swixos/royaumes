@@ -14,7 +14,8 @@ export type LevelSteps = Array<[level: number, at: number]>
 
 /** Facts of the game that a quest may ask for, beyond the levels of the buildings. */
 export const DEEDS = [
-  'posture',
+  'troops',
+  'warship',
   'offer',
   'pirateRaid',
   'navalVictory',
@@ -71,6 +72,7 @@ export interface Quest {
 export const CHAPTERS: readonly Chapter[] = [
   { id: 'foundations', title: 'Les fondations', icon: 'village' },
   { id: 'kingdom', title: 'Le royaume', icon: 'market' },
+  { id: 'army', title: "L'armée", icon: 'troops' },
   { id: 'sea', title: 'La mer', icon: 'fleet' },
   { id: 'defense', title: 'La défense', icon: 'wall' },
 ]
@@ -158,21 +160,70 @@ export const QUESTS: readonly Quest[] = [
     reward: { gold: 50 },
   },
   {
-    id: 'posture',
-    chapter: 'sea',
-    title: 'Garder le port',
+    id: 'farm-2',
+    chapter: 'army',
+    title: 'Nourrir les soldats',
     advice:
-      "Les flottes ennemies viendront. Choisissez la posture de votre port : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage.",
-    task: 'Choisir la posture de votre port',
-    goal: { kind: 'deed', deed: 'posture' },
-    reward: { wood: 50, stone: 50 },
+      'Chaque soldat et chaque navire occupe une place à la ferme. Agrandissez-la avant de lever une armée : sans population libre, aucune unité ne sort des rangs.',
+    task: 'Monter la Ferme au niveau 2',
+    goal: { kind: 'building', building: 'farm', level: 2 },
+    reward: { wood: 60, stone: 60 },
+  },
+  {
+    id: 'barracks-1',
+    chapter: 'army',
+    title: 'La caserne',
+    advice:
+      "Une cité sans soldats n'attend que d'être pillée. Bâtissez la caserne : elle forme les épéistes d'abord, puis les frondeurs, les archers et les hoplites à mesure qu'elle grandit.",
+    task: 'Construire la Caserne',
+    goal: { kind: 'building', building: 'barracks', level: 1 },
+    reward: { wood: 80, stone: 40, gold: 10 },
+  },
+  {
+    id: 'troops',
+    chapter: 'army',
+    title: 'Lever les premiers soldats',
+    advice:
+      "À la caserne, choisissez une unité et son nombre, puis formez-les : ils sortent l'un après l'autre. L'épéiste défend bien contre les flèches, le frondeur frappe fort à distance.",
+    task: 'Former des troupes à la Caserne',
+    goal: { kind: 'deed', deed: 'troops' },
+    reward: { wood: 60, stone: 30, gold: 20 },
+  },
+  {
+    id: 'sawmill-3',
+    chapter: 'sea',
+    title: 'Le bois des navires',
+    advice: 'Un chantier naval réclame une scierie de niveau 3 pour fournir ses coques.',
+    task: 'Monter la Scierie au niveau 3',
+    goal: { kind: 'building', building: 'sawmill', level: 3 },
+    reward: { wood: 120, stone: 60 },
+  },
+  {
+    id: 'shipyard-1',
+    chapter: 'sea',
+    title: 'Le chantier naval',
+    advice:
+      'Vos soldats ne marchent pas sur l’eau. Le chantier naval construit les bateaux de transport qui les portent, puis les birèmes et les navires légers qui se battent en mer.',
+    task: 'Construire le Chantier naval',
+    goal: { kind: 'building', building: 'shipyard', level: 1 },
+    reward: { wood: 150, stone: 100, gold: 40 },
+  },
+  {
+    id: 'warship',
+    chapter: 'sea',
+    title: 'Mettre une coque à l’eau',
+    advice:
+      'Un bateau de transport porte dix soldats. Construisez-en au moins un au chantier naval : sans navire, aucune armée ne quitte le port.',
+    task: 'Construire un navire au Chantier naval',
+    goal: { kind: 'deed', deed: 'warship' },
+    reward: { wood: 80, stone: 40 },
   },
   {
     id: 'pirate-raid',
     chapter: 'sea',
     title: 'Cap sur les pirates',
     advice:
-      'Les îles pirates gardent des trésors. Au Conseil de guerre, choisissez vos trirèmes et une tactique, puis hissez les voiles vers une île.',
+      'Les îles pirates gardent des trésors. Au Conseil de guerre, embarquez vos troupes dans vos transports, lisez la prévision de bataille, puis hissez les voiles.',
     task: 'Lancer un raid contre une île pirate',
     goal: { kind: 'deed', deed: 'pirateRaid' },
     reward: { wood: 60, stone: 30 },
@@ -180,10 +231,10 @@ export const QUESTS: readonly Quest[] = [
   {
     id: 'naval-victory',
     chapter: 'sea',
-    title: 'Victoire en mer',
+    title: 'Première victoire',
     advice:
-      "Votre force est le nombre de trirèmes multiplié par l'avantage de votre tactique. Elle doit dépasser la défense de la cible : lisez vos rapports de bataille dans l'Historique.",
-    task: 'Remporter une bataille navale',
+      "Les navires de la cible se battent d'abord en mer, puis vos troupes affrontent sa garnison, renforcée par le rempart. Mêlez les dégâts contondants, tranchants et à distance : chaque défenseur résiste à sa manière.",
+    task: 'Remporter une bataille',
     goal: { kind: 'deed', deed: 'navalVictory' },
     reward: { gold: 60 },
   },
@@ -201,28 +252,9 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'defense',
     title: 'Des murs autour de la ville',
     advice:
-      'Chaque niveau du rempart ajoute de la défense à votre port. Commencez par une palissade : la pierre viendra ensuite.',
+      'Chaque niveau du rempart renforce de 8 % la défense de vos troupes restées au village. Avec une garnison et un rempart, le royaume est à vous !',
     task: 'Construire le Rempart',
     goal: { kind: 'building', building: 'wall', level: 1 },
-    reward: { stone: 120, gold: 20 },
-  },
-  {
-    id: 'sawmill-3',
-    chapter: 'defense',
-    title: 'Le bois des navires',
-    advice: 'Un chantier naval réclame une scierie de niveau 3 pour fournir ses coques.',
-    task: 'Monter la Scierie au niveau 3',
-    goal: { kind: 'building', building: 'sawmill', level: 3 },
-    reward: { wood: 120, stone: 60 },
-  },
-  {
-    id: 'shipyard-1',
-    chapter: 'defense',
-    title: 'Le chantier naval',
-    advice:
-      'Le chantier naval arme davantage de trirèmes, envoie plus de flottes à la fois et les fait voguer plus vite. Le royaume est à vous !',
-    task: 'Construire le Chantier naval',
-    goal: { kind: 'building', building: 'shipyard', level: 1 },
     reward: { wood: 200, stone: 150, gold: 80 },
   },
 ]

@@ -14,7 +14,7 @@ import { OFFER_STREAM_PREFIX } from '@/modules/market/contracts'
 import { VILLAGE_CHANNEL_PREFIX } from '@/modules/realm/contracts'
 import type { StoredEvent } from '@/platform/event-store/event-store'
 import type { DbTransaction, Projection } from '@/platform/projection/projection'
-import type { Amounts, BattleDetail, Fact, Tactic } from '../domain/entry'
+import type { Amounts, ArmyDetail, BattleDetail, Fact, Tactic, Units } from '../domain/entry'
 import { entries, expeditions, offers, raids } from './schema'
 
 /**
@@ -107,6 +107,14 @@ async function applyVillage(event: StoredEvent, tx: DbTransaction) {
       completesAt: typeof data.completesAt === 'number' ? data.completesAt : null,
     })
   }
+  if (event.type === 'UnitsRecruited') {
+    await write(tx, event, playerId, {
+      type: 'units-recruited',
+      unit: String(data.unit),
+      count: Number(data.count),
+      cost: (data.cost ?? {}) as Amounts,
+    })
+  }
 }
 
 /**
@@ -165,7 +173,7 @@ async function applyRaid(event: StoredEvent, tx: DbTransaction) {
         targetName: target.name,
         pirates: target.kind === 'pirates',
         ships: Number(data.ships),
-        tactic: data.tactic as Tactic,
+        tactic: (data.tactic ?? 'ram') as Tactic,
         cost: (data.cost ?? {}) as Amounts,
       })
       .onConflictDoUpdate({
@@ -177,13 +185,14 @@ async function applyRaid(event: StoredEvent, tx: DbTransaction) {
       target: target.name,
       pirates: target.kind === 'pirates',
       ships: Number(data.ships),
-      tactic: data.tactic as Tactic,
+      ...(data.army ? { army: data.army as Units } : { tactic: data.tactic as Tactic }),
     })
     return
   }
   const raid = await raidOf(tx, raidId)
   if (!raid) return
   if (event.type === 'BattleFought') {
+    if (data.report) return
     await tx
       .update(raids)
       .set({
@@ -237,7 +246,8 @@ async function applyHarbor(event: StoredEvent, tx: DbTransaction) {
       return
     }
     case 'BattleReported': {
-      const raid = await raidOf(tx, String(data.raidId))
+      const army = data.report as ArmyDetail | undefined
+      const raid = army ? undefined : await raidOf(tx, String(data.raidId))
       const report = raid ? detailOf(raid) : null
       await write(tx, event, playerId, {
         type: 'battle',
@@ -246,6 +256,7 @@ async function applyHarbor(event: StoredEvent, tx: DbTransaction) {
         opponent: String(data.opponentName),
         loot: (data.loot ?? {}) as Amounts,
         ...(report ? { report } : {}),
+        ...(army ? { army } : {}),
       })
       return
     }
@@ -365,13 +376,15 @@ async function applyOffer(event: StoredEvent, tx: DbTransaction) {
  * event to the rules of its module.
  *
  * Version 2: keeps the fleet and the battle of each raid, for the battle reports.
+ * Version 3: tells the units recruited, and the battles between armies.
  */
 export const chronicleProjection: Projection = {
   name: 'chronicle',
-  version: 2,
+  version: 3,
   eventTypes: [
     'VillageFounded',
     'BuildingUpgraded',
+    'UnitsRecruited',
     'RaidLaunched',
     'RaidCancelled',
     'FleetRecalled',

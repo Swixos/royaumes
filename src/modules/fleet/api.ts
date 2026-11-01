@@ -68,7 +68,6 @@ export function createFleetApi(service: FleetService) {
     })
 
     .get('/harbor', async (c) => c.json(await service.harbor(c.var.userId)))
-
 }
 
 /** Type of the sub-app, used by the typed client of the interface. */

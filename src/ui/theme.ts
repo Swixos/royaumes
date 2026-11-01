@@ -54,6 +54,20 @@ export const theme: Record<string, Look> = {
   done: { label: 'Terminée', color: '#4a7428' },
   locked: { label: 'À venir', color: '#7a5f40' },
   sparkle: { label: 'Prête', color: '#c98a0b' },
+  barracks: { label: 'Caserne', color: '#8f2a20' },
+  farm: { label: 'Ferme', color: '#4a7428' },
+  population: { label: 'Population', color: '#6b3f23' },
+  troops: { label: 'Troupes', color: '#8f2a20' },
+  swordsman: { label: 'Épéiste', color: '#5b5650' },
+  slinger: { label: 'Frondeur', color: '#7a5f40' },
+  archer: { label: 'Archer', color: '#4a7428' },
+  hoplite: { label: 'Hoplite', color: '#8f2a20' },
+  transport: { label: 'Bateau de transport', color: '#6b3f23' },
+  bireme: { label: 'Birème', color: '#1f5f92' },
+  lightShip: { label: 'Navire léger', color: '#b2382c' },
+  blunt: { label: 'Contondant', color: '#5b5650' },
+  sharp: { label: 'Tranchant', color: '#8f2a20' },
+  distance: { label: 'Distance', color: '#4a7428' },
 }
 
 /**

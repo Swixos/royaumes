@@ -1,11 +1,11 @@
 import { and, desc, eq, inArray, isNotNull, lte, ne, notInArray, or } from 'drizzle-orm'
+import { type Army, garrisonAt } from '@/modules/realm/contracts'
 import type { Db } from '@/platform/db/client'
 import type { ProjectionRunner } from '@/platform/projection/projection'
-import { type Army, garrisonAt } from '@/modules/realm/contracts'
 import { ARMY_RULES } from '../application/army-rules'
 import type { FleetReader } from '../application/fleet-reader'
-import { type Damage, sumArmies } from '../domain/battle'
 import type { RaidSummary } from '../contracts'
+import { type Damage, sumArmies } from '../domain/battle'
 import {
   type Amounts,
   crossingMs,
