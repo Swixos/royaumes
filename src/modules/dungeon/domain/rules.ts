@@ -9,22 +9,25 @@
 
 import { chooseCompanionAction } from './companion'
 import {
-  BOSS,
+  BOSSES,
+  CLASSES,
   COMMON_MONSTERS,
   DAMAGE_SPREAD,
   DEFAULT_DIFFICULTY,
   type Difficulty,
   DUNGEON_LENGTH,
   EXPLORE_MS,
-  HEAL_AMOUNT,
-  HERO,
+  type HeroClass,
   MAX_HEROES,
   MONSTER_ATTACK_BONUS,
   MONSTERS,
   type MonsterKind,
+  PRAYER_SHARE,
   ROOM_ODDS,
   ROUND_MS,
+  SHRINE_HEAL,
   TREASURE_GOLD,
+  VOLLEY_MALUS,
 } from './content'
 import {
   type Action,
@@ -33,9 +36,12 @@ import {
   evolve,
   type GameEvent,
   type GameState,
+  type Hero,
+  type HeroSpec,
   type MonsterSpec,
   type Phase,
   type Room,
+  skillWait,
   standingHeroes,
   standingMonsters,
   standingPlayerHeroes,
@@ -50,8 +56,15 @@ import { mix, pick, type Random, randomInt, seeded } from './random'
  * exploration turns whose deadline has passed.
  */
 export type GameCommand =
-  | { type: 'CreateGame'; playerId: string; name: string; difficulty: Difficulty; seed: number }
-  | { type: 'JoinGame'; playerId: string; name: string }
+  | {
+      type: 'CreateGame'
+      playerId: string
+      name: string
+      difficulty: Difficulty
+      seed: number
+      heroClass?: HeroClass
+    }
+  | { type: 'JoinGame'; playerId: string; name: string; heroClass?: HeroClass }
   | { type: 'AddCompanion'; playerId: string }
   | { type: 'StartGame'; playerId: string }
   | { type: 'OpenDoor'; playerId: string }
@@ -72,6 +85,7 @@ export type GameError =
   | { code: 'ROUND_OVER'; round: number }
   | { code: 'ALREADY_CHOSEN' }
   | { code: 'INVALID_TARGET' }
+  | { code: 'SKILL_NOT_READY'; rounds: number }
 
 /** Outcome of {@link decide}: the events to record, or the refusal. */
 export type Decision = { ok: true; events: GameEvent[] } | { ok: false; error: GameError }
@@ -83,6 +97,31 @@ export type Decision = { ok: true; events: GameEvent[] } | { ok: false; error: G
  * @returns The refused decision.
  */
 const fail = (error: GameError): Decision => ({ ok: false, error })
+
+/**
+ * Starting stats of a hero of a class.
+ *
+ * @param heroClass - Class chosen by the player.
+ * @returns The stats recorded in the event.
+ */
+export const heroOf = (heroClass: HeroClass): HeroSpec => ({
+  hp: CLASSES[heroClass].hp,
+  attack: CLASSES[heroClass].attack,
+  heroClass,
+})
+
+/**
+ * Class of a new companion: the role the party lacks most, the cleric first, then the
+ * warrior, then the ranger.
+ *
+ * @param heroes - Heroes of the expedition.
+ * @returns The class of the companion.
+ */
+export function companionClass(heroes: Hero[]): HeroClass {
+  const order: HeroClass[] = ['cleric', 'warrior', 'ranger']
+  const count = (kind: HeroClass) => heroes.filter((hero) => hero.heroClass === kind).length
+  return order.reduce((best, kind) => (count(kind) < count(best) ? kind : best), order[0])
+}
 
 /**
  * Draws the content of the rooms. The derived seed `mix(seed, 0)` is only used for
@@ -116,13 +155,15 @@ export function generateRooms(
         kind: 'treasure',
         gold: randomInt(random, TREASURE_GOLD.min, TREASURE_GOLD.max),
       })
+    } else if (roll < ROOM_ODDS.empty + ROOM_ODDS.treasure + ROOM_ODDS.shrine) {
+      rooms.push({ kind: 'shrine', heal: SHRINE_HEAL })
     } else {
       const count = randomInt(random, 1, Math.min(3, heroCount))
       const monsters = Array.from({ length: count }, () => spec(pick(random, COMMON_MONSTERS)))
       rooms.push({ kind: 'monsters', monsters })
     }
   }
-  const boss = spec(BOSS)
+  const boss = spec(BOSSES[difficulty])
   rooms.push({ kind: 'monsters', monsters: [{ ...boss, hp: boss.hp * heroCount }] })
   return rooms
 }
@@ -139,12 +180,37 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
   Math.max(1, randomInt(random, attack - spread, attack + spread))
 
 /**
+ * Hero each standing monster will attack this round, announced before the heroes choose,
+ * as monsters show their intent in a dungeon crawler. The derived seed `mix(seed, 2, round)`
+ * only serves the intents, so every player reads the same ones, and the resolution follows
+ * them. A monster targets with the strategy of the expedition difficulty.
+ *
+ * @param state - Expedition state, in combat.
+ * @returns The targeted hero of each standing monster, by monster identifier.
+ */
+export function monsterIntents(state: GameState): Record<string, string> {
+  const random = seeded(mix(state.seed, 2, state.round))
+  const strategy = MONSTER_STRATEGIES[state.difficulty]
+  const heroes = standingHeroes(state)
+  const intents: Record<string, string> = {}
+  if (heroes.length === 0) return intents
+  for (const monster of standingMonsters(state)) {
+    intents[monster.id] = strategy({ monster, heroes, actions: {}, random }).id
+  }
+  return intents
+}
+
+/**
  * Resolves the current round. The derived seed `mix(seed, 1, round)` only depends
  * on the round, so resolution always gives the same result whenever it is computed.
  * Companions choose their action through their own logic, but only when at least one
- * player has chosen an action; otherwise they defend, like absent players. Monsters pick their
- * target with the strategy of the expedition difficulty. When the combat is won
- * before the last room, the event carries the deadline to open the next door.
+ * player has chosen an action; otherwise they defend, like absent players.
+ *
+ * Heals and the prayer come first, then the attacks of the heroes, with their critical
+ * hits and the volley, then the monsters: each strikes the hero it announced, unless a
+ * warrior raised the bulwark, which draws every blow. A hero defending, or behind the
+ * bulwark, takes half the damage. When the combat is won before the last room, the event
+ * carries the deadline to open the next door.
  *
  * @param state - Expedition state, in combat.
  * @param at - Time of the resolution, in milliseconds.
@@ -153,12 +219,18 @@ const rollDamage = (random: Random, attack: number, spread: number) =>
 export function resolveRound(state: GameState, at: number): GameEvent[] {
   const random = seeded(mix(state.seed, 1, state.round))
   const playersActed = Object.keys(state.choices).length > 0
+  const intents = monsterIntents(state)
 
   const actions: Record<string, Action> = {}
   for (const hero of standingHeroes(state)) {
     if (hero.companion && playersActed) {
-      const situation = { heroes: standingHeroes(state), monsters: standingMonsters(state) }
-      actions[hero.id] = chooseCompanionAction(situation)
+      actions[hero.id] = chooseCompanionAction({
+        heroes: standingHeroes(state),
+        monsters: standingMonsters(state),
+        self: hero,
+        skillReady: skillWait(state, hero) === 0,
+        intents,
+      })
     } else {
       actions[hero.id] = state.choices[hero.id] ?? { type: 'defend' }
     }
@@ -174,30 +246,60 @@ export function resolveRound(state: GameState, at: number): GameEvent[] {
     monsters = applyEffect(monsters, effect)
   }
   const isStanding = (id: string) => [...heroes, ...monsters].some((f) => f.id === id && f.hp > 0)
+  const heroById = (id: string) => state.heroes.find((hero) => hero.id === id)
 
   for (const [heroId, action] of Object.entries(actions)) {
-    if (action.type !== 'heal' || !isStanding(action.target)) continue
-    record({ kind: 'heal', source: heroId, target: action.target, amount: HEAL_AMOUNT })
+    const hero = heroById(heroId)
+    if (!hero) continue
+    if (action.type === 'heal' && isStanding(action.target)) {
+      record({ kind: 'heal', source: heroId, target: action.target, amount: hero.heal })
+    }
+    if (action.type === 'skill' && hero.skill === 'prayer') {
+      const amount = Math.round(hero.heal * PRAYER_SHARE)
+      for (const ally of heroes.filter((candidate) => candidate.hp > 0)) {
+        record({ kind: 'heal', source: heroId, target: ally.id, amount, skill: 'prayer' })
+      }
+    }
   }
 
   for (const [heroId, action] of Object.entries(actions)) {
+    const hero = heroById(heroId)
+    if (!hero) continue
+    if (action.type === 'skill' && hero.skill === 'volley') {
+      for (const monster of monsters.filter((candidate) => candidate.hp > 0)) {
+        const amount = rollDamage(random, hero.attack - VOLLEY_MALUS, DAMAGE_SPREAD.hero)
+        record({ kind: 'damage', source: heroId, target: monster.id, amount, skill: 'volley' })
+      }
+      continue
+    }
     if (action.type !== 'attack') continue
     const target = isStanding(action.target)
       ? action.target
       : monsters.find((monster) => monster.hp > 0)?.id
     if (!target) break
-    const attack = heroes.find((hero) => hero.id === heroId)?.attack ?? 0
-    const amount = rollDamage(random, attack, DAMAGE_SPREAD.hero)
-    record({ kind: 'damage', source: heroId, target, amount })
+    const amount = rollDamage(random, hero.attack, DAMAGE_SPREAD.hero)
+    if (hero.critical > 0 && random() < hero.critical) {
+      record({ kind: 'damage', source: heroId, target, amount: amount * 2, critical: true })
+    } else {
+      record({ kind: 'damage', source: heroId, target, amount })
+    }
   }
+
   const strategy = MONSTER_STRATEGIES[state.difficulty]
+  const bulwark = Object.entries(actions).find(
+    ([heroId, action]) => action.type === 'skill' && heroById(heroId)?.skill === 'bulwark',
+  )?.[0]
+  const shielded = (heroId: string) =>
+    actions[heroId]?.type === 'defend' || (heroId === bulwark && actions[heroId]?.type === 'skill')
 
   for (const monster of monsters) {
     const targets = heroes.filter((hero) => hero.hp > 0)
     if (monster.hp <= 0 || targets.length === 0) continue
-    const target = strategy({ monster, heroes: targets, actions, random })
+    const guard = targets.find((hero) => hero.id === bulwark)
+    const announced = targets.find((hero) => hero.id === intents[monster.id])
+    const target = guard ?? announced ?? strategy({ monster, heroes: targets, actions, random })
     let amount = rollDamage(random, monster.attack, DAMAGE_SPREAD.monster)
-    if (actions[target.id]?.type === 'defend') amount = Math.ceil(amount / 2)
+    if (shielded(target.id)) amount = Math.ceil(amount / 2)
     record({ kind: 'damage', source: monster.id, target: target.id, amount })
   }
 
@@ -305,12 +407,13 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
   if (command.type === 'CreateGame') {
     if (state.exists) return fail({ code: 'ALREADY_EXISTS' })
     const { playerId, name, difficulty, seed } = command
+    const hero = heroOf(command.heroClass ?? 'warrior')
     return {
       ok: true,
       events: [
         {
           type: 'GameCreated',
-          data: { hostId: playerId, hostName: name, hero: { ...HERO }, difficulty, seed, at: now },
+          data: { hostId: playerId, hostName: name, hero, difficulty, seed, at: now },
         },
       ],
     }
@@ -328,7 +431,12 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
         events: [
           {
             type: 'PlayerJoined',
-            data: { playerId: command.playerId, name: command.name, hero: { ...HERO }, at: now },
+            data: {
+              playerId: command.playerId,
+              name: command.name,
+              hero: heroOf(command.heroClass ?? 'warrior'),
+              at: now,
+            },
           },
         ],
       }
@@ -345,7 +453,7 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
             data: {
               companionId: `companion-${number}`,
               name: `Compagnon ${number}`,
-              hero: { ...HERO },
+              hero: heroOf(companionClass(state.heroes)),
               at: now,
             },
           },
@@ -385,6 +493,11 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
       if (command.round !== state.round) return fail({ code: 'ROUND_OVER', round: state.round })
       if (state.choices[hero.id]) return fail({ code: 'ALREADY_CHOSEN' })
       if (!isValidTarget(state, command.action)) return fail({ code: 'INVALID_TARGET' })
+      if (command.action.type === 'skill') {
+        const wait = skillWait(state, hero)
+        if (wait === null) return fail({ code: 'INVALID_TARGET' })
+        if (wait > 0) return fail({ code: 'SKILL_NOT_READY', rounds: wait })
+      }
 
       const submitted: GameEvent = {
         type: 'ActionSubmitted',
@@ -411,7 +524,7 @@ function decideCommand(state: GameState, command: GameCommand, now: number): Dec
  *
  * @param state - Expedition state.
  * @param action - Chosen action.
- * @returns True if the target is valid, always true for a defense.
+ * @returns True if the target is valid, always true for a defense or a skill.
  */
 function isValidTarget(state: GameState, action: Action): boolean {
   if (action.type === 'attack') {

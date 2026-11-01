@@ -191,4 +191,35 @@ describe('Écritures concurrentes sur une expédition', () => {
     const after = await viewOf(api, gameId, 'alice')
     expect(after.round).toBe(view.round + 1)
   })
+
+  it('donne à chaque héros sa classe, et accepte sa compétence en combat', async () => {
+    const api = await createTestApi()
+    const res = await api.post('/api/dungeon/games', { heroClass: 'cleric' }, 'alice')
+    const { gameId } = (await res.json()) as { gameId: string }
+    await api.post(`/api/dungeon/games/${gameId}/join`, { heroClass: 'ranger' }, 'bob')
+    expect(
+      (await api.post(`/api/dungeon/games/${gameId}/join`, { heroClass: 'mage' }, 'carol')).status,
+    ).toBe(400)
+    const lobby = await viewOf(api, gameId, 'alice')
+    expect(lobby.heroes.map((hero) => [hero.heroClass, hero.skill])).toEqual([
+      ['cleric', 'prayer'],
+      ['ranger', 'volley'],
+    ])
+
+    await api.post(`/api/dungeon/games/${gameId}/start`, {}, 'alice')
+    for (;;) {
+      const view = await viewOf(api, gameId, 'alice')
+      if (view.phase === 'combat') {
+        expect(Object.keys(view.intents).length).toBeGreaterThan(0)
+        const skill = await api.post(
+          `/api/dungeon/games/${gameId}/action`,
+          { round: view.round, action: { type: 'skill' } },
+          'alice',
+        )
+        expect(skill.status).toBe(200)
+        return
+      }
+      await api.post(`/api/dungeon/games/${gameId}/door`, {}, view.turnHeroId)
+    }
+  })
 })
