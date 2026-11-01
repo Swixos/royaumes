@@ -81,7 +81,7 @@ Un module n'est accessible depuis l'extérieur que par ses entrées publiques : 
 | `realm` | Village : fondation, production de ressources, amélioration des bâtiments, formation des troupes et des navires | `/api/realm` |
 | `dungeon` | Donjon « Les Profondeurs » : expéditions de un à quatre héros de trois classes, compétences, monstres qui annoncent leur cible, compagnons pilotés par l'ordinateur, deux niveaux de difficulté, combats en manches simultanées | `/api/dungeon` |
 | `ranking` | Classement des joueurs, construit à partir des événements du Village et du Donjon | `/api/ranking` |
-| `tutorial` | Tutoriel : introduction par une conseillère, chaîne de dix-huit quêtes récompensées, guide qui éclaire où toucher | `/api/tutorial` |
+| `tutorial` | Tutoriel : introduction par une conseillère, chaîne de cinquante et une quêtes récompensées, en onze chapitres, guide qui éclaire où toucher | `/api/tutorial` |
 | `chronicle` | Historique de chaque joueur : constructions, raids et batailles, expéditions, échanges, construit à partir des événements des autres modules | `/api/chronicle` |
 | `market` | Marché : échanges de ressources entre joueurs, par une saga orchestrée | `/api/market` |
 | `tavern` | Taverne : salon de discussion commun et présence des joueurs, sans Event Sourcing | `/api/tavern` |
@@ -290,7 +290,7 @@ palissade puis à la muraille, et une maison s'élève pour chaque niveau gagné
 puis le long des routes. La scène s'anime : fumées, villageois sur les routes, ressources
 produites, vagues et oiseaux. Les noms des bâtiments n'apparaissent qu'au survol, à la
 sélection, pendant un chantier ou en zoomant. Un nouveau joueur est accueilli par sa conseillère, qui lui présente le jeu puis lui confie
-une chaîne de dix-huit quêtes, du premier chantier à la première victoire et au rempart (ADR 0022) : une
+une chaîne de cinquante et une quêtes en onze chapitres, du premier chantier jusqu'à l'Atoll Écarlate et au Sénat de niveau 8 (ADR 0022) : une
 lumière dorée montre à chaque étape où toucher, et chaque quête accomplie se réclame contre
 des ressources versées au village. Un clic sur un bâtiment
 ouvre sa fiche ; les mêmes actions restent disponibles au clavier sous la scène. La carte des

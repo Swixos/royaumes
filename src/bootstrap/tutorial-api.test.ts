@@ -100,4 +100,36 @@ describe('API du module Tutoriel', () => {
     const byId = Object.fromEntries(view.quests.map((quest) => [quest.id, quest.progress.done]))
     expect(byId).toMatchObject({ 'barracks-1': true, troops: true, warship: false })
   })
+
+  it('reconnaît un achat au marché, et les unités demandées par leur nom', async () => {
+    const api = await createTestApi()
+    await api.post('/api/realm/village', { name: 'Valombre' }, 'alice')
+    await api.post('/api/realm/village', { name: 'Brumeval' }, 'bob')
+    const res = await api.post(
+      '/api/market/offers',
+      { give: { wood: 10 }, want: { stone: 5 } },
+      'alice',
+    )
+    const { offerId } = (await res.json()) as { offerId: string }
+    await api.post(`/api/market/offers/${offerId}/accept`, {}, 'bob')
+
+    const store = createEventStore(api.db)
+    const version = (await store.read('village-bob')).length
+    await store.append('village-bob', version, [
+      {
+        type: 'BuildingUpgraded',
+        data: { building: 'barracks', toLevel: 2, cost: {}, at: Date.UTC(2026, 0, 1) },
+      },
+      {
+        type: 'ResourcesDeposited',
+        data: { resources: { gold: 20 }, transferId: 'test-gold', at: Date.UTC(2026, 0, 1) },
+      },
+    ])
+    await api.post('/api/realm/village/recruit', { unit: 'slinger', count: 1 }, 'bob')
+
+    const res2 = await api.get('/api/tutorial', 'bob')
+    const view = ((await res2.json()) as { view: TutorialView }).view
+    const byId = Object.fromEntries(view.quests.map((quest) => [quest.id, quest.progress.done]))
+    expect(byId).toMatchObject({ purchase: true, slinger: true, troops: true, archer: false })
+  })
 })

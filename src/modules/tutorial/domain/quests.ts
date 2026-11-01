@@ -21,6 +21,18 @@ export const DEEDS = [
   'navalVictory',
   'expedition',
   'expeditionWon',
+  'purchase',
+  'dungeonSkill',
+  'slinger',
+  'archer',
+  'hoplite',
+  'bireme',
+  'lightShip',
+  'villageRaid',
+  'villageVictory',
+  'coveVictory',
+  'atollVictory',
+  'defended',
 ] as const
 
 /** Fact of the game that a quest may ask for. */
@@ -75,6 +87,12 @@ export const CHAPTERS: readonly Chapter[] = [
   { id: 'army', title: "L'armée", icon: 'troops' },
   { id: 'sea', title: 'La mer', icon: 'fleet' },
   { id: 'defense', title: 'La défense', icon: 'wall' },
+  { id: 'growth', title: "L'essor", icon: 'sawmill' },
+  { id: 'alliances', title: 'Les alliances', icon: 'market' },
+  { id: 'war', title: "L'art de la guerre", icon: 'swords' },
+  { id: 'navy', title: 'La maîtrise des mers', icon: 'fleet' },
+  { id: 'fortress', title: 'La forteresse', icon: 'wall' },
+  { id: 'glory', title: 'La gloire', icon: 'ranking' },
 ]
 
 /** Quests of the tutorial, in the order they are given. */
@@ -252,10 +270,339 @@ export const QUESTS: readonly Quest[] = [
     chapter: 'defense',
     title: 'Des murs autour de la ville',
     advice:
-      'Chaque niveau du rempart renforce de 8 % la défense de vos troupes restées au village. Avec une garnison et un rempart, le royaume est à vous !',
+      'Chaque niveau du rempart renforce de 8 % la défense de vos troupes restées au village. Commencez par une palissade : la pierre viendra ensuite.',
     task: 'Construire le Rempart',
     goal: { kind: 'building', building: 'wall', level: 1 },
     reward: { wood: 200, stone: 150, gold: 80 },
+  },
+  {
+    id: 'mine-2',
+    chapter: 'growth',
+    title: 'Des filons plus profonds',
+    advice:
+      "L'or paie les troupes d'élite et les navires de guerre. Creusez plus loin dans la montagne : la mine en tirera davantage chaque minute.",
+    task: 'Monter la Mine au niveau 2',
+    goal: { kind: 'building', building: 'mine', level: 2 },
+    reward: { wood: 120, stone: 100 },
+  },
+  {
+    id: 'quarry-3',
+    chapter: 'growth',
+    title: 'Des blocs pour les remparts',
+    advice:
+      "Chaque niveau de rempart et de caserne dévore de la pierre. Une carrière plus grande vous évitera d'attendre.",
+    task: 'Monter la Carrière au niveau 3',
+    goal: { kind: 'building', building: 'quarry', level: 3 },
+    reward: { wood: 150, stone: 80 },
+  },
+  {
+    id: 'sawmill-4',
+    chapter: 'growth',
+    title: 'La forêt au service du royaume',
+    advice:
+      'Les coques, les palissades et les arcs viennent tous du bois. La scierie au niveau 4 nourrit une cité qui grandit.',
+    task: 'Monter la Scierie au niveau 4',
+    goal: { kind: 'building', building: 'sawmill', level: 4 },
+    reward: { stone: 180, gold: 30 },
+  },
+  {
+    id: 'warehouse-3',
+    chapter: 'growth',
+    title: 'Des réserves pour les grands chantiers',
+    advice:
+      'Les grands bâtiments coûtent plus que ce que votre entrepôt peut garder. Agrandissez-le, et une plus grande part restera cachée aux pillards.',
+    task: 'Monter l’Entrepôt au niveau 3',
+    goal: { kind: 'building', building: 'warehouse', level: 3 },
+    reward: { wood: 160, stone: 160 },
+  },
+  {
+    id: 'farm-3',
+    chapter: 'growth',
+    title: 'Plus de bouches à nourrir',
+    advice:
+      'Une armée nombreuse mange beaucoup. Chaque niveau de ferme ajoute des places pour vos soldats et vos marins.',
+    task: 'Monter la Ferme au niveau 3',
+    goal: { kind: 'building', building: 'farm', level: 3 },
+    reward: { wood: 140, stone: 120 },
+  },
+  {
+    id: 'senate-4',
+    chapter: 'growth',
+    title: 'Un conseil plus sage',
+    advice:
+      'Le Sénat raccourcit tous vos chantiers. Au niveau 4, la cité bâtit nettement plus vite.',
+    task: 'Monter le Sénat au niveau 4',
+    goal: { kind: 'building', building: 'senate', level: 4 },
+    reward: { wood: 220, stone: 220, gold: 40 },
+  },
+  {
+    id: 'purchase',
+    chapter: 'alliances',
+    title: 'Une affaire conclue',
+    advice:
+      "Le marché ne sert pas qu'à vendre : d'autres seigneurs proposent ce qui vous manque. Acceptez une de leurs offres, l'échange se fait de port à port.",
+    task: 'Accepter une offre au Marché',
+    goal: { kind: 'deed', deed: 'purchase' },
+    reward: { wood: 80, stone: 80, gold: 20 },
+  },
+  {
+    id: 'dungeon-skill',
+    chapter: 'alliances',
+    title: 'Le talent du héros',
+    advice:
+      'Chaque héros des Profondeurs a une compétence : le Rempart du guerrier, la Pluie de flèches de la rôdeuse, la Prière de la prêtresse. Gardez-la pour le bon moment, elle met trois manches à revenir.',
+    task: 'Utiliser la compétence de votre héros au Donjon',
+    goal: { kind: 'deed', deed: 'dungeonSkill' },
+    reward: { gold: 60 },
+  },
+  {
+    id: 'barracks-2',
+    chapter: 'war',
+    title: 'Une caserne agrandie',
+    advice:
+      'Au niveau 2, la caserne forme les frondeurs, redoutables à distance, et chaque formation va plus vite.',
+    task: 'Monter la Caserne au niveau 2',
+    goal: { kind: 'building', building: 'barracks', level: 2 },
+    reward: { wood: 120, stone: 100, gold: 20 },
+  },
+  {
+    id: 'slinger',
+    chapter: 'war',
+    title: 'Les frondeurs',
+    advice:
+      'Le frondeur frappe fort, mais se défend mal. Mêlez-les à vos épéistes, qui tiennent bon contre les flèches et les pierres.',
+    task: 'Former des frondeurs',
+    goal: { kind: 'deed', deed: 'slinger' },
+    reward: { wood: 100, stone: 60, gold: 20 },
+  },
+  {
+    id: 'barracks-3',
+    chapter: 'war',
+    title: 'Les archers',
+    advice:
+      'La caserne au niveau 3 ouvre les archers : les meilleurs défenseurs contre les lances des hoplites ennemis.',
+    task: 'Monter la Caserne au niveau 3',
+    goal: { kind: 'building', building: 'barracks', level: 3 },
+    reward: { wood: 180, stone: 150, gold: 30 },
+  },
+  {
+    id: 'archer',
+    chapter: 'war',
+    title: 'Une garnison d’archers',
+    advice:
+      'Une garnison variée résiste à toutes les attaques : chaque unité se défend différemment contre les coups contondants, tranchants et à distance.',
+    task: 'Former des archers',
+    goal: { kind: 'deed', deed: 'archer' },
+    reward: { wood: 120, stone: 80, gold: 30 },
+  },
+  {
+    id: 'village-raid',
+    chapter: 'war',
+    title: 'Un voisin trop tranquille',
+    advice:
+      "Les autres seigneurs aussi ont des greniers pleins. Lancez un raid contre le village d'un autre joueur : le Conseil de guerre montre son rempart, mais pas ses troupes.",
+    task: 'Lancer un raid contre un autre village',
+    goal: { kind: 'deed', deed: 'villageRaid' },
+    reward: { wood: 120, stone: 120 },
+  },
+  {
+    id: 'village-victory',
+    chapter: 'war',
+    title: 'Le butin d’un seigneur',
+    advice:
+      'Une victoire contre un village pille ce que vos survivants peuvent porter, et affaiblit sa garnison. Lisez le rapport : il montre les pertes de chaque camp.',
+    task: 'Remporter une bataille contre un autre village',
+    goal: { kind: 'deed', deed: 'villageVictory' },
+    reward: { gold: 100 },
+  },
+  {
+    id: 'shipyard-2',
+    chapter: 'navy',
+    title: 'Des coques de guerre',
+    advice:
+      'Au niveau 2, le chantier naval construit les birèmes : peu offensives, mais des remparts flottants contre les flottes ennemies.',
+    task: 'Monter le Chantier naval au niveau 2',
+    goal: { kind: 'building', building: 'shipyard', level: 2 },
+    reward: { wood: 200, stone: 120, gold: 30 },
+  },
+  {
+    id: 'bireme',
+    chapter: 'navy',
+    title: 'La première birème',
+    advice:
+      "Une flotte ennemie doit d'abord vaincre vos navires avant de débarquer. Les birèmes restées au port défendent votre île.",
+    task: 'Construire une birème',
+    goal: { kind: 'deed', deed: 'bireme' },
+    reward: { wood: 150, stone: 100, gold: 40 },
+  },
+  {
+    id: 'cove-victory',
+    chapter: 'navy',
+    title: 'La Crique du Corbeau',
+    advice:
+      "La crique garde une birème et des hoplites. Sans navire de combat, vos transports couleront avant d'accoster : escortez-les.",
+    task: 'Vaincre les pirates de la Crique du Corbeau',
+    goal: { kind: 'deed', deed: 'coveVictory' },
+    reward: { stone: 150, gold: 80 },
+  },
+  {
+    id: 'shipyard-4',
+    chapter: 'navy',
+    title: 'Les navires légers',
+    advice:
+      'Le chantier naval au niveau 4 lance les navires légers, rapides et mortels en mer : ce sont eux qui ouvrent la voie à vos troupes.',
+    task: 'Monter le Chantier naval au niveau 4',
+    goal: { kind: 'building', building: 'shipyard', level: 4 },
+    reward: { wood: 300, stone: 200, gold: 60 },
+  },
+  {
+    id: 'light-ship',
+    chapter: 'navy',
+    title: 'Maître des flots',
+    advice:
+      "Un navire léger écrase les birèmes ennemies. Avec eux, plus aucune île n'est hors d'atteinte.",
+    task: 'Construire un navire léger',
+    goal: { kind: 'deed', deed: 'lightShip' },
+    reward: { wood: 200, stone: 150, gold: 60 },
+  },
+  {
+    id: 'wall-2',
+    chapter: 'fortress',
+    title: 'Des murs plus épais',
+    advice:
+      'Chaque niveau de rempart renforce de 8 % la défense de vos troupes au village. Ils ne protègent que ceux qui restent : gardez une garnison.',
+    task: 'Monter le Rempart au niveau 2',
+    goal: { kind: 'building', building: 'wall', level: 2 },
+    reward: { wood: 120, stone: 200 },
+  },
+  {
+    id: 'warehouse-4',
+    chapter: 'fortress',
+    title: 'Des caves secrètes',
+    advice:
+      'Un grand entrepôt cache une part plus grande de vos biens : même vaincu, vous ne perdez pas tout.',
+    task: 'Monter l’Entrepôt au niveau 4',
+    goal: { kind: 'building', building: 'warehouse', level: 4 },
+    reward: { wood: 200, stone: 200, gold: 40 },
+  },
+  {
+    id: 'farm-5',
+    chapter: 'fortress',
+    title: 'Une population nombreuse',
+    advice:
+      'Pour tenir un siège et attaquer à la fois, il faut des centaines de bras. Agrandissez la ferme.',
+    task: 'Monter la Ferme au niveau 5',
+    goal: { kind: 'building', building: 'farm', level: 5 },
+    reward: { wood: 220, stone: 200, gold: 40 },
+  },
+  {
+    id: 'wall-3',
+    chapter: 'fortress',
+    title: 'La muraille',
+    advice:
+      'La palissade devient muraille. Avec une bonne garnison, votre île décourage la plupart des pillards.',
+    task: 'Monter le Rempart au niveau 3',
+    goal: { kind: 'building', building: 'wall', level: 3 },
+    reward: { wood: 180, stone: 280, gold: 40 },
+  },
+  {
+    id: 'defended',
+    chapter: 'fortress',
+    title: 'Ils ne passeront pas',
+    advice:
+      "Quand une flotte ennemie approche, l'alarme sonne dans le port. Une garnison et un rempart solides suffisent à la renvoyer à la mer.",
+    task: 'Repousser une attaque contre votre village',
+    goal: { kind: 'deed', deed: 'defended' },
+    reward: { wood: 200, stone: 200, gold: 80 },
+  },
+  {
+    id: 'senate-5',
+    chapter: 'glory',
+    title: 'Le Sénat des sages',
+    advice:
+      'Un Sénat de niveau 5 fait de votre cité un chantier permanent : chaque construction y va un quart plus vite.',
+    task: 'Monter le Sénat au niveau 5',
+    goal: { kind: 'building', building: 'senate', level: 5 },
+    reward: { wood: 300, stone: 300, gold: 60 },
+  },
+  {
+    id: 'barracks-5',
+    chapter: 'glory',
+    title: 'La caserne des hoplites',
+    advice:
+      'Au niveau 5, la caserne forme les hoplites : lances et boucliers, ils percent les lignes ennemies.',
+    task: 'Monter la Caserne au niveau 5',
+    goal: { kind: 'building', building: 'barracks', level: 5 },
+    reward: { wood: 300, stone: 260, gold: 60 },
+  },
+  {
+    id: 'hoplite',
+    chapter: 'glory',
+    title: 'La phalange',
+    advice:
+      'Les hoplites frappent tranchant : les épéistes résistent mal à leurs lances. Une phalange bien escortée fait tomber les garnisons les plus fières.',
+    task: 'Former des hoplites',
+    goal: { kind: 'deed', deed: 'hoplite' },
+    reward: { wood: 200, stone: 200, gold: 80 },
+  },
+  {
+    id: 'mine-3',
+    chapter: 'glory',
+    title: 'Le trésor de la montagne',
+    advice:
+      "Les hoplites, les navires légers et les grands bâtiments réclament de l'or. Une mine de niveau 3 remplit les coffres.",
+    task: 'Monter la Mine au niveau 3',
+    goal: { kind: 'building', building: 'mine', level: 3 },
+    reward: { wood: 260, stone: 220 },
+  },
+  {
+    id: 'quarry-5',
+    chapter: 'glory',
+    title: 'La pierre à profusion',
+    advice:
+      'Les derniers niveaux du rempart et du Sénat coûtent des montagnes de pierre. Préparez-les.',
+    task: 'Monter la Carrière au niveau 5',
+    goal: { kind: 'building', building: 'quarry', level: 5 },
+    reward: { wood: 300, gold: 60 },
+  },
+  {
+    id: 'sawmill-6',
+    chapter: 'glory',
+    title: 'Les forêts du royaume',
+    advice: 'Une scierie de niveau 6 fournit de quoi armer flotte et caserne sans répit.',
+    task: 'Monter la Scierie au niveau 6',
+    goal: { kind: 'building', building: 'sawmill', level: 6 },
+    reward: { stone: 320, gold: 60 },
+  },
+  {
+    id: 'wall-5',
+    chapter: 'glory',
+    title: 'Une forteresse imprenable',
+    advice:
+      'Un rempart de niveau 5 ajoute 40 % à la défense de vos troupes : seuls les plus grands seigneurs oseront vous attaquer.',
+    task: 'Monter le Rempart au niveau 5',
+    goal: { kind: 'building', building: 'wall', level: 5 },
+    reward: { wood: 300, stone: 400, gold: 80 },
+  },
+  {
+    id: 'atoll-victory',
+    chapter: 'glory',
+    title: 'L’Atoll Écarlate',
+    advice:
+      'Le repaire le plus redouté des pirates : trois birèmes, une garnison immense et un capitaine qui apprend de vos attaques. Variez vos dégâts, et emmenez vos navires légers.',
+    task: 'Vaincre les pirates de l’Atoll Écarlate',
+    goal: { kind: 'deed', deed: 'atollVictory' },
+    reward: { wood: 400, stone: 400, gold: 200 },
+  },
+  {
+    id: 'senate-8',
+    chapter: 'glory',
+    title: 'Le seigneur des îles',
+    advice:
+      "Ysolde n'a plus rien à vous apprendre. Un Sénat de niveau 8 fait de votre cité l'une des plus grandes de la mer : le royaume est à vous.",
+    task: 'Monter le Sénat au niveau 8',
+    goal: { kind: 'building', building: 'senate', level: 8 },
+    reward: { wood: 600, stone: 600, gold: 300 },
   },
 ]
 
