@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import type { AppEnv } from '@/platform/http/types'
 import { validateJson } from '@/platform/http/validate'
 import type { VillageService } from './application/village-service'
-import { type DomainError, FoundVillageInput, UpgradeBuildingInput } from './contracts'
+import {
+  type DomainError,
+  FoundVillageInput,
+  RecruitUnitsInput,
+  UpgradeBuildingInput,
+} from './contracts'
 
 /** HTTP status code for each domain error. */
 const STATUS: Record<DomainError['code'], 404 | 409 | 422> = {
@@ -12,6 +17,9 @@ const STATUS: Record<DomainError['code'], 404 | 409 | 422> = {
   INSUFFICIENT_RESOURCES: 422,
   REQUIREMENTS_NOT_MET: 409,
   QUEUE_FULL: 409,
+  UNIT_LOCKED: 409,
+  INVALID_ORDER: 422,
+  POPULATION_EXCEEDED: 409,
 }
 
 /**
@@ -41,6 +49,14 @@ export function createRealmApi(service: VillageService) {
         type: 'UpgradeBuilding',
         building: c.req.valid('json').building,
       })
+      return result.ok
+        ? c.json({ view: result.view })
+        : c.json({ error: result.error }, STATUS[result.error.code])
+    })
+
+    .post('/village/recruit', validateJson(RecruitUnitsInput), async (c) => {
+      const { unit, count } = c.req.valid('json')
+      const result = await service.execute(c.var.userId, { type: 'RecruitUnits', unit, count })
       return result.ok
         ? c.json({ view: result.view })
         : c.json({ error: result.error }, STATUS[result.error.code])

@@ -34,7 +34,7 @@ describe('API du module Historique', () => {
     await api.post('/api/market/offers', { give: { wood: 10 }, want: { stone: 5 } }, 'alice')
     await api.post(
       '/api/fleet/raids',
-      { target: { kind: 'village', playerId: 'bob' }, ships: 1, tactic: 'ram' },
+      { target: { kind: 'village', playerId: 'bob' }, army: { lightShip: 1 } },
       'alice',
     )
 
@@ -46,6 +46,7 @@ describe('API du module Historique', () => {
         'expedition-created',
         'offer-published',
         'raid-launched',
+        'raid-cancelled',
       ]),
     )
     const positions = entries.map((entry) => entry.position)

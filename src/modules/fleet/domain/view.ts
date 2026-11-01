@@ -1,9 +1,11 @@
 /**
- * View of a raid: what a given player sees of it. The defender never learns the tactic of
- * the fleet before the battle, nor the equipment the attacker paid.
+ * View of a raid: what a given player sees of it. The defender never learns the army, or
+ * the tactic of a fleet of triremes, before the battle, nor the equipment the attacker
+ * paid.
  *
  * @packageDocumentation
  */
+import type { Army, BattleReport } from './battle'
 import type { Amounts, Battle, Tactic } from './naval'
 import type { RaidState, RaidStatus, Target } from './raid'
 
@@ -21,6 +23,12 @@ export interface RaidView {
   ships: number
   /** Tactic of the fleet: known to the attacker, and to the defender after the battle. */
   tactic: Tactic | null
+  /** Army sent: known to the attacker, and to the defender after the battle. */
+  army: Army | null
+  /** Report of the battle of an army, once fought. */
+  report: BattleReport | null
+  /** Time the surviving units come home; 0 before they turn back. */
+  returnsAt: number
   /** Equipment paid by the attacker; hidden from the defender. */
   cost: Amounts | null
   /** Progress of the raid saga. */
@@ -59,6 +67,9 @@ export function toView(state: RaidState, viewerId: string): RaidView | null {
     target: state.target,
     ships: state.ships,
     tactic: attacker || state.battle ? state.tactic : null,
+    army: attacker || state.battle ? state.army : null,
+    report: state.report,
+    returnsAt: attacker ? state.returnsAt : 0,
     cost: attacker ? state.cost : null,
     status: state.status,
     launchedAt: state.launchedAt,

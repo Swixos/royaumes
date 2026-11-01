@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createEventStore } from '@/platform/event-store/event-store'
 import { createTestApi } from './testing'
 
 describe('API du module Village', () => {
@@ -117,5 +118,40 @@ describe("Contrôle d'accès à l'API du Village", () => {
   it("refuse l'écoute du village d'un autre joueur (403)", async () => {
     const { get } = await createTestApi()
     expect((await get('/api/stream/village-bob', 'alice')).status).toBe(403)
+  })
+})
+
+describe('API du module Village - troupes', () => {
+  it('forme des unités à la caserne, et refuse une unité sans son bâtiment', async () => {
+    const api = await createTestApi()
+    await api.post('/api/realm/village', { name: 'Valombre' })
+    const locked = await api.post('/api/realm/village/recruit', { unit: 'swordsman', count: 2 })
+    expect(locked.status).toBe(409)
+    expect(await locked.json()).toMatchObject({
+      error: { code: 'UNIT_LOCKED', unit: 'swordsman', building: 'barracks', level: 1 },
+    })
+    expect(
+      (await api.post('/api/realm/village/recruit', { unit: 'dragon', count: 1 })).status,
+    ).toBe(400)
+    expect(
+      (await api.post('/api/realm/village/recruit', { unit: 'archer', count: 0 })).status,
+    ).toBe(400)
+
+    const store = createEventStore(api.db)
+    const version = (await store.read('village-alice')).length
+    await store.append('village-alice', version, [
+      {
+        type: 'BuildingUpgraded',
+        data: { building: 'barracks', toLevel: 1, cost: {}, at: Date.UTC(2026, 0, 1) },
+      },
+    ])
+    const ordered = await api.post('/api/realm/village/recruit', { unit: 'swordsman', count: 2 })
+    expect(ordered.status).toBe(200)
+    const { view } = await ordered.json()
+    expect(view.trainings).toMatchObject([{ unit: 'swordsman', count: 2 }])
+    expect(view.stock).toMatchObject({ wood: 60, stone: 34 })
+    api.advance(1)
+    const later = await (await api.get('/api/realm/village')).json()
+    expect(later.view.army).toEqual({ swordsman: 2 })
   })
 })

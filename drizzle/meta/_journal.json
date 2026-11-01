@@ -134,6 +134,13 @@
       "when": 1792956779122,
       "tag": "0018_tutoriel",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793527850056,
+      "tag": "0019_troupes",
+      "breakpoints": true
     }
   ]
 }

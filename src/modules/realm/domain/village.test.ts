@@ -237,3 +237,140 @@ describe('Village - entrepôt', () => {
     })
   })
 })
+
+describe('Village - troupes', () => {
+  /**
+   * Builds a village whose barracks and shipyard are built, with resources to spare.
+   *
+   * @returns The state of the village.
+   */
+  function garrisonTown(): VillageState {
+    const state = replay([founded])
+    return {
+      ...state,
+      levels: { ...state.levels, barracks: 3, shipyard: 2, farm: 3 },
+      stock: { wood: 5_000, stone: 5_000, gold: 5_000 },
+    }
+  }
+
+  it('forme des unités payées à la commande, sorties une à une de la caserne', () => {
+    const town = garrisonTown()
+    const [ordered] = eventsOf(
+      decide(town, { type: 'RecruitUnits', unit: 'swordsman', count: 3 }, T0),
+    )
+    expect(ordered).toEqual({
+      type: 'UnitsRecruited',
+      data: {
+        unit: 'swordsman',
+        count: 3,
+        cost: { wood: 60, stone: 24 },
+        at: T0,
+        startsAt: T0,
+        each: 6_800,
+      },
+    })
+    const state = evolve(town, ordered)
+    expect(state.stock.wood).toBe(4_940)
+    expect(toView(state, T0 + 7_000).army).toEqual({ swordsman: 1 })
+    expect(toView(state, T0 + 60_000).army).toEqual({ swordsman: 3 })
+    expect(toView(state, T0).population.used).toBe(3)
+  })
+
+  it('enchaîne les ordres d’un même bâtiment, et forme les navires à part', () => {
+    let state = garrisonTown()
+    for (const command of [
+      { type: 'RecruitUnits', unit: 'swordsman', count: 2 },
+      { type: 'RecruitUnits', unit: 'archer', count: 1 },
+      { type: 'RecruitUnits', unit: 'transport', count: 1 },
+    ] as const) {
+      state = eventsOf(decide(state, command, T0)).reduce(evolveOne, state)
+    }
+    const [swords, archers, ships] = state.trainings
+    expect(archers.startsAt).toBe(trainingEndOf(swords))
+    expect(ships.startsAt).toBe(T0)
+  })
+
+  it('refuse une unité sans le bâtiment voulu, un ordre trop grand ou une ferme pleine', () => {
+    const town = garrisonTown()
+    expect(decide(town, { type: 'RecruitUnits', unit: 'hoplite', count: 1 }, T0)).toEqual({
+      ok: false,
+      error: { code: 'UNIT_LOCKED', unit: 'hoplite', building: 'barracks', level: 5 },
+    })
+    expect(decide(town, { type: 'RecruitUnits', unit: 'swordsman', count: 0 }, T0)).toEqual({
+      ok: false,
+      error: { code: 'INVALID_ORDER' },
+    })
+    expect(decide(town, { type: 'RecruitUnits', unit: 'bireme', count: 41 }, T0)).toEqual({
+      ok: false,
+      error: { code: 'POPULATION_EXCEEDED', free: 160 },
+    })
+  })
+
+  it('fait partir des unités en raid, les ramène, et compte celles perdues', () => {
+    let state = garrisonTown()
+    state = eventsOf(
+      decide(state, { type: 'RecruitUnits', unit: 'swordsman', count: 5 }, T0),
+    ).reduce(evolveOne, state)
+    const later = T0 + minutes(5)
+    const refused = eventsOf(
+      decide(state, { type: 'WithdrawUnits', transferId: 'r:go', units: { swordsman: 6 } }, later),
+    )
+    expect(refused).toEqual([
+      {
+        type: 'WithdrawalRefused',
+        data: { transferId: 'r:go', missing: { swordsman: 1 }, at: later },
+      },
+    ])
+    const go = { type: 'WithdrawUnits', transferId: 'r:go', units: { swordsman: 4 } } as const
+    state = eventsOf(decide(state, go, later)).reduce(evolveOne, state)
+    expect(toView(state, later).army).toEqual({ swordsman: 1 })
+    expect(toView(state, later).away).toEqual({ swordsman: 4 })
+    expect(eventsOf(decide(state, go, later))).toEqual([])
+
+    const back = {
+      type: 'ReturnUnits',
+      transferId: 'r:back',
+      units: { swordsman: 3 },
+      lost: { swordsman: 1 },
+    } as const
+    state = eventsOf(decide(state, back, later)).reduce(evolveOne, state)
+    expect(toView(state, later).army).toEqual({ swordsman: 4 })
+    expect(toView(state, later).away).toEqual({})
+    expect(toView(state, later).population.used).toBe(4)
+  })
+
+  it('perd en défense ce que la garnison possède, sans jamais refuser', () => {
+    let state = garrisonTown()
+    state = eventsOf(decide(state, { type: 'RecruitUnits', unit: 'archer', count: 2 }, T0)).reduce(
+      evolveOne,
+      state,
+    )
+    const later = T0 + minutes(5)
+    const [lost] = eventsOf(
+      decide(
+        state,
+        {
+          type: 'WithdrawUnits',
+          transferId: 'r:dead',
+          units: { archer: 5, hoplite: 2 },
+          casualties: true,
+        },
+        later,
+      ),
+    )
+    expect(lost).toEqual({
+      type: 'UnitsLost',
+      data: { transferId: 'r:dead', units: { archer: 2 }, at: later },
+    })
+    expect(toView(evolve(state, lost), later).army).toEqual({})
+  })
+})
+
+/**
+ * Time the last unit of an order is trained.
+ *
+ * @param training - Order.
+ * @returns The time in milliseconds.
+ */
+const trainingEndOf = (training: { startsAt: number; count: number; each: number }) =>
+  training.startsAt + training.count * training.each
