@@ -78,6 +78,49 @@ function canAfford(stock: Stock, cost: Partial<Stock> | null) {
   return !!cost && Object.entries(cost).every(([r, n]) => stock[r as keyof Stock] >= (n ?? 0))
 }
 
+/** Name of each resource in a sentence. */
+const RESOURCE_WORDS: Record<keyof Stock, string> = { wood: 'bois', stone: 'pierre', gold: 'or' }
+
+/**
+ * Resources a stock lacks to cover a cost.
+ *
+ * @param stock - Available stock.
+ * @param cost - Cost to cover.
+ * @returns The missing amount of each resource short, empty when the stock is enough.
+ */
+function shortfall(stock: Stock, cost: Partial<Stock>): Partial<Stock> {
+  const missing: Partial<Stock> = {}
+  for (const [resource, amount] of Object.entries(cost) as Array<[keyof Stock, number]>) {
+    const lack = Math.ceil(amount - stock[resource])
+    if (lack > 0) missing[resource] = lack
+  }
+  return missing
+}
+
+/**
+ * Tells the player why they cannot pay a cost yet, and when they can: the missing
+ * resources, then the time the production of the village takes to gather them.
+ *
+ * @param stock - Available stock.
+ * @param cost - Cost to cover.
+ * @param rates - Production of each resource per minute.
+ * @returns The sentence, or null when the stock covers the cost.
+ */
+function lackText(stock: Stock, cost: Partial<Stock>, rates: Stock): string | null {
+  const missing = Object.entries(shortfall(stock, cost)) as Array<[keyof Stock, number]>
+  if (missing.length === 0) return null
+  const words = missing.map(([resource, amount]) => `${amount} ${RESOURCE_WORDS[resource]}`)
+  const list =
+    words.length > 1 ? `${words.slice(0, -1).join(', ')} et ${words[words.length - 1]}` : words[0]
+  const idle = missing.find(([resource]) => rates[resource] <= 0)
+  if (idle) {
+    const source = idle[0] === 'gold' ? 'construisez la mine' : 'votre production est à l’arrêt'
+    return `Il manque ${list} : ${source}.`
+  }
+  const wait = Math.max(...missing.map(([resource, amount]) => amount / rates[resource]))
+  return `Il manque ${list} : disponible dans ${duration(wait * 60_000)}.`
+}
+
 /** What each building does, told on its card. */
 const STORIES: Record<Building, string> = {
   senate: 'Le conseil des anciens organise les chantiers : plus il grandit, plus on bâtit vite.',
@@ -490,6 +533,14 @@ function BuildingCard({
   const blocked = Object.keys(missing).length > 0
   const full = view.queue.length >= view.queueSlots
   const tooBig = !!cost && Object.values(cost).some((amount) => (amount ?? 0) > view.capacity)
+  const lack = cost && !blocked && !tooBig ? lackText(stock, cost, view.ratesPerMinute) : null
+  const reason = blocked
+    ? `Nécessite : ${requirementText(missing)}.`
+    : tooBig
+      ? 'Agrandissez l’entrepôt.'
+      : full
+        ? 'La file est pleine : attendez la fin d’un chantier.'
+        : lack
   return (
     <article className="building-card" aria-live="polite">
       <header>
@@ -533,7 +584,7 @@ function BuildingCard({
         <div className="building-cost">
           <span className="amounts">
             {Object.entries(cost).map(([r, n]) => (
-              <span key={r}>
+              <span key={r} data-short={stock[r as keyof Stock] < (n ?? 0)}>
                 <Entity kind={r} /> {n}
               </span>
             ))}
@@ -548,10 +599,16 @@ function BuildingCard({
             className="primary"
             data-guide={`upgrade-${building}`}
             disabled={!affordable || blocked || full}
+            title={reason ?? undefined}
             onClick={() => onUpgrade(building)}
           >
             {full ? 'File pleine' : planned === 0 ? 'Construire' : 'Améliorer'}
           </button>
+          {lack && (
+            <p className="lack" role="status">
+              <Entity kind="warning" plain /> {lack}
+            </p>
+          )}
         </div>
       ) : (
         <p className="level">Ce bâtiment a atteint son niveau maximum.</p>
@@ -623,6 +680,15 @@ function Constructions({
                 type="button"
                 className="primary"
                 aria-label={`Améliorer : ${look(building).label}`}
+                title={
+                  !cost
+                    ? 'Niveau maximum atteint.'
+                    : blocked
+                      ? `Nécessite : ${requirementText(view.requirements[building])}.`
+                      : full
+                        ? 'La file est pleine : attendez la fin d’un chantier.'
+                        : (lackText(stock, cost, view.ratesPerMinute) ?? undefined)
+                }
                 disabled={!cost || blocked || full || !canAfford(stock, cost)}
                 onClick={() => onUpgrade(building)}
               >
@@ -766,6 +832,16 @@ function Recruitment({
           const locked = view.levels[building] < UNIT_LEVELS[unit]
           const max = most(unit)
           const count = Math.min(counts[unit] ?? 1, Math.max(1, max))
+          const fed = free >= UNIT_POPULATION[unit]
+          const why = locked
+            ? null
+            : full
+              ? null
+              : !fed
+                ? 'La ferme est pleine : agrandissez-la pour nourrir plus d’unités.'
+                : max < 1
+                  ? lackText(stock, UNIT_COSTS[unit], view.ratesPerMinute)
+                  : null
           return (
             <li key={unit} data-locked={locked}>
               <span className="unit-badge">
@@ -793,6 +869,11 @@ function Recruitment({
                     <Entity kind="time" /> {duration(view.trainingTimes[unit])}
                   </span>
                 </span>
+                {why && (
+                  <span className="lack" role="status">
+                    <Entity kind="warning" plain /> {why}
+                  </span>
+                )}
               </span>
               {locked ? (
                 <span className="muted unit-lock">
@@ -827,6 +908,7 @@ function Recruitment({
                     className="primary"
                     data-guide={`recruit-${unit}`}
                     disabled={full || max < 1 || count > max}
+                    title={why ?? (full ? 'La file est pleine.' : undefined)}
                     onClick={() => onRecruit(unit, count)}
                   >
                     {building === 'barracks' ? 'Former' : 'Construire'}
