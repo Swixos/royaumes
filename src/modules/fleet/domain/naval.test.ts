@@ -21,7 +21,7 @@ import {
 import { captainPosture, counterOf } from './pirates'
 
 describe('Flotte - règles navales', () => {
-  it("règle 4 : l'équipement coûte 15 bois et 5 pierre par trirème", () => {
+  it("trirèmes (avant l'ADR 0023) : l'équipement coûte 15 bois et 5 pierre par trirème", () => {
     expect(equipmentCost(1)).toEqual({ wood: 15, stone: 5 })
     expect(equipmentCost(4)).toEqual({ wood: 60, stone: 20 })
   })
@@ -68,7 +68,7 @@ describe('Flotte - règles navales', () => {
     expect(islandOf('atlantide')).toBeUndefined()
   })
 
-  it("règle 7 : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage", () => {
+  it("trirèmes (avant l'ADR 0023) : l'abordage bat l'éperonnage, l'éperonnage bat le blocus, le blocus bat l'abordage", () => {
     expect(tacticMultiplier('board', 'ram')).toBe(1.5)
     expect(tacticMultiplier('ram', 'blockade')).toBe(1.5)
     expect(tacticMultiplier('blockade', 'board')).toBe(1.5)
@@ -78,14 +78,14 @@ describe('Flotte - règles navales', () => {
     expect(fight(3, 'ram', 'board', 0).attack).toBe(15)
   })
 
-  it("règle 8 : la défense vaut 20 plus 12 par niveau de rempart, et l'attaque doit la dépasser strictement", () => {
+  it("trirèmes (avant l'ADR 0023) : la défense vaut 20 plus 12 par niveau de rempart, et l'attaque doit la dépasser strictement", () => {
     expect(villageDefense(0)).toBe(20)
     expect(villageDefense(4)).toBe(68)
     expect(fight(4, 'board', 'board', 40).victory).toBe(false)
     expect(fight(5, 'board', 'board', 40).victory).toBe(true)
   })
 
-  it('règle 9 : les cales emportent au plus 10 bois, 5 pierre et 2 or par trirème', () => {
+  it("trirèmes (avant l'ADR 0023) : les cales emportent au plus 10 bois, 5 pierre et 2 or par trirème", () => {
     expect(holdOf(3)).toEqual({ wood: 30, stone: 15, gold: 6 })
     expect(reducedLoot({ wood: 30, stone: 15, gold: 6 }, { stone: 15, gold: 2 })).toEqual({
       wood: 30,
@@ -108,12 +108,12 @@ describe('Flotte - règles navales', () => {
 })
 
 describe('Flotte - IA des capitaines pirates', () => {
-  it("règle 11 : joue l'abordage sans historique ou à égalité", () => {
+  it("trirèmes (avant l'ADR 0023) : le capitaine joue l'abordage sans historique ou à égalité", () => {
     expect(captainPosture([])).toBe('board')
     expect(captainPosture(['ram', 'blockade'])).toBe('board')
   })
 
-  it("règle 11 : contre la tactique que l'attaquant a le plus employée", () => {
+  it("trirèmes (avant l'ADR 0023) : le capitaine contre la tactique que l'attaquant a le plus employée", () => {
     expect(counterOf('ram')).toBe('board')
     expect(counterOf('board')).toBe('blockade')
     expect(counterOf('blockade')).toBe('ram')
@@ -122,7 +122,7 @@ describe('Flotte - IA des capitaines pirates', () => {
     expect(captainPosture(['blockade'])).toBe('ram')
   })
 
-  it('règle 11 : donne toujours la même posture pour le même historique', () => {
+  it("trirèmes (avant l'ADR 0023) : le capitaine donne toujours la même posture pour le même historique", () => {
     const history = ['ram', 'board', 'board', 'blockade', 'board'] as const
     expect(captainPosture(history)).toBe(captainPosture([...history]))
   })

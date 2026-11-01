@@ -396,7 +396,7 @@ describe("Flotte - vue d'un raid", () => {
 })
 
 describe('Flotte - port', () => {
-  it('règle 10 : enregistre la posture choisie, sans événement si elle ne change pas', () => {
+  it("trirèmes (avant l'ADR 0023) : enregistre la posture choisie, sans événement si elle ne change pas", () => {
     const events = decideHarbor(initialHarbor, { type: 'ChoosePosture', posture: 'ram' }, T0)
     expect(events).toEqual([{ type: 'PostureChosen', data: { posture: 'ram', at: T0 } }])
     const harbor = replayHarbor(events)
